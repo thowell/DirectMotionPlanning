@@ -71,11 +71,11 @@ end
 p = 1
 n = p + 1
 
-c = (100.0 + 1.0e-8) * ones(n)
+c = (1.0 + 0.0e-8) * ones(n)
 G1 = Diagonal(ones(n))
 h = zeros(n)
 q = zeros(n)
-y = (0.0 + 1.0e-8)
+y = (1.0 + 0.0e-8)
 
 A = [-G1; -q']
 b = [h; y]
@@ -83,7 +83,7 @@ m = size(A, 1)
 
 "Convex.jl"
 x = Variable(n)
-prob = minimize(c' * x)
+prob = minimize(c' * x + quadform(x, 1.0e-5 * Diagonal(ones(n))))
 prob.constraints += norm(G1 * x + h) <= q' * x + y
 
 @time solve!(prob, ECOS.Optimizer)
