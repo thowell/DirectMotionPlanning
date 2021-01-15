@@ -68,30 +68,30 @@ function Jκ_soc(z)
 end
 
 # problem setup
-p = 1
+p = 10
 n = p + 1
 Σ = Diagonal(rand(p))
 Σ_sqrt = sqrt(Σ)
 norm(Σ_sqrt * Σ_sqrt - Σ)
 
-c = zeros(n)
-G1 = Diagonal(ones(n))
-h = zeros(n)
-q = zeros(n)
-z = 0.0
-# G2 = [ones(p)' 0.0]
-# G3 = [-ones(p)' 0.0]
+c = [zeros(p); 1.0]
+G1 = [2.0 * Σ_sqrt zeros(p); zeros(1, p) -1.0]
+h = [zeros(p); 1.0]
+q = [zeros(p); 1.0]
+z = 1.0
+G2 = [ones(p)' 0.0]
+G3 = [-ones(p)' 0.0]
 
-A = [-G1; -q']#; G2; G3]
-b = [h; z]#; 1.0; -1.0]
+A = [-G1; -q'; G2; G3]
+b = [h; z; 1.0; -1.0]
 m = size(A, 1)
 
 "Convex.jl"
 x = Variable(n)
 prob = minimize(c' * x)
 prob.constraints += norm(G1 * x + h) <= q' * x + z
-# prob.constraints += G2 * x <= 1.0
-# prob.constraints += G3 * x <= -1.0
+prob.constraints += G2 * x <= 1.0
+prob.constraints += G3 * x <= -1.0
 
 @time solve!(prob, ECOS.Optimizer)
 
@@ -104,7 +104,7 @@ prob.constraints += norm(G1 * x + h) <= q' * x + z
 # b = [zeros(n); h; -h]
 # m = 2 *_m  + p
 k = n + m + 1
-
+n + 2
 Q = Array([zeros(n, n) A' c;
            -A zeros(m, m) b;
            -c' -b'      0.0])
@@ -113,8 +113,8 @@ function Pc(z)
     z_proj = zero(z)
     z_proj[1:n] = z[1:n]
     z_proj[n .+ (1:p+2)] = κ_soc(z[n .+ (1:p+2)])
-    # z_proj[n + p + 2 + 1] = κ_no(z[n + p + 2 + 1])
-    # z_proj[n + p + 2 + 2] = κ_no(z[n + p + 2 + 2])
+    z_proj[n + p + 2 + 1] = κ_no(z[n + p + 2 + 1])
+    z_proj[n + p + 2 + 2] = κ_no(z[n + p + 2 + 2])
     z_proj[n + m + 1] = max(0.0, z[n + m + 1])
 
     return z_proj
@@ -137,8 +137,8 @@ function Ju(z)
 
     JP = zeros(m, m)
     JP[1:p+2, 1:p+2] = Jκ_soc(ũ[n .+ (1:m)][1:p+2] - v[n .+ (1:m)][1:p+2])
-    # JP[p+2 .+ (1:1), p+2 .+ (1:1)] = Jκ_no(ũ[n .+ (1:m)][p+2 .+ (1:1)] - v[n .+ (1:m)][p+2 .+ (1:1)])
-    # JP[p+2 + 1 .+ (1:1), p+2 + 1 .+ (1:1)] = Jκ_no(ũ[p+2 .+ (1:m)][p+2 + 1 .+ (1:1)] - v[p+2 .+ (1:m)][p+2 + 1 .+ (1:1)])
+    JP[p+2 .+ (1:1), p+2 .+ (1:1)] = Jκ_no(ũ[n .+ (1:m)][p+2 .+ (1:1)] - v[n .+ (1:m)][p+2 .+ (1:1)])
+    JP[p+2 + 1 .+ (1:1), p+2 + 1 .+ (1:1)] = Jκ_no(ũ[p+2 .+ (1:m)][p+2 + 1 .+ (1:1)] - v[p+2 .+ (1:m)][p+2 + 1 .+ (1:1)])
 
     if z[k] - z[3k] >= 0.0
         ℓ = 1.0
@@ -205,7 +205,7 @@ function solve()
                 κ = z[3k]
                 println("τ = $τ")
                 println("κ = $κ")
-                return x ./ τ
+                return x ./ τ, z
             end
         end
 
@@ -225,9 +225,10 @@ function solve()
     κ = z[3k]
     println("τ = $τ")
     println("κ = $κ")
-    return x ./ τ
+    return x ./ τ, z
 end
 
-x_sol = solve()
+x_sol, z_sol = solve()
 norm(x_sol - x.value)
-x_sol
+
+y_sol = z_sol[1:k] - z_sol[2k .+ (1:k)]

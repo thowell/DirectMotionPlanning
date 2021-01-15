@@ -57,22 +57,19 @@ function Pc(z)
 end
 
 function F(z)
-    ũ = z[1:k]
-    u = z[k .+ (1:k)]
-    v = z[2 * k .+ (1:k)]
+    u = z[1:k]
+    v = z[k .+ (1:k)]
 
-    [(I + Q) * ũ - (u + v);
-     u - Pc(ũ - v);
-     ũ - u]
+    [Q * u - v;
+     u - Pc(u - v)]
 end
 
 function Ju(z)
-    ũ = z[1:k]
-    u = z[k .+ (1:k)]
-    v = z[2k .+ (1:k)]
+    u = z[1:k]
+    v = z[k .+ (1:k)]
 
     JP = zeros(m, m)
-    dif = ũ[p .+ (1:m)] - v[p .+ (1:m)]
+    dif = u[p .+ (1:m)] - v[p .+ (1:m)]
     for i = 1:m
         if dif[i] >= 0.0
             JP[i, i] = 1.0
@@ -81,32 +78,30 @@ function Ju(z)
         end
     end
 
-    if z[k] - z[3k] >= 0.0
+    if z[k] - z[2k] >= 0.0
         ℓ = 1.0
     else
         ℓ = 0.0
     end
 
-    [-I zeros(p, m) zeros(p) I zeros(p, m) zeros(p) I zeros(p, m) zeros(p);
-     zeros(m, p) -JP zeros(m) zeros(m, p) I zeros(m) zeros(m, p) JP zeros(m);
-     [zeros(1, p) zeros(1, m) -ℓ zeros(1, p) zeros(1, m) 1.0 zeros(1, p) zeros(1, m) ℓ]]
+    [zeros(p, p) zeros(p, m) zeros(p) I zeros(p, m) zeros(p);
+     zeros(m, p) I-JP zeros(m) zeros(m, p) JP zeros(m);
+     [zeros(1, p) zeros(1, m) 1.0-ℓ zeros(1, p) zeros(1, m) ℓ]]
 end
 
 function J(z)
-    [(I + Q) -I -I
-     Ju(z);
-     I -I zeros(k, k)]
+    [Q -I;
+     Ju(z)]
 end
 
-ũ = zeros(k)
 u = zeros(k)
 v = zeros(k)
-ũ[end] = 1.0
+
 u[end] = 1.0
 v[end] = 1.0
 
-z = [ũ; u; v]
-z = rand(3k)
+z = [u; v]
+z = rand(2k)
 F(z)
 rank(Ju(z))
 J(z)
@@ -121,14 +116,12 @@ gmres(J(z), -F(z))
 # gmres!(Δ, J(z), -1.0 * F(z), abstol = 1.0)
 
 function solve()
-    ũ = zeros(k)
     u = zeros(k)
     v = zeros(k)
-    ũ[end] = 1.0
     u[end] = 1.0
     v[end] = 1.0
 
-    z = [ũ; u; v]
+    z = [u; v]
     # z = rand(3k)
     # Δ = zero(z)
 
@@ -148,10 +141,10 @@ function solve()
             if iter > 100
                 @error "line search fail"
                 # return z
-                x = z[k .+ (1:p)]
-                y = z[k + p .+ (1:m)]
-                τ = z[k + k]
-                κ = z[3k]
+                x = z[(1:p)]
+                y = z[p .+ (1:m)]
+                τ = z[k]
+                κ = z[2k]
                 println("τ = $τ")
                 println("κ = $κ")
                 return x ./ τ
@@ -168,10 +161,10 @@ function solve()
     end
 
     # return z
-    x = z[k .+ (1:p)]
-    y = z[k + p .+ (1:m)]
-    τ = z[k + k]
-    κ = z[3k]
+    x = z[(1:p)]
+    y = z[p .+ (1:m)]
+    τ = z[k]
+    κ = z[2k]
     println("τ = $τ")
     println("κ = $κ")
     return x ./ τ
@@ -179,6 +172,6 @@ end
 
 x_sol = solve()
 
-
+x_sol
 b - A * x_sol
 norm(x_sol - x.value)

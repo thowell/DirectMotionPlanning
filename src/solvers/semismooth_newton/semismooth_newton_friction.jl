@@ -68,59 +68,88 @@ function Jκ_soc(z)
 end
 
 # problem setup
-p = 10
+p = 1
 n = p + 1
-Σ = Diagonal(rand(p))
-Σ_sqrt = sqrt(Σ)
-norm(Σ_sqrt * Σ_sqrt - Σ)
 
-c = [zeros(p); 1.0]
-G1 = [2.0 * Σ_sqrt zeros(p); zeros(1, p) -1.0]
-h = [zeros(p); 1.0]
-q = [zeros(p); 1.0]
-z = 1.0
-G2 = [ones(p)' 0.0]
-G3 = [-ones(p)' 0.0]
+c = (100.0 + 1.0e-8) * ones(n)
+G1 = Diagonal(ones(n))
+h = zeros(n)
+q = zeros(n)
+y = (0.0 + 1.0e-8)
 
-A = [-G1; -q'; G2; G3]
-b = [h; z; 1.0; -1.0]
+A = [-G1; -q']
+b = [h; y]
 m = size(A, 1)
 
 "Convex.jl"
 x = Variable(n)
 prob = minimize(c' * x)
-prob.constraints += norm(G1 * x + h) <= q' * x + z
-prob.constraints += G2 * x <= 1.0
-prob.constraints += G3 * x <= -1.0
+prob.constraints += norm(G1 * x + h) <= q' * x + y
 
 @time solve!(prob, ECOS.Optimizer)
 
 @show prob.status
 @show prob.constraints
 @show x.value
-# @show prob.constraints[1].dual
-# @show prob.constraints[2].dual
-# A = [-1.0 * Diagonal(ones(n)); G; -G]
-# b = [zeros(n); h; -h]
-# m = 2 *_m  + p
 k = n + m + 1
-n + 2
-Q = Array([zeros(n, n) A' c;
+
+Q = Array([Diagonal(zeros(n)) A' c;
            -A zeros(m, m) b;
            -c' -b'      0.0])
+
+r = m * n + m + n
 
 function Pc(z)
     z_proj = zero(z)
     z_proj[1:n] = z[1:n]
     z_proj[n .+ (1:p+2)] = κ_soc(z[n .+ (1:p+2)])
-    z_proj[n + p + 2 + 1] = κ_no(z[n + p + 2 + 1])
-    z_proj[n + p + 2 + 2] = κ_no(z[n + p + 2 + 2])
+    # z_proj[n + p + 2 + 1] = κ_no(z[n + p + 2 + 1])
+    # z_proj[n + p + 2 + 2] = κ_no(z[n + p + 2 + 2])
+    z_proj[n + m + 1] = max(0.0, z[n + m + 1])
+
+    return z_proj
+end
+
+function Jc(z)
+    J_proj = zeros(k, k)
+    J_proj[1:n, 1:n] = Diagonal(ones(n))
+    J_proj[n .+ (1:p+2), n .+ (1:p+2)] = Jκ_soc(z[n .+ (1:p+2)])
+    # z_proj[n + p + 2 + 1] = κ_no(z[n + p + 2 + 1])
+    # z_proj[n + p + 2 + 2] = κ_no(z[n + p + 2 + 2])
+    J_proj[n + m + 1, n + m + 1] = z[n + m + 1] >= 0.0 ? 1.0 : 0.0
+
+    return J_proj
+end
+function Pc_star(z)
+    z_proj = zero(z)
+    # z_proj[1:n] = z[1:n]
+    z_proj[n .+ (1:p+2)] = κ_soc(z[n .+ (1:p+2)])
+    # z_proj[n + p + 2 + 1] = κ_no(z[n + p + 2 + 1])
+    # z_proj[n + p + 2 + 2] = κ_no(z[n + p + 2 + 2])
     z_proj[n + m + 1] = max(0.0, z[n + m + 1])
 
     return z_proj
 end
 
 function F(z)
+    ũ = z[1:k]
+    u = z[k .+ (1:k)]
+    v = z[2 * k .+ (1:k)]
+
+    [(I + Q) * ũ - (u + v);
+     u - Pc(ũ - v);
+     ũ - u]
+end
+
+function Fθ(z, θ)
+    A = reshape(θ[1:m * n], m, n)
+    b = θ[m * n .+ (1:m)]
+    c = θ[m * n + m .+ (1:n)]
+
+    Q = Array([zeros(eltype(θ), n, n) A' c;
+               -A zeros(eltype(θ), m, m) b;
+               -c' -b'      0.0])
+
     ũ = z[1:k]
     u = z[k .+ (1:k)]
     v = z[2 * k .+ (1:k)]
@@ -137,8 +166,8 @@ function Ju(z)
 
     JP = zeros(m, m)
     JP[1:p+2, 1:p+2] = Jκ_soc(ũ[n .+ (1:m)][1:p+2] - v[n .+ (1:m)][1:p+2])
-    JP[p+2 .+ (1:1), p+2 .+ (1:1)] = Jκ_no(ũ[n .+ (1:m)][p+2 .+ (1:1)] - v[n .+ (1:m)][p+2 .+ (1:1)])
-    JP[p+2 + 1 .+ (1:1), p+2 + 1 .+ (1:1)] = Jκ_no(ũ[p+2 .+ (1:m)][p+2 + 1 .+ (1:1)] - v[p+2 .+ (1:m)][p+2 + 1 .+ (1:1)])
+    # JP[p+2 .+ (1:1), p+2 .+ (1:1)] = Jκ_no(ũ[n .+ (1:m)][p+2 .+ (1:1)] - v[n .+ (1:m)][p+2 .+ (1:1)])
+    # JP[p+2 + 1 .+ (1:1), p+2 + 1 .+ (1:1)] = Jκ_no(ũ[p+2 .+ (1:m)][p+2 + 1 .+ (1:1)] - v[p+2 .+ (1:m)][p+2 + 1 .+ (1:1)])
 
     if z[k] - z[3k] >= 0.0
         ℓ = 1.0
@@ -205,7 +234,7 @@ function solve()
                 κ = z[3k]
                 println("τ = $τ")
                 println("κ = $κ")
-                return x ./ τ
+                return x ./ τ, z_sol
             end
         end
 
@@ -225,8 +254,84 @@ function solve()
     κ = z[3k]
     println("τ = $τ")
     println("κ = $κ")
-    return x ./ τ
+    return x ./ τ, z
 end
 
-x_sol = solve()
-norm(x_sol - x.value)
+x_sol, z_sol = solve()
+@show norm(x_sol - x.value)
+# x_sol
+# x.value
+# F(z_sol)
+# J(z_sol)
+
+θ = [vec(A); b; c]
+
+u_sol = z_sol[k .+ (1:k)]
+v_sol = z_sol[2k .+ (1:k)]
+
+function F_sol(z, θ)
+    A = reshape(θ[1:m * n], m, n)
+    b = θ[m * n .+ (1:m)]
+    c = θ[m * n + m .+ (1:n)]
+
+    Q = Array([zeros(eltype(θ), n, n) A' c;
+               -A zeros(eltype(θ), m, m) b;
+               -c' -b'      0.0])
+
+   u = z[1:k]
+   v = z[k .+ (1:k)]
+
+   [Q * u - v;
+    u - Pc(u - v)]
+end
+
+w_sol = [u_sol; v_sol]
+
+F_sol(w_sol, θ)
+_Fz(y) = F_sol(y, θ)
+_Fθ(y) = F_sol(w_sol, y)
+
+Jz = ForwardDiff.jacobian(_Fz, w_sol)
+Jθ = ForwardDiff.jacobian(_Fθ, θ)
+rank(Jz)
+# (Jz \ Jθ)[1:n, m * n + (m-1) .+ (1:1+n)]
+
+((Jz' * Jz + 1.0e-5 * I) \ (Jz' * Jθ))[1:n, m * n + (m-1) .+ (1:1+n)]
+
+norm(z_sol[1:k] - Pc(z_sol[(1:k)]))
+norm(Q * z_sol[1:k] - z_sol[2k .+ (1:k)])
+norm(z_sol[2k .+ (1:k)] - Pc_star(z_sol[2k .+ (1:k)]))
+
+θ
+Rmap(a, Q) = (Q - I) * Pc(a) + a
+function _Rmap(a, θ)
+    A = reshape(θ[1:m * n], m, n)
+    b = θ[m * n .+ (1:m)]
+    c = θ[m * n + m .+ (1:n)]
+
+    Q = Array([zeros(eltype(θ), n, n) A' c;
+               -A zeros(eltype(θ), m, m) b;
+               -c' -b'      0.0])
+
+    Rmap(a, Q)
+end
+function Rzmap(a, Q)
+    (Q - I) * Jc(a) + I
+end
+function _Rzmap(a, θ)
+    A = reshape(θ[1:m * n], m, n)
+    b = θ[m * n .+ (1:m)]
+    c = θ[m * n + m .+ (1:n)]
+
+    Q = Array([zeros(eltype(θ), n, n) A' c;
+               -A zeros(eltype(θ), m, m) b;
+               -c' -b'      0.0])
+
+    Rzmap(a, Q)
+end
+y_sol = z_sol[1:k] - z_sol[2k .+ (1:k)]
+_Rmap(y_sol, θ)
+tmp(w) = _Rmap(y_sol, w)
+_Rzmap(y_sol, θ)
+
+((_Rzmap(y_sol, θ)' * _Rzmap(y_sol, θ) + 1.0e-5 * I) \ (_Rzmap(y_sol, θ)' * ForwardDiff.jacobian(tmp, θ)))[1:n, m * n + (m-1) .+ (1:1+n)]
