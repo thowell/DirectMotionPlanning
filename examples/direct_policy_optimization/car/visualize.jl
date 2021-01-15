@@ -22,62 +22,76 @@ plt = plot!(Shape(cx2, cy2), color = :black, label = "", linecolor = :black)
 plt = plot!(Shape(cx3, cy3), color = :black, label = "", linecolor = :black)
 plt = plot!(Shape(cx4, cy4), color = :black, label = "", linecolor = :black)
 plt = plot!(Px, Py, aspect_ratio = :equal, xlabel = "x", ylabel = "y",
-    width = 4.0, label = "TO", color = goldenrod_color, legend = :topleft)
+    width = 4.0, label = "TO", color = :cyan, legend = :topleft)
 
 # DPO
+prob_dpo.prob.idx.sample[1]
 x, u = unpack(z, prob_dpo.prob.prob.nom)
+
 
 # Position trajectory
 Px_dpo = [x[t][1] for t = 1:T]
 Py_dpo = [x[t][2] for t = 1:T]
-plt = plot!(Px_dpo, Py_dpo, width = 4.0, label = "DPO", color = red_color)
+plt = plot!(Px_dpo, Py_dpo, width = 4.0, label = "DPO", color = :orange)
 
-# PGFPlots for paper
-using PGFPlots
-const PGF = PGFPlots
+# Position trajectory (samples)
+x_sample = []
+for i = 1:2 * model.n
+	z_sample = z[prob_dpo.prob.idx.sample[i]]
+	_x_sample, u_sample = unpack(z_sample, prob_dpo.prob.prob.nom)
+	push!(x_sample, _x_sample)
+	Px_sample = [_x_sample[t][1] for t = 1:T]
+	Py_sample = [_x_sample[t][2] for t = 1:T]
+	plt = plot!(Px_sample, Py_sample, width = 2.0, label = "sample", color = :magenta)
+end
+display(plt)
 
-# TO trajectory
-p_nom = PGF.Plots.Linear(hcat(x̄...)[1,:], hcat(x̄...)[2,:],
-    mark = "none",
-	style = "color=cyan, line width=2pt, solid",
-	legendentry = "TO")
-
-# DPO trajectory
-p_dpo = PGF.Plots.Linear(hcat(x...)[1,:], hcat(x...)[2,:],
-    mark = "none",
-	style = "color=orange, line width=2pt, solid",
-	legendentry = "DPO")
-
-# obstacles
-pc1 = PGF.Plots.Circle(circles[1]...,
-	style = "color=black, fill=black")
-pc2 = PGF.Plots.Circle(circles[2]...,
-	style = "color=black, fill=black")
-pc3 = PGF.Plots.Circle(circles[3]...,
-	style = "color=black, fill=black")
-pc4 = PGF.Plots.Circle(circles[4]...,
-	style = "color=black, fill=black")
-
-a = Axis([
-    p_nom;
-    p_dpo;
-	pc1;
-	pc2;
-	pc3;
-	pc4],
-    xmin = -0.4, ymin = -0.1, xmax = 1.4, ymax = 1.1,
-    axisEqualImage = true,
-    hideAxis = true,
-	# ylabel = "y",
-	# xlabel = "x",
-	legendStyle = "{at={(0.01, 0.99)}, anchor = north west}")
-
-# Save to tikz format
-PGF.save(joinpath(@__DIR__, "car_obstacles.tikz"), a, include_preamble = false)
-
+# using PGFPlots
+# const PGF = PGFPlots
+#
+# # TO trajectory
+# p_nom = PGF.Plots.Linear(hcat(x̄...)[1,:], hcat(x̄...)[2,:],
+#     mark = "none",
+# 	style = "color=cyan, line width=2pt, solid",
+# 	legendentry = "TO")
+#
+# # DPO trajectory
+# p_dpo = PGF.Plots.Linear(hcat(x...)[1,:], hcat(x...)[2,:],
+#     mark = "none",
+# 	style = "color=orange, line width=2pt, solid",
+# 	legendentry = "DPO")
+#
+# # obstacles
+# pc1 = PGF.Plots.Circle(circles[1]...,
+# 	style = "color=black, fill=black")
+# pc2 = PGF.Plots.Circle(circles[2]...,
+# 	style = "color=black, fill=black")
+# pc3 = PGF.Plots.Circle(circles[3]...,
+# 	style = "color=black, fill=black")
+# pc4 = PGF.Plots.Circle(circles[4]...,
+# 	style = "color=black, fill=black")
+#
+# a = Axis([
+#     p_nom;
+#     p_dpo;
+# 	pc1;
+# 	pc2;
+# 	pc3;
+# 	pc4],
+#     xmin = -0.4, ymin = -0.1, xmax = 1.4, ymax = 1.1,
+#     axisEqualImage = true,
+#     hideAxis = true,
+# 	# ylabel = "y",
+# 	# xlabel = "x",
+# 	legendStyle = "{at={(0.01, 0.99)}, anchor = north west}")
+#
+# # Save to tikz format
+# PGF.save(joinpath(@__DIR__, "car_obstacles.tikz"), a, include_preamble = false)
 
 # Animation
+include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
+render(vis)
 open(vis)
 default_background!(vis)
 
@@ -90,7 +104,7 @@ q_to = deepcopy(x̄)
 
 # interpolate traj
 T = length(q_to)
-T_sim = 5 * T
+T_sim = 4 * T
 times = [(t - 1) * h for t = 1:T-1]
 tf = h * (T-1)
 t_sim = range(0, stop = tf, length = T_sim)
@@ -126,11 +140,29 @@ for t = 1:T_sim
 		z_cubic[i] = interp_cubic(t_sim[t])
 	end
 	setobject!(vis["traj_dpo$t"], Cylinder(Point3f0(0.0, 0.0, -0.001),
-		Point3f0(0.0, 0.0, 0.0),
+		Point3f0(0.0, 0.0, 0.001),
 		convert(Float32,0.065)),
 		MeshPhongMaterial(color=RGBA(255.0/255.0,127.0/255.0,0.0,1.0)))
 	settransform!(vis["traj_dpo$t"], Translation((z_cubic[1],z_cubic[2],0.0)))
 	setvisible!(vis["traj_dpo$t"],true)
+end
+
+for i = 1:2 * model.n
+	q_dpo = deepcopy(x_sample[i])
+	A_state = hcat(q_dpo...)
+	z_cubic = zero(q_dpo[1])
+	for t = 1:T_sim
+		for i = 1:length(q_dpo[1])
+			interp_cubic = CubicSplineInterpolation(t_ctrl, A_state[i,:])
+			z_cubic[i] = interp_cubic(t_sim[t])
+		end
+		setobject!(vis["traj_sample$t$i"], Cylinder(Point3f0(0.0, 0.0, -0.001),
+			Point3f0(0.0, 0.0, 0.000),
+			convert(Float32,0.065)),
+			MeshPhongMaterial(color=RGBA(255.0/255.0,0.0,255.0,1.0)))
+		settransform!(vis["traj_sample$t$i"], Translation((z_cubic[1],z_cubic[2],0.0)))
+		setvisible!(vis["traj_sample$t$i"],true)
+	end
 end
 
 q = x
@@ -159,3 +191,5 @@ t = T
 setobject!(vis["ct5"],ctm)
 settransform!(vis["ct5"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
 setvisible!(vis["ct5"],true)
+
+open(vis)

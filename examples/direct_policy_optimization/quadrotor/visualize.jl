@@ -191,22 +191,22 @@ using PGFPlots
 const PGF = PGFPlots
 
 # TO trajectory
-p_u1_nom = PGF.Plots.Linear(t_nom[1:end-1],hcat(ū...)[1,:],
+p_u1_nom = PGF.Plots.Linear(t_nominal[1:end],hcat(ū..., ū[end])[1,:],
     mark="none",style="const plot, color=cyan, line width=2pt, solid")
-p_u2_nom = PGF.Plots.Linear(t_nom[1:end-1],hcat(ū...)[2,:],
+p_u2_nom = PGF.Plots.Linear(t_nominal[1:end],hcat(ū..., ū[end])[2,:],
     mark="none",style="const plot, color=cyan, line width=2pt, solid")
-p_u3_nom = PGF.Plots.Linear(t_nom[1:end-1],hcat(ū...)[3,:],
+p_u3_nom = PGF.Plots.Linear(t_nominal[1:end],hcat(ū..., ū[end])[3,:],
     mark="none",style="const plot, color=cyan, line width=2pt, solid")
-p_u4_nom = PGF.Plots.Linear(t_nom[1:end-1],hcat(ū...)[4,:],
+p_u4_nom = PGF.Plots.Linear(t_nominal[1:end],hcat(ū..., ū[end])[4,:],
     mark="none",style="const plot, color=cyan, line width=2pt, solid")
 
-p_u1_dpo = PGF.Plots.Linear(t_dpo[1:end-1],hcat(u...)[1,:],
+p_u1_dpo = PGF.Plots.Linear(t_dpo[1:end],hcat(u..., u[end])[1,:],
     mark="none",style="const plot, color=orange, line width=2pt, solid")
-p_u2_dpo = PGF.Plots.Linear(t_dpo[1:end-1],hcat(u...)[2,:],
+p_u2_dpo = PGF.Plots.Linear(t_dpo[1:end],hcat(u..., u[end])[2,:],
     mark="none",style="const plot, color=orange, line width=2pt, solid")
-p_u3_dpo = PGF.Plots.Linear(t_dpo[1:end-1],hcat(u...)[3,:],
+p_u3_dpo = PGF.Plots.Linear(t_dpo[1:end],hcat(u..., u[end])[3,:],
     mark="none",style="const plot, color=orange, line width=2pt, solid")
-p_u4_dpo = PGF.Plots.Linear(t_dpo[1:end-1],hcat(u...)[4,:],
+p_u4_dpo = PGF.Plots.Linear(t_dpo[1:end],hcat(u..., u[end])[4,:],
     mark="none",style="const plot, color=orange, line width=2pt, solid")
 
 

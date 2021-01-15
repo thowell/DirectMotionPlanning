@@ -75,35 +75,35 @@ end
 
 # Dimensions
 nq = 2 + 5 + 2            # configuration dimension
-nu = 6                    # control dimension
+nu = 7                    # control dimension
 nc = 4                    # number of contact points
 nf = 2                    # number of parameters for friction cone
-nb = nc * nf
-ns = 1
+nb = nc * nf              # number of friction parameters
+ns = 1                    # slack
 
 # World parameters
 μ = 1.0      # coefficient of friction
 g = 9.81     # gravity
 
 # Model parameters
-m_torso = 0.5 + 0.48 * 2.0
-m_thigh = 0.8112
-m_calf = 0.3037
-m_foot = 0.01
+m_torso = 1.0
+m_thigh = 0.01
+m_calf = 0.01
+m_foot = 0.001
 
-J_torso = 0.0029
-J_thigh = 0.00709
-J_calf = 0.00398
+J_torso = 0.1
+J_thigh = 0.001
+J_calf = 0.001
 J_foot = 0.0001
 
-l_torso = 0.15 + 0.15
-l_thigh = 0.2755
-l_calf = 0.308
+l_torso = 0.25
+l_thigh = 0.25
+l_calf = 0.25
 l_foot = 0.1
 
-d_torso = 0.0342
-d_thigh = 0.2176
-d_calf = 0.1445
+d_torso = 0.125
+d_thigh = 0.125
+d_calf = 0.125
 d_foot = 0.05
 
 n = 2 * nq
@@ -117,9 +117,11 @@ idx_ψ = nu + nc + nb .+ (1:nc)
 idx_η = nu + nc + nb + nc .+ (1:nb)
 idx_s = nu + nc + nb + nc + nb .+ (1:ns)
 
+# configuration limits
 qL = -Inf * ones(nq)
 qU = Inf * ones(nq)
 
+# control limits
 uL = -100.0 * ones(nu)
 uU = 100.0 * ones(nu)
 
@@ -434,7 +436,8 @@ function ϕ_func(model::Walker, q)
 end
 
 function B_func(model::Walker, q)
-	@SMatrix [0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
+	@SMatrix [0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0;
+			  0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
 			  0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
 			  0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
 			  0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0;
@@ -537,7 +540,7 @@ function fd(model::Walker{Discrete, FixedTime}, x⁺, x, u, w, h, t)
     [q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{9}(q2⁺) - SVector{9}(q1))
     - M_func(model, q2⁺) * (SVector{9}(q3) - SVector{9}(q2⁺)))
-    + h * (transpose(B_func(model, q3)) * SVector{6}(u_ctrl)
+    + h * (transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
     + transpose(N_func(model, q3)) * SVector{4}(λ)
     + transpose(P_func(model, q3)) * SVector{8}(b))
     - h * C_func(model, q3, (q3 - q2⁺) / h)
@@ -557,7 +560,7 @@ function fd(model::Walker{Discrete, FreeTime}, x⁺, x, u, w, h, t)
     [q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{9}(q2⁺) - SVector{9}(q1))
     - M_func(model, q2⁺) * (SVector{9}(q3) - SVector{9}(q2⁺)))
-    + h * (transpose(B_func(model, q3)) * SVector{6}(u_ctrl)
+    + h * (transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
     + transpose(N_func(model, q3)) * SVector{4}(λ)
     + transpose(P_func(model, q3)) * SVector{8}(b))
     - h * C_func(model, q3, (q3 - q2⁺) / h)
@@ -591,6 +594,8 @@ model = Walker{Discrete, FixedTime}(n, m, d,
 # visualization
 function visualize!(vis, model::Walker, q;
       r = 0.035, Δt = 0.1)
+
+	default_background!(vis)
 
 	torso = Cylinder(Point3f0(0.0, 0.0, 0.0), Point3f0(0.0, 0.0, model.l_torso),
 		convert(Float32, 0.025))
@@ -700,6 +705,9 @@ function visualize!(vis, model::Walker, q;
 			settransform!(vis["torso_top"], Translation(p_torso))
 		end
 	end
+
+	settransform!(vis["/Cameras/default"],
+	    compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(-pi / 2.0))))
 
 	MeshCat.setanimation!(vis, anim)
 end

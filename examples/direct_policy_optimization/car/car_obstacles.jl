@@ -64,7 +64,7 @@ prob = trajectory_optimization_problem(
 
 # Trajectory initialization
 x0 = linear_interpolation(x1, xT, T) # linear interpolation on state
-u0 = random_controls(model, T, 0.001) # random controls
+u0 = [0.001 * ones(model.m) for t = 1:T-1]
 
 # Pack trajectories into vector
 z0 = pack(x0, u0, prob)

@@ -69,7 +69,7 @@ prob_friction = trajectory_optimization_problem(model_friction,
 
 # Trajectory initialization
 x0 = linear_interpolation(x1, xT, T) # linear interpolation on stateF
-u0 = [ones(model_nominal.m) for t = 1:T-1] # random controls
+u0 = [ones(model_nominal.m) for t = 1:T-1]
 
 # Pack trajectories into vector
 z0 = pack(x0, u0, prob_nominal)
