@@ -229,6 +229,6 @@ function solve()
 end
 
 x_sol, z_sol = solve()
-norm(x_sol - x.value)
+@show norm(x_sol - x.value)
 
 y_sol = z_sol[1:k] - z_sol[2k .+ (1:k)]

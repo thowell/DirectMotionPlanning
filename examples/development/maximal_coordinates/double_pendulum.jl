@@ -337,12 +337,13 @@ function simulated_pinned_impact_dynamics()
 
       # initial force guess
       λ1 = [x1[2nq .+ (1:4)]; 0.0]
+      # λ1 = zeros(5)
 
       # trajectories
       q_hist = [q1, q2]
       λ_hist = []
 
-      for t = 1:300
+      for t = 1:1000
             println("t = $t")
 
             ρ = 1.0
@@ -433,7 +434,7 @@ function simulated_pinned_impact_dynamics()
       return q_hist, λ_hist
 end
 
-q_hist, λ_hist = simulated_pinned_impact_dynamics()
+@time q_hist, λ_hist = simulated_pinned_impact_dynamics()
 vis = Visualizer()
 render(vis)
 visualize!(vis, model, q_hist, Δt = h)
