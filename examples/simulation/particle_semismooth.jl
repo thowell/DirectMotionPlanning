@@ -1,5 +1,4 @@
-using LinearAlgebra, ForwardDiff, Distributions, StaticArrays
-using Convex, SCS, ECOS
+using LinearAlgebra, ForwardDiff, StaticArrays
 using IterativeSolvers
 using Plots
 
@@ -379,7 +378,7 @@ function solve(q1, q2, h)
 end
 
 h = 0.01
-v1 = [1.0; 1.0; 1.0]
+v1 = [-3.0; 5.0; 1.0]
 q2 = [1.0; -2.0; 1.0]
 q1 = q2 - h * v1
 
