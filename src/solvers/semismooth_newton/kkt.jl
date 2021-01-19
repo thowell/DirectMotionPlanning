@@ -219,7 +219,7 @@ function r_action(z)
     λ = z[4]
 
     [dynamics(model, q1, q2, q3, [0.0; 0.0; λ], 0.1);
-     q3z - max(0.0, q3z - λ)]
+     q3z - κ_no(q3z - λ)]
 end
 
 function solve()
@@ -259,4 +259,90 @@ end
 
 z_sol = solve()
 
+function r_friction(z)
+    x = z[1:3]
+    μ = z[3 + 1]
+    λ = z[3 + 1 .+ (1:3)]
+
+    [[v; 0.0] - [0.0; 0.0; 1.0] * μ - λ;
+     y - [0.0; 0.0; 1.0]' * x;
+     x - κ_soc(x - λ)]
+end
+
 # impact and friction
+q1 = [1.5; 0.5; 0.1]
+q2 = [10.0; 0.75; 0.075]
+
+function r_impact_friction(z)
+    q3 = z[1:3]
+    q3z = z[3]
+    v = (q3[1:2] - q2[1:2]) ./ 0.1
+    λ = z[4]
+    b = z[5:6]
+    b̄ = z[5:7]
+    μ = z[8]
+    η = z[9:11]
+
+    [dynamics(model, q1, q2, q3, [b; λ], 0.1);
+     q3z - κ_no(q3z - λ);
+
+     [v; 0.0] - [0.0; 0.0; 1.0] * μ - η;
+      λ - [0.0; 0.0; 1.0]' * b̄;
+      b̄ - κ_soc(b̄ - η)]
+end
+
+function R_impact_friction(z)
+    R = ForwardDiff.jacobian(r_impact_friction, z)
+
+    # fix projection
+    b̄ = z[5:7]
+    μ = z[8]
+    η = z[9:11]
+    J = Jκ_soc(b̄ - η)
+
+    R[(end-2):end, 5:11] = [(Diagonal(ones(3)) - J) zeros(3, 1) J]
+
+    return R
+end
+
+function solve()
+    z = 0.001 * rand(11)
+    z[1:3] = copy(q2)
+
+    extra_iters = 0
+
+    for i = 1:25
+        _F = r_impact_friction(z)
+        _J = R_impact_friction(z)
+        Δ = gmres(_J, 1.0 * _F, abstol = 1.0e-12, maxiter = i + extra_iters)
+        # Δ = (_J' * _J + 1.0e-5 * I) \ (_J' * _F)
+        iter = 0
+        α = 1.0
+        while norm(r_impact_friction(z - α * Δ))^2.0 >= (1.0 - 0.001 * α) * norm(_F)^2.0 && α > 1.0e-4
+            α = 0.5 * α
+            # println("   α = $α")
+            iter += 1
+            if iter > 100
+                @error "line search fail"
+
+                return z
+            end
+        end
+
+        if α <= 1.0e-4
+            extra_iters += 1
+        end
+
+        println("iter ($i) - norm: $(norm(r_impact_friction(z)))")
+
+        z .-= α * Δ
+    end
+
+    return z
+end
+
+z_sol = solve()
+
+z_sol[1:3]
+z_sol[4]
+z_sol[5:6]
