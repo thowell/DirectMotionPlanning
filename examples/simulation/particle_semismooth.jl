@@ -10,8 +10,8 @@ end
 function Jκ_no(z)
     p = zero(z)
     for (i, pp) in enumerate(z)
-        println(pp)
-        println(i)
+        # println(pp)
+        # println(i)
         if pp >= 0.0
             p[i] = 1.0
         end
@@ -325,17 +325,23 @@ function solve(q1, q2, h)
         _R = ForwardDiff.jacobian(r, z)
 
         # fix projection
+        ϕ = z[3]
+        λ = z[4]
         b̄ = z[5:7]
         μ = z[8]
         η = z[9:11]
-        J = Jκ_soc(b̄ - η)
 
-        _R[(end-2):end, 5:11] = [(Diagonal(ones(3)) - J) zeros(3, 1) J]
+        J_no = Jκ_no([ϕ - λ])
+        J_soc = Jκ_soc(b̄ - η)
+
+        _R[4, 3] = 1.0 - J_no[1]
+        _R[4, 4] = J_no[1]
+        _R[(end-2):end, 5:11] = [(Diagonal(ones(3)) - J_soc) zeros(3, 1) J_soc]
 
         return _R
     end
 
-    z = 1.0e-6 * rand(11)
+    z = 0.0 * rand(11)
     # z = zeros(11)
     z[1:3] = copy(q2)
 
@@ -377,7 +383,7 @@ function solve(q1, q2, h)
     return z, status
 end
 
-h = 0.01
+h = 0.005
 v1 = [-3.0; 5.0; 1.0]
 q2 = [1.0; -2.0; 1.0]
 q1 = q2 - h * v1
@@ -404,7 +410,7 @@ function simulate(q1, q2, T, h)
     return q, y, b
 end
 
-q_sol, y_sol, b_sol = simulate(q1, q2, 100, h)
+q_sol, y_sol, b_sol = simulate(q1, q2, 500, h)
 # q_sol[end]
 # q_sol[end-1]
 plot(hcat(q_sol...)[3:3, :]', xlabel = "")

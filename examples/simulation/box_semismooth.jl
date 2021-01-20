@@ -11,8 +11,8 @@ end
 function Jκ_no(z)
     p = zero(z)
     for (i, pp) in enumerate(z)
-        println(pp)
-        println(i)
+        # println(pp)
+        # println(i)
         if pp >= 0.0
             p[i] = 1.0
         end
@@ -88,21 +88,25 @@ end
 
 # Kinematics
 r = 0.5
-c1 = @SVector [r, r, r]
+c8 = @SVector [r, r, r]
 c2 = @SVector [r, r, -r]
 c3 = @SVector [r, -r, r]
 c4 = @SVector [r, -r, -r]
 c5 = @SVector [-r, r, r]
 c6 = @SVector [-r, r, -r]
 c7 = @SVector [-r, -r, r]
-c8 = @SVector [-r, -r, -r]
+c1 = @SVector [-r, -r, -r]
 
-# corner_offset = @SVector [c6, c8]
-corner_offset = @SVector [c1, c2, c3, c4, c5, c6, c7, c8]
+
+cr = @SVector [-r, -r, 0.0]
+cl = @SVector [r, r, 0.0]
+
+corner_offset = @SVector [cl, cr]
+# corner_offset = @SVector [c1, c2, c3, c4, c5, c6, c7, c8]
 
 model = Box(1.0, 1.0 / 12.0 * 1.0 * ((2.0 * r)^2 + (2.0 * r)^2),
  			1.0, 9.81,
-            r, 8, corner_offset,
+            r, 2, corner_offset,
             6)
 
 # Methods
@@ -121,16 +125,16 @@ function kinematics(model::Box, q)
 
     R = MRP(rot...)
 
-    SVector{24}([(p + R * model.corner_offset[1])...,
-              (p + R * model.corner_offset[2])...,
-              (p + R * model.corner_offset[3])...,
-              (p + R * model.corner_offset[4])...,
-              (p + R * model.corner_offset[5])...,
-              (p + R * model.corner_offset[6])...,
-              (p + R * model.corner_offset[7])...,
-              (p + R * model.corner_offset[8])...])
-	# SVector{6}([(p + R * model.corner_offset[1])...,
-	# 	(p + R * model.corner_offset[2])...])
+    # SVector{24}([(p + R * model.corner_offset[1])...,
+    #           (p + R * model.corner_offset[2])...,
+    #           (p + R * model.corner_offset[3])...,
+    #           (p + R * model.corner_offset[4])...,
+    #           (p + R * model.corner_offset[5])...,
+    #           (p + R * model.corner_offset[6])...,
+    #           (p + R * model.corner_offset[7])...,
+    #           (p + R * model.corner_offset[8])...])
+	SVector{6}([(p + R * model.corner_offset[1])...,
+		(p + R * model.corner_offset[2])...])
 
 end
 
@@ -145,16 +149,16 @@ function ϕ_func(model::Box, q)
 
     R = MRP(rot...)
 
-    @SVector [(p + R * model.corner_offset[1])[3],
-              (p + R * model.corner_offset[2])[3],
-              (p + R * model.corner_offset[3])[3],
-              (p + R * model.corner_offset[4])[3],
-              (p + R * model.corner_offset[5])[3],
-              (p + R * model.corner_offset[6])[3],
-              (p + R * model.corner_offset[7])[3],
-              (p + R * model.corner_offset[8])[3]]
-	# SVector{2}([(p + R * model.corner_offset[1])[3],
-	# 	(p + R * model.corner_offset[2])[3]])
+    # @SVector [(p + R * model.corner_offset[1])[3],
+    #           (p + R * model.corner_offset[2])[3],
+    #           (p + R * model.corner_offset[3])[3],
+    #           (p + R * model.corner_offset[4])[3],
+    #           (p + R * model.corner_offset[5])[3],
+    #           (p + R * model.corner_offset[6])[3],
+    #           (p + R * model.corner_offset[7])[3],
+    #           (p + R * model.corner_offset[8])[3]]
+	SVector{2}([(p + R * model.corner_offset[1])[3],
+		(p + R * model.corner_offset[2])[3]])
 end
 
 # dynamics
@@ -178,9 +182,9 @@ function r_action(z)
     ϕ = ϕ_func(model, q3)
 	# λ = z[7:8]
 	# f = [0.0; 0.0; λ[1]; 0.0; 0.0; λ[2]]
-    λ = z[7:14]
-	s = z[15:22]
-	f = zeros(eltype(z), 24)
+    λ = z[7:8]
+	s = z[9:10]
+	f = zeros(eltype(z), 6)
 
 	for i = 1:model.n_corners
 		f[i * 3] = λ[i]
@@ -192,7 +196,7 @@ function r_action(z)
 end
 
 function solve()
-    z = zeros(22)
+    z = rand(10)
 	z[1:6] = q2
 
     extra_iters = 0
@@ -229,118 +233,67 @@ end
 
 z_sol = solve()
 ϕ_func(model, z_sol[1:6])
+
 # impact and friction
+function solve(q1, q2, h; init = 0.0, step = :ls)
 
-
-function solve(q1, q2, h; init = 0.0)
-
-    z = init * rand(36)
+    z = init * rand(24)
     z[1:6] = copy(q2)
 
 	function r_if(z)
 		q3 = z[1:6]
 		ϕ = ϕ_func(model, q3)
-		λ = z[7:14]
-		s = z[15:22]
-		b̄ = z[23:28]
-		μ = z[29:30]
-		η = z[31:36]
-
+		λ = z[7:8]
+		s = z[9:10]
+		b̄ = z[11:16]
+		μ = z[17:18]
+		η = z[19:24]
 
 		# velocities
 		v = jacobian(model, q3) * (q3 - q2) ./ h
 
 		# contact forces
-		f = zeros(eltype(z), 24)
-		f[1:2] = b̄[1:2]
-		f[4:5] = b̄[4:5]
+		f = zeros(eltype(z), 6)
+
 		for i = 1:model.n_corners
 			f[i * 3] = λ[i]
-			# f[(i-1) * 3 .+ (1:2)] = b̄[(i-1) * 3 .+ (1:2)]
+			f[(i-1) * 3 .+ (1:2)] = b̄[(i-1) * 3 .+ (1:2)]
 		end
 
 		[dynamics(model, q1, q2, q3, f, h); # 1:6
-		 s - ϕ; # 7:14
-		 s - κ_no(s - λ); # 15:22'
+		 s - ϕ;
+		 s - κ_no(s - λ);
 		 [v[1:2]; -μ[1]] - η[1:3];
-		 λ[1] - b̄[3];                     # 18
-		 b̄[1:3] - κ_soc(b̄[1:3] - η[1:3]); # 19:21
-		 [v[4:5]; -μ[2]] - η[4:6];        # 22:24
-	 	 λ[2] - b̄[6];                     # 25
-	 	 b̄[4:6] - κ_soc(b̄[4:6] - η[4:6]); # 26:28
-		 #
-		 #  [v[7:8]; -μ[3]] - η[7:9];        # 29:31
-		 #  λ[3] - b̄[9]; 					# 32
-		 #  b̄[7:9] - κ_soc(b̄[7:9] - η[7:9]); # 33:35
-		 #
-		 #  [v[10:11]; -μ[4]] - η[10:12];          # 36:38
-		 #  λ[4] - b̄[12];                          # 39
-		 #  b̄[10:12] - κ_soc(b̄[10:12] - η[10:12]); # 40:42
-		 #
-		 #  [v[13:14]; -μ[5]] - η[13:15];          # 43:45
-		 #  λ[5] - b̄[15];                          # 46
-		 #  b̄[13:15] - κ_soc(b̄[13:15] - η[13:15]); # 47:49
-		 #
-		 #  [v[16:17]; -μ[6]] - η[16:18];          # 50:52
-		 #  λ[6] - b̄[18];                          # 53
-		 #  b̄[16:18] - κ_soc(b̄[16:18] - η[16:18]); # 54:56
-		 #
-		 #  [v[19:20]; -μ[7]] - η[19:21];          # 57:59
-		 #  λ[7] - b̄[21];                          # 60
-		 #  b̄[19:21] - κ_soc(b̄[19:21] - η[19:21]); # 61:63
-		 #
-		 #  [v[22:23]; -μ[8]] - η[22:24];          # 64:66
-		 #  λ[8] - b̄[24];                          # 67
-		 #  b̄[22:24] - κ_soc(b̄[22:24] - η[22:24]); # 68:70
-		 #  ]
-		 ]
+		 λ[1] - b̄[3];
+		 b̄[1:3] - κ_soc(b̄[1:3] - η[1:3]);
+		 [v[4:5]; -μ[2]] - η[4:6];
+	 	 λ[2] - b̄[6];
+	 	 b̄[4:6] - κ_soc(b̄[4:6] - η[4:6])]
 	end
 
 	function R_if(z)
 		_R = ForwardDiff.jacobian(r_if, z)
 
-		#fix projection
+		# fix projection
+		I2 = Diagonal(ones(2))
 		I3 = Diagonal(ones(3))
 
-		b̄_idx = (23:28)
-		η_idx = (31:36)
-		b̄ = z[b̄_idx]
-		η = z[η_idx]
-		# #
-		J1 = Jκ_soc(b̄[1:3] - η[1:3])
-		J2 = Jκ_soc(b̄[3 .+ (1:3)] - η[3 .+ (1:3)])
-		# J3 = Jκ_soc(b̄[6 .+ (1:3)] - η[6 .+ (1:3)])
-		# J4 = Jκ_soc(b̄[9 .+ (1:3)] - η[9 .+ (1:3)])
-		# J5 = Jκ_soc(b̄[12 .+ (1:3)] - η[12 .+ (1:3)])
-		# J6 = Jκ_soc(b̄[15 .+ (1:3)] - η[15 .+ (1:3)])
-		# J7 = Jκ_soc(b̄[18 .+ (1:3)] - η[18 .+ (1:3)])
-		# J8 = Jκ_soc(b̄[21 .+ (1:3)] - η[21 .+ (1:3)])
-		#
-		_R[(27:29), 23:25] = I3 - J1
-		_R[(27:29), 31:33] = J1
-		#
-		#
-		_R[(34:36), (26:28)] = I3 - J2
-		_R[(34:36), (34:36)] = J2
-		#
-		# _R[8 .+ (33:35), b̄_idx[6 .+ (1:3)]] = I3 - J3
-		# _R[8 .+ (33:35), η_idx[6 .+ (1:3)]] = J3
-		#
-		#
-		# _R[8 .+ (40:42), b̄_idx[9 .+ (1:3)]] = I3 - J4
-		# _R[8 .+ (40:42), η_idx[9 .+ (1:3)]] = J4
-		#
-		# _R[8 .+ (47:49), b̄_idx[12 .+ (1:3)]] = I3 - J5
-		# _R[8 .+ (47:49), η_idx[12 .+ (1:3)]] = J5
-		#
-		# _R[8 .+ (54:56), b̄_idx[15 .+ (1:3)]] = I3 - J6
-		# _R[8 .+ (54:56), η_idx[15 .+ (1:3)]] = J6
-		#
-		# _R[8 .+ (61:63), b̄_idx[18 .+ (1:3)]] = I3 - J7
-		# _R[8 .+ (61:63), η_idx[18 .+ (1:3)]] = J7
-		#
-		# _R[8 .+ (68:70), b̄_idx[21 .+ (1:3)]] = I3 - J8
-		# _R[8 .+ (68:70), η_idx[21 .+ (1:3)]] = J8
+		λ = z[7:8]
+		s = z[9:10]
+		b̄ = z[11:16]
+		μ = z[17:18]
+		η = z[19:24]
+
+		Jno = Jκ_no(s - λ)
+		Jsoc1 = Jκ_soc(b̄[1:3] - η[1:3])
+		Jsoc2 = Jκ_soc(b̄[4:6] - η[4:6])
+
+		_R[9:10, 9:10] = I2 - Jno
+		_R[9:10, 7:8] = Jno
+		_R[15:17, 11:13] = I3 - Jsoc1
+		_R[15:17, 19:21] = Jsoc1
+		_R[22:24, 14:16] = I3 - Jsoc2
+		_R[22:24, 22:24] = Jsoc2
 
 		return _R
 	end
@@ -349,9 +302,17 @@ function solve(q1, q2, h; init = 0.0)
 
     for i = 1:500
         _F = r_if(z)
+		if norm(_F) < 1.0e-8
+			println("iter ($i) - norm: $(norm(r_if(z)))")
+	        return z, true
+		end
+
         _J = R_if(z)
-        Δ = gmres(_J, 1.0 * _F, abstol = 1.0e-12, maxiter = i + extra_iters)
-        # Δ = (_J' * _J + 1.0e-6 * I) \ (_J' * _F)
+		if step == :ls
+        	Δ = (_J' * _J + 1.0e-6 * I) \ (_J' * _F)
+		else
+			Δ = gmres(_J, 1.0 * _F, abstol = 1.0e-12, maxiter = i + extra_iters)
+		end
         iter = 0
         α = 1.0
         while norm(r_if(z - α * Δ))^2.0 >= (1.0 - 0.001 * α) * norm(_F)^2.0 && α > 1.0e-4
@@ -374,7 +335,7 @@ function solve(q1, q2, h; init = 0.0)
         z .-= α * Δ
     end
 
-    if norm(r_if(z)) < 1.0e-5
+    if norm(r_if(z)) < 1.0e-8
         status = true
     else
         status = false
@@ -383,16 +344,16 @@ function solve(q1, q2, h; init = 0.0)
     return z, status
 end
 
-h = 0.01
-mrp = MRP(UnitQuaternion(RotY(0.0) * RotX(0.0)))
+h = 0.1
+mrp = MRP(UnitQuaternion(RotY(pi / 3.0) * RotX(pi / 6.0)))
 
-v1 = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+v1 = [1.0; -1.0; 0.0; 0.0; 0.0; 0.0]
 q2 = [0.0; 0.0; 1.0; mrp.x; mrp.y; mrp.z]
 q1 = q2 - h * v1
 
 ϕ_func(model, q1)
 z_sol, = solve(q1, q2, h, init = 0.0)
-z_sol[23:25]
+# z_sol[23:25]
 
 function simulate(q1, q2, T, h)
     println("simulation")
@@ -401,11 +362,11 @@ function simulate(q1, q2, T, h)
     b = [zeros(16)]
     for t = 1:T
         println("   t = $t")
-        z_sol, status = solve(q[end-1], q[end], h, init = 0.001)
+        z_sol, status = solve(q[end-1], q[end], h, init = 0.001, step = :ls)
 
         if !status
             @warn "failed step (t = $t)"
-			z_sol, status = solve(q[end-1], q[end], 0.1 * h, init = 0.0)
+			z_sol, status = solve(q[end-1], q[end], h, init = 0.001, step = :gmres)
 
 			if !status
 				@error "failed step (t = $t) [again]"
@@ -424,12 +385,12 @@ function simulate(q1, q2, T, h)
     return q, y, b
 end
 
-q_sol, y_sol, b_sol = simulate(q1, q2, 25, h)
+q_sol, y_sol, b_sol = simulate(q1, q2, 100, h)
 q_sol[end]
 q_sol[end-1]
 plot(hcat(q_sol...)[3:3, :]', xlabel = "")
 plot(h .* hcat(y_sol...)', xlabel = "", linetype = :steppost)
 plot(hcat([ϕ_func(model, q) for q in q_sol]...)', xlabel = "")
 #
-# plot(hcat(q_sol...)[1:2, :]', xlabel = "")
-# plot(h * hcat(b_sol...)', linetype = :steppost)
+plot(hcat(q_sol...)[1:2, :]', xlabel = "")
+plot(h * hcat(b_sol...)', linetype = :steppost)
