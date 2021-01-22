@@ -45,8 +45,8 @@ end
 
 # Dimensions
 nq = 4 # configuration dimension
-nu = 2 # control dimension
-nc = 1 # number of contact points
+nu = 3 # control dimension
+nc = 2 # number of contact points
 nf = 2 # number of faces for friction cone
 nb = nc * nf
 ns = 1
@@ -55,8 +55,8 @@ ns = 1
 g = 9.81 # gravity
 μ = 1.0  # coefficient of friction
 mb = 1.0 # body mass
-mf = 0.1  # leg mass
-Jb = 0.25 # body inertia
+mf = 0.01  # leg mass
+Jb = 0.1 # body inertia
 k0 = 500.0 # 375.0
 r0 = 0.5
 
@@ -72,10 +72,13 @@ idx_η = nu + nc + nb + nc .+ (1:nb)
 idx_s = nu + nc + nb + nc + nb .+ (1:ns)
 
 # Kinematics
-kinematics(::HopperImpedance, q) = [q[1] + q[4] * sin(q[3]), q[2] - q[4] * cos(q[3])]
+kinematics(::HopperImpedance, q) = [q[1], q[2],
+	q[1] + q[4] * sin(q[3]), q[2] - q[4] * cos(q[3])]
 
 function jacobian(::HopperImpedance, q)
-	@SMatrix [1.0 0.0 q[4] * cos(q[3]) sin(q[3]);
+	@SMatrix [1.0 0.0 0.0 0.0;
+	          0.0 1.0 0.0 0.0;
+			  1.0 0.0 q[4] * cos(q[3]) sin(q[3]);
 	          0.0 1.0 q[4] * sin(q[3]) -1.0 * cos(q[3])]
 end
 
@@ -95,7 +98,7 @@ function lagrangian(model::HopperImpedance, q, q̇)
 	L -= model.mf * model.g * kinematics(model, q)[2]
 
 	# spring
-	L -= 0.5 * model.k0 * (q[4] - model.r0)^2.0
+	# L -= 0.5 * model.k0 * (q[4] - model.r0)^2.0 # this is included in the control input
 
 	return L
 end
@@ -128,26 +131,31 @@ function M_func(model::HopperImpedance, q)
 end
 
 function ϕ_func(::HopperImpedance, q)
-    @SVector [q[2] - q[4] * cos(q[3])]
+    @SVector [q[2], q[2] - q[4] * cos(q[3])]
 end
 
 function N_func(::HopperImpedance, q)
-	@SMatrix [0.0 1.0 (q[4] * sin(q[3])) (-1.0 * cos(q[3]))]
+	@SMatrix [0.0 1.0 0.0 0.0;
+	          0.0 1.0 (q[4] * sin(q[3])) (-1.0 * cos(q[3]))]
 end
 
 function _P_func(model, q)
-	@SMatrix [1.0 0.0 (q[4] * cos(q[3])) sin(q[3])]
+	@SMatrix [1.0 0.0 0.0 0.0;
+			  1.0 0.0 (q[4] * cos(q[3])) sin(q[3])]
 end
 
 function P_func(::HopperImpedance, q)
-    @SMatrix [1.0 0.0 (q[4] * cos(q[3])) sin(q[3]);
+    @SMatrix [1.0 0.0 0.0 0.0;
+			   1.0 0.0 (q[4] * cos(q[3])) sin(q[3]);
+			  -1.0 0.0 0.0 0.0;
               -1.0 0.0 (-1.0 * q[4] * cos(q[3])) -1.0 * sin(q[3])]
 end
 
 function B_func(::HopperImpedance, q)
 	# Diagonal(@SVector ones(4))
 	@SMatrix [0.0 0.0 1.0 0.0;
-              -sin(q[3]) cos(q[3]) 0.0 1.0]
+              -sin(q[3]) cos(q[3]) 0.0 1.0;
+			  0.0 0.0 0.0 (q[4] - model.r0)]
  end
 
 function fd(model::HopperImpedance{Discrete, FixedTime}, x⁺, x, u, w, h, t)
@@ -162,9 +170,9 @@ function fd(model::HopperImpedance{Discrete, FixedTime}, x⁺, x, u, w, h, t)
     [q2⁺ - q2⁻;
 	((1.0 / h) * (M_func(model, q1) * (SVector{4}(q2⁺) - SVector{4}(q1))
     - M_func(model, q2⁺) * (SVector{4}(q3) - SVector{4}(q2⁺)))
-    + h * (transpose(B_func(model, q3)) * SVector{2}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{1}(λ)
-    + transpose(P_func(model, q3)) * SVector{2}(b)
+    + h * (transpose(B_func(model, q3)) * SVector{3}(u_ctrl)
+    + transpose(N_func(model, q3)) * SVector{2}(λ)
+    + transpose(P_func(model, q3)) * SVector{4}(b)
 	- C_func(model, q3, (q3 - q2⁺) / h)
     + w))]
 end
@@ -173,7 +181,7 @@ function maximum_dissipation(model::HopperImpedance{Discrete, FixedTime}, x⁺, 
 	q3 = x⁺[model.nq .+ (1:model.nq)]
 	q2 = x⁺[1:model.nq]
 	ψ = u[model.idx_ψ]
-	ψ_stack = ψ[1] * ones(model.nb)
+	ψ_stack = [ψ[1] * ones(model.nf); ψ[2] * ones(model.nf)]
 	η = u[model.idx_η]
 	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
 end
@@ -191,9 +199,9 @@ function fd(model::HopperImpedance{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	[q2⁺ - q2⁻;
 	((1.0 / h) * (M_func(model, q1) * (SVector{4}(q2⁺) - SVector{4}(q1))
 	- M_func(model, q2⁺) * (SVector{4}(q3) - SVector{4}(q2⁺)))
-	+ h * (transpose(B_func(model, q3)) * SVector{2}(u_ctrl)
-	+ transpose(N_func(model, q3)) * SVector{1}(λ)
-	+ transpose(P_func(model, q3)) * SVector{2}(b)
+	+ h * (transpose(B_func(model, q3)) * SVector{3}(u_ctrl)
+	+ transpose(N_func(model, q3)) * SVector{2}(λ)
+	+ transpose(P_func(model, q3)) * SVector{4}(b)
 	- C_func(model, q3, (q3 - q2⁺) / h)
 	+ w))]
 end
@@ -202,7 +210,7 @@ function maximum_dissipation(model::HopperImpedance{Discrete, FreeTime}, x⁺, u
 	q3 = x⁺[model.nq .+ (1:model.nq)]
 	q2 = x⁺[1:model.nq]
 	ψ = u[model.idx_ψ]
-	ψ_stack = ψ[1] * ones(model.nb)
+	ψ_stack = [ψ[1] * ones(model.nf); ψ[2] * ones(model.nf)]
 	η = u[model.idx_η]
 	h = u[end]
 	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
@@ -229,17 +237,17 @@ end
 function friction_cone(model::HopperImpedance, u)
 	λ = u[model.idx_λ]
 	b = u[model.idx_b]
-	return @SVector [model.μ * λ[1] - sum(b)]
+	return @SVector [model.μ * λ[1] - sum(b[1:model.nf]),
+	                 model.μ * λ[2] - sum(b[model.nf .+ (1:model.nf)])]
 end
 
 qL = -Inf * ones(nq)
 qU = Inf * ones(nq)
-qL[2] = 0.0
-qL[4] = 0.0 * r0
-qU[4] = 2.0 * r0
+qL[4] = 0.25 * r0
+qU[4] = 1.25 * r0
 
-uL = -1000.0 * ones(nu)
-uU = [1000.0; 0.0]
+uL = [-100.0; -100.0; 0.0]
+uU = [100.0; 100.0; 1000.0]
 
 model = HopperImpedance{Discrete, FixedTime}(n, m, d,
 			   mb, Jb, mf,
@@ -260,52 +268,64 @@ model = HopperImpedance{Discrete, FixedTime}(n, m, d,
 		       idx_s)
 
 # Visualization
-function visualize!(vis, model::HopperImpedance, q; Δt = 0.1)
-    r_foot = 0.05
-    r_leg = 0.5 * r_foot
+function visualize!(vis, model::HopperImpedance, q;
+		Δt = 0.1, scenario = :vertical)
 
-    setobject!(vis["body"], Sphere(Point3f0(0),
-        convert(Float32, 0.1)),
-        MeshPhongMaterial(color = RGBA(0, 1, 0, 1.0)))
+   r_foot = 0.05
+   r_leg = 0.5 * r_foot
 
-    setobject!(vis["foot"], Sphere(Point3f0(0),
-        convert(Float32, r_foot)),
-        MeshPhongMaterial(color = RGBA(1.0, 165.0 / 255.0, 0, 1.0)))
+	default_background!(vis)
 
-    n_leg = 100
-    for i = 1:n_leg
-        setobject!(vis["leg$i"], Sphere(Point3f0(0),
-            convert(Float32, r_leg)),
-            MeshPhongMaterial(color = RGBA(0, 0, 0, 1.0)))
-    end
+   setobject!(vis["body"], Sphere(Point3f0(0),
+       convert(Float32, 0.1)),
+       MeshPhongMaterial(color = RGBA(0, 1, 0, 1.0)))
 
-    p_leg = [zeros(3) for i = 1:n_leg]
-    anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
+   setobject!(vis["foot"], Sphere(Point3f0(0),
+       convert(Float32, r_foot)),
+       MeshPhongMaterial(color = RGBA(1.0, 165.0 / 255.0, 0, 1.0)))
 
-    for t = 1:length(q)
-        p_body = [q[t][1], 0.0, q[t][2]]
-        p_foot = [kinematics(model, q[t])[1], 0.0, kinematics(model, q[t])[2]]
+   n_leg = 100
+   for i = 1:n_leg
+       setobject!(vis["leg$i"], Sphere(Point3f0(0),
+           convert(Float32, r_leg)),
+           MeshPhongMaterial(color = RGBA(0, 0, 0, 1.0)))
+   end
 
-        q_tmp = Array(copy(q[t]))
-        r_range = range(0, stop = q[t][4], length = n_leg)
-        for i = 1:n_leg
-            q_tmp[4] = r_range[i]
-            p_leg[i] = [kinematics(model, q_tmp)[1], 0.0, kinematics(model, q_tmp)[2]]
-        end
-        q_tmp[4] = q[t][4]
-        p_foot = [kinematics(model, q_tmp)[1], 0.0, kinematics(model, q_tmp)[2]]
+   p_leg = [zeros(3) for i = 1:n_leg]
+   anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
 
-        z_shift = [0.0; 0.0; r_foot]
+   for t = 1:length(q)
+       p_body = [q[t][1], 0.0, q[t][2]]
+       p_foot = [kinematics(model, q[t])[3], 0.0, kinematics(model, q[t])[4]]
 
-        MeshCat.atframe(anim, t) do
-            settransform!(vis["body"], Translation(p_body + z_shift))
-            settransform!(vis["foot"], Translation(p_foot + z_shift))
+       q_tmp = Array(copy(q[t]))
+       r_range = range(0, stop = q[t][4], length = n_leg)
+       for i = 1:n_leg
+           q_tmp[4] = r_range[i]
+           p_leg[i] = [kinematics(model, q_tmp)[3], 0.0, kinematics(model, q_tmp)[4]]
+       end
+       q_tmp[4] = q[t][4]
+       p_foot = [kinematics(model, q_tmp)[3], 0.0, kinematics(model, q_tmp)[4]]
 
-            for i = 1:n_leg
-                settransform!(vis["leg$i"], Translation(p_leg[i] + z_shift))
-            end
-        end
-    end
+       z_shift = [0.0; 0.0; r_foot]
 
-    MeshCat.setanimation!(vis, anim)
+       MeshCat.atframe(anim, t) do
+           settransform!(vis["body"], Translation(p_body + z_shift))
+           settransform!(vis["foot"], Translation(p_foot + z_shift))
+
+           for i = 1:n_leg
+               settransform!(vis["leg$i"], Translation(p_leg[i] + z_shift))
+           end
+       end
+   end
+
+	if scenario == :flip
+		settransform!(vis["/Cameras/default"],
+			compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
+	elseif scenario == :vertical
+		settransform!(vis["/Cameras/default"],
+			compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
+	end
+
+   MeshCat.setanimation!(vis, anim)
 end

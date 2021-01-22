@@ -3,7 +3,7 @@ include_model("hopper")
 model_ft = free_time_model(model)
 
 # Horizon
-T = 101
+T = 51
 
 # Time step
 tf = 1.0
@@ -31,7 +31,10 @@ xl, xu = state_bounds(model_ft, T,
 include_objective("velocity")
 obj_tracking = quadratic_time_tracking_objective(
     [Diagonal(zeros(model_ft.n)) for t = 1:T],
-    [Diagonal([1.0, 1.0, zeros(model_ft.m - model_ft.nu - 1)..., 0.0]) for t = 1:T-1],
+    [Diagonal([1.0, 1.0,
+		ones(model_ft.nc)..., ones(model_ft.nb)...,
+		zeros(model_ft.m - model_ft.nu - model_ft.nc - model_ft.nb - 1)..., 0.0])
+		for t = 1:T-1],
     [zeros(model_ft.n) for t = 1:T],
     [zeros(model_ft.m) for t = 1:T],
     1.0)
@@ -70,8 +73,7 @@ z0 = pack(x0, u0, prob)
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
 
-optimize = true
-if optimize
+if true
 	# include_snopt()
 	@time z̄ , info = solve(prob, copy(z0),
 		nlp = :ipopt,
@@ -92,6 +94,17 @@ if optimize
 else
 	@load joinpath(pwd(), "examples/trajectories/hopper_vertical_gait.jld2") x̄ ū h̄ x_proj u_proj
 end
+
+z_traj = [x[2] for x in x̄]
+k_traj = [u[3] for u in ū]
+λ_traj = [u[model_ft.idx_λ] for u in ū]
+f_traj = [u[2] for u in ū]
+
+plot(hcat(k_traj...)', linetype = :steppost, label = "impedance")
+plot!(h̄[1] * hcat(λ_traj...)', linetype = :steppost, label = ["" "λ1"])
+plot!(h̄[1] * hcat(f_traj...)', linetype = :steppost, label = "force")
+
+plot(hcat(z_traj...)', linetype = :steppost, label = "z")
 
 
 #
@@ -114,7 +127,6 @@ end
 # plot!(hcat(state_to_configuration(x_proj)...)',
 #     color = :black,
 # 	label = "")
-#
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
@@ -122,7 +134,7 @@ visualize!(vis, model_ft,
 	state_to_configuration([x_proj..., ([x_proj[2:end] for i = 1:5]...)...]),
 	Δt = h̄[1],
 	scenario = :vertical)
-open(vis)
+
 # @time z̄ , info = solve(prob, copy(z̄),
 # 	nlp = :ipopt,
 # 	tol = 1.0e-2, c_tol = 1.0e-2, mapl = 0,
