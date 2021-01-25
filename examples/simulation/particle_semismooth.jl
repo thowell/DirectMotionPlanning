@@ -143,13 +143,13 @@ end
         solves 1-step feasibility problem
 """
 function _step(q1, q2, h;
-    tol = 1.0e-8, z0_scale = 0.0, step_type = :gmres, max_iter = 100)
+    tol = 1.0e-8, z0_scale = 0.001, step_type = :gmres, max_iter = 100)
     """
         1-step optimization problem:
             find z
             s.t. r(z) = 0
 
-        z = (q, λ, ν, η)
+        z = (q, n, b, ν, η)
             ν, η are slack variables for friction subproblem
     """
     function r(z)
@@ -256,7 +256,8 @@ end
     - initial configurations: q1, q2 (note this can encode initial velocity)
     - time step: h
 """
-function simulate(q1, q2, T, h)
+function simulate(q1, q2, T, h;
+    z0_scale = 0.0, step_type = :gmres)
     println("simulation")
 
     # initialize histories
@@ -267,7 +268,8 @@ function simulate(q1, q2, T, h)
     # step
     for t = 1:T
         println("   t = $t")
-        z_sol, status = _step(q[end-1], q[end], h)
+        z_sol, status = _step(q[end-1], q[end], h,
+            z0_scale = z0_scale, step_type = step_type)
 
         if !status
             @error "failed step (t = $t)"
@@ -287,15 +289,20 @@ model = Particle(1.0, 9.81, 1.0, 3)
 h = 0.01
 
 # initial conditions
-v1 = [1.0; 1.0; 0.0]
+# v1 = [1.0; 1.0; 0.0]
+# q1 = [0.0; 0.0; 1.0]
+
+v1 = [1.0; 0.1; 0.0]
 q1 = [0.0; 0.0; 1.0]
+
 v2 = v1 - gravity(model, q1) * h
 q2 = q1 + 0.5 * (v1 + v2) * h
 
-q_sol, y_sol, b_sol = simulate(q1, q2, 500, h)
+q_sol, y_sol, b_sol = simulate(q1, q2, 500, h,
+    z0_scale = 0.0, step_type = :gmres)
 
-plot(hcat(q_sol...)[3:3, :]', xlabel = "")
-plot!(h .* hcat(y_sol...)', xlabel = "", linetype = :steppost)
+plot(hcat(q_sol...)[3:3, :]', xlabel = "", label = "z")
+plot!(h .* hcat(y_sol...)', xlabel = "", label = "n", linetype = :steppost)
 
-plot(hcat(q_sol...)[1:2, :]', xlabel = "")
-plot!(h * hcat(b_sol...)', linetype = :steppost)
+plot(hcat(q_sol...)[1:2, :]', xlabel = "", label = ["x" "y"])
+plot!(h * hcat(b_sol...)', label = ["b1" "b2"], linetype = :steppost)
