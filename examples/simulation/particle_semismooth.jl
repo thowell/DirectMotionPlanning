@@ -2,16 +2,27 @@ using LinearAlgebra, ForwardDiff, StaticArrays
 using IterativeSolvers
 using Plots
 
-# noc
+"""
+    cones
+    - nonnegative orthant (no)
+        x >= 0
+
+    - second-order (so)
+        ||z1|| <= z2
+
+    A Semismooth Newton Method for Fast, Generic Convex Programming
+        https://arxiv.org/abs/1705.00772
+"""
+
+# nonnegative orthant cone
 function κ_no(z)
     max.(0.0, z)
 end
 
+# nonnegative orthant cone Jacobian
 function Jκ_no(z)
     p = zero(z)
     for (i, pp) in enumerate(z)
-        # println(pp)
-        # println(i)
         if pp >= 0.0
             p[i] = 1.0
         end
@@ -19,8 +30,8 @@ function Jκ_no(z)
     return Diagonal(p)
 end
 
-# soc
-function κ_soc(z)
+# second-order cone
+function κ_so(z)
     z1 = z[1:end-1]
     z2 = z[end]
 
@@ -35,10 +46,12 @@ function κ_soc(z)
         z_proj[1:end-1] = a * z1
         z_proj[end] = a * norm(z1)
     end
+
     return z_proj
 end
 
-function Jκ_soc(z)
+# second-order cone Jacobian
+function Jκ_so(z)
     z1 = z[1:end-1]
     z2 = z[end]
     m = length(z)
@@ -71,297 +84,156 @@ function Jκ_soc(z)
     end
 end
 
-# friction problem
-v = 1.0 * ones(2)
-y = 1.0 #1.0e-3
+"""
+    particle dynamics
+    - 3D particle subject to contact forces
 
-n = 3
-m = 1
-c = [v; 0.0]
-A = [0.0; 0.0; 1.0]'
-b = copy(y)
+    - configuration: q = (x, y, z) ∈ R³
+    - impact force (magnitude): n ∈ R₊
+    - friction force: b ∈ R²
+        - contact force: λ = (b, n) ∈ R² × R₊
+        - friction coefficient: μ ∈ R₊
 
-θ_friction = [vec(A); b; c]
-
-function r_friction(z)
-    x = z[1:3]
-    μ = z[3 + 1]
-    λ = z[3 + 1 .+ (1:3)]
-
-    [[v; 0.0] - [0.0; 0.0; 1.0] * μ - λ;
-     y - [0.0; 0.0; 1.0]' * x;
-     x - κ_soc(x - λ)]
-end
-
-function r_friction(z, θ)
-    x = z[1:3]
-    μ = z[3 + 1]
-    λ = z[3 + 1 .+ (1:3)]
-
-    A = reshape(θ[1:1 * 3], 1, 3)
-    b = θ[1 * 3 .+ (1:1)]
-    c = θ[1 * 3 + 1 .+ (1:3)]
-
-    [c - A' * μ - λ;
-     b - A * x;
-     x - κ_soc(x - λ)]
-end
-
-function R_friction(z)
-    x = z[1:3]
-    μ = z[3 + 1]
-    λ = z[3 + 1 .+ (1:3)]
-    J = Jκ_soc(x - λ)
-
-    [zeros(3, 3) -[0.0; 0.0; 1.0]'' -Diagonal(ones(3));
-     -[0.0; 0.0; 1.0]' zeros(1, 1) zeros(1, 3);
-     (Diagonal(ones(3)) - J) zeros(3, 1) J]
-end
-
-function solve()
-    z = 0.001 * rand(3 + 1 + 3)
-
-    extra_iters = 0
-
-    for i = 1:10
-        _F = r_friction(z)
-        _J = R_friction(z) #R_friction(z)
-        Δ = gmres(_J, 1.0 * _F, abstol = 1.0e-12, maxiter = i + extra_iters)
-        # Δ = (_J' * _J + 1.0e-5 * I) \ (_J' * _F)
-        iter = 0
-        α = 1.0
-        while norm(r_friction(z - α * Δ))^2.0 >= (1.0 - 0.001 * α) * norm(_F)^2.0 && α > 1.0e-4
-            α = 0.5 * α
-            # println("   α = $α")
-            iter += 1
-            if iter > 100
-                @error "line search fail"
-
-                return z
-            end
-        end
-
-        if α <= 1.0e-4
-            extra_iters += 1
-        end
-
-        println("iter ($i) - norm: $(norm(r_friction(z)))")
-
-        z .-= α * Δ
-    end
-
-    return z
-end
-
-z_sol = solve()
-
-@show b_sol = z_sol[1:2]
-
-
-θ = [vec(A); b; c]
-r_friction(z_sol, θ)
-
-_rz(w) = r_friction(w, θ)
-_rθ(w) = r_friction(z_sol, w)
-
-Rz = ForwardDiff.jacobian(_rz, z_sol)
-Rθ = ForwardDiff.jacobian(_rθ, θ)
-
-dθ = ((Rz' * Rz + 1.0e-5 * I) \ (Rz' * Rθ))[1:2, m * n .+ (1:m+(n-1))]
-
-# impact problem
-# rod
+    Discrete Mechanics and Variational Integrators
+        pg. 363
+"""
 struct Particle
       m # mass
       g # gravity
+      μ # friction coefficient
 
       nq # configuration dimension
 end
 
-# jacobian
-function jacobian(model, q)
-    Diagonal(@SVector ones(model.nq))
-end
-
 # mass matrix
 function mass_matrix(model)
-      m = model.m
+    m = model.m
 
-      Diagonal(@SVector [m, m, m])
+    Diagonal(@SVector [m, m, m])
 end
 
 # gravity
 function gravity(model, q)
-      m = model.m
-      g = model.g
+    m = model.m
+    g = model.g
 
-      @SVector [0.0, 0.0, m * g]
+    @SVector [0.0, 0.0, m * g]
+end
+
+# signed distance function
+function signed_distance(model, q)
+    q[3]
+end
+
+# contact force Jacobian
+function jacobian(model, q)
+    Diagonal(@SVector ones(model.nq))
 end
 
 # dynamics
 function dynamics(model, q1, q2, q3, λ, h)
-      nq = model.nq
-      SVector{nq}(mass_matrix(model) * (2.0 * q2 - q1 - q3) / h
-            - h * gravity(model, q2)
-            + h * jacobian(model, q3)' * λ)
+    nq = model.nq
+    SVector{nq}(mass_matrix(model) * (2.0 * q2 - q1 - q3) / h
+        - h * gravity(model, q2)
+        + h * jacobian(model, q3)' * λ)
 end
 
+"""
+    step particle system
+        solves 1-step feasibility problem
+"""
+function _step(q1, q2, h;
+    tol = 1.0e-8, z0_scale = 0.0, step_type = :gmres, max_iter = 100)
+    """
+        1-step optimization problem:
+            find z
+            s.t. r(z) = 0
 
-# create model
-model = Particle(1.0, 9.81, 3)
-
-q1 = [0.0; 0.0; 1.0]
-q2 = [1.0; 1.0; 1.0]
-
-function r_action(z)
-    q3 = z[1:3]
-    q3z = z[3]
-    λ = z[4]
-
-    [dynamics(model, q1, q2, q3, [0.0; 0.0; λ], 0.1);
-     q3z - κ_no(q3z - λ)]
-end
-
-function solve()
-    z = [q2; 0.001]
-
-    extra_iters = 0
-
-    for i = 1:10
-        _F = r_action(z)
-        _J = ForwardDiff.jacobian(r_action, z)
-        Δ = gmres(_J, 1.0 * _F, abstol = 1.0e-12, maxiter = i + extra_iters)
-        # Δ = (_J' * _J + 1.0e-5 * I) \ (_J' * _F)
-        iter = 0
-        α = 1.0
-        while norm(r_action(z - α * Δ))^2.0 >= (1.0 - 0.001 * α) * norm(_F)^2.0 && α > 1.0e-4
-            α = 0.5 * α
-            # println("   α = $α")
-            iter += 1
-            if iter > 100
-                @error "line search fail"
-
-                return z
-            end
-        end
-
-        if α <= 1.0e-4
-            extra_iters += 1
-        end
-
-        println("iter ($i) - norm: $(norm(r_action(z)))")
-
-        z .-= α * Δ
-    end
-
-    return z
-end
-
-z_sol = solve()
-
-function r_friction(z)
-    x = z[1:3]
-    μ = z[3 + 1]
-    λ = z[3 + 1 .+ (1:3)]
-
-    [[v; 0.0] - [0.0; 0.0; 1.0] * μ - λ;
-     y - [0.0; 0.0; 1.0]' * x;
-     x - κ_soc(x - λ)]
-end
-
-# impact and friction
-
-# function r_impact_friction(z)
-#     q3 = z[1:3]
-#     q3z = z[3]
-#     v = (q3[1:2] - q2[1:2]) ./ 0.1
-#     λ = z[4]
-#     b = z[5:6]
-#     b̄ = z[5:7]
-#     μ = z[8]
-#     η = z[9:11]
-#
-#     [dynamics(model, q1, q2, q3, [b; λ], 0.1);
-#      q3z - κ_no(q3z - λ);
-#
-#      [v; 0.0] - [0.0; 0.0; 1.0] * μ - η;
-#       λ - [0.0; 0.0; 1.0]' * b̄;
-#       b̄ - κ_soc(b̄ - η)]
-# end
-#
-# function R_impact_friction(z)
-#     R = ForwardDiff.jacobian(r_impact_friction, z)
-#
-#     # fix projection
-#     b̄ = z[5:7]
-#     μ = z[8]
-#     η = z[9:11]
-#     J = Jκ_soc(b̄ - η)
-#
-#     R[(end-2):end, 5:11] = [(Diagonal(ones(3)) - J) zeros(3, 1) J]
-#
-#     return R
-# end
-
-function solve(q1, q2, h)
+        z = (q, λ, ν, η)
+            ν, η are slack variables for friction subproblem
+    """
     function r(z)
-        q3 = z[1:3]
-        ϕ = z[3]
-        λ = z[4]
-        b = z[5:6]
-        b̄ = z[5:7]
-        μ = z[8]
-        η = z[9:11]
+        # system variables
+        q3 = view(z, 1:3)
+        n = z[4]
+        b = view(z, 5:6)
 
-        [dynamics(model, q1, q2, q3, [b; λ], h);
-         ϕ - κ_no(ϕ - λ);
+        λ = [b; n]                     # contact forces
+        ϕ = signed_distance(model, q3) # signed-distance function
 
-         [(q3[1:2] - q2[1:2]) ./ h; 0.0] - [0.0; 0.0; 1.0] * μ - η;
-          λ - [0.0; 0.0; 1.0]' * b̄;
-          b̄ - κ_soc(b̄ - η)]
+        # friction subproblem variables
+        b̄ = view(z, 5:7)
+        ν = z[8]
+        η = view(z, 9:11)
+
+        # action optimality conditions
+        [dynamics(model, q1, q2, q3, λ, h);
+         ϕ - κ_no(ϕ - n);
+
+         # maximum dissipation optimality conditions
+         [(view(q3, 1:2) - view(q2, 1:2)) ./ h; -ν] - η;
+          model.μ * n - b̄[end];
+          b̄ - κ_so(b̄ - η)]
     end
 
+    # Jacobian
     function R(z)
+        # differentiate r
         _R = ForwardDiff.jacobian(r, z)
 
-        # fix projection
-        ϕ = z[3]
-        λ = z[4]
-        b̄ = z[5:7]
-        μ = z[8]
-        η = z[9:11]
+        # correct projection derivatives
+        q3 = view(z, 1:3)
+        ϕ = signed_distance(model, q3) # signed-distance function
+        n = z[4]
+        b̄ = view(z, 5:7)
+        ν = z[8]
+        η = view(z, 9:11)
 
-        J_no = Jκ_no([ϕ - λ])
-        J_soc = Jκ_soc(b̄ - η)
+        J_no = Jκ_no([ϕ - n])
+        J_so = Jκ_so(b̄ - η)
 
         _R[4, 3] = 1.0 - J_no[1]
         _R[4, 4] = J_no[1]
-        _R[(end-2):end, 5:11] = [(Diagonal(ones(3)) - J_soc) zeros(3, 1) J_soc]
+        _R[(end-2):end, 5:11] = [(Diagonal(ones(3)) - J_so) zeros(3, 1) J_so]
 
         return _R
     end
 
-    z = 0.0 * rand(11)
-    # z = zeros(11)
+    # initialize
+    z = z0_scale * rand(11)
     z[1:3] = copy(q2)
 
     extra_iters = 0
 
-    for i = 1:100
-        _F = r(z)
-        _J = R(z)
-        Δ = gmres(_J, 1.0 * _F, abstol = 1.0e-12, maxiter = i + extra_iters)
-        # Δ = (_J' * _J + 1.0e-6 * I) \ (_J' * _F)
+    for i = 1:max_iter
+        # compute residual, residual Jacobian
+        res = r(z)
+
+        if norm(res) < tol
+            println("   iter ($i) - norm: $(norm(r(z)))")
+            return z, true
+        end
+
+        jac = R(z)
+
+        # compute step
+        if step_type == :gmres
+            Δ = gmres(jac, res, abstol = 1.0e-12, maxiter = i + extra_iters)
+        else
+            Δ = (jac' * jac + 1.0e-6 * I) \ (jac' * res) # damped least-squares direction
+        end
+
+        # line search the step direction
         iter = 0
         α = 1.0
-        while norm(r(z - α * Δ))^2.0 >= (1.0 - 0.001 * α) * norm(_F)^2.0 && α > 1.0e-4
+        while norm(r(z - α * Δ))^2.0 >= (1.0 - 0.001 * α) * norm(res)^2.0 && α > 1.0e-4
             α = 0.5 * α
             # println("   α = $α")
             iter += 1
             if iter > 100
                 @error "line search fail"
 
-                return z
+                return z, false
             end
         end
 
@@ -369,50 +241,59 @@ function solve(q1, q2, h)
             extra_iters += 1
         end
 
-        println("iter ($i) - norm: $(norm(r(z)))")
+        println("   iter ($i) - norm: $(norm(r(z)))")
 
+        # update
         z .-= α * Δ
     end
 
-    if norm(r(z)) < 1.0e-5
-        status = true
-    else
-        status = false
-    end
-
-    return z, status
+    return z, false
 end
 
-h = 0.005
-v1 = [-3.0; 5.0; 1.0]
-q2 = [1.0; -2.0; 1.0]
-q1 = q2 - h * v1
-
+"""
+    simulate
+    - solves 1-step feasibility problem for T time steps
+    - initial configurations: q1, q2 (note this can encode initial velocity)
+    - time step: h
+"""
 function simulate(q1, q2, T, h)
     println("simulation")
+
+    # initialize histories
     q = [q1, q2]
-    y = [0.0]
+    n = [0.0]
     b = [zeros(2)]
+
+    # step
     for t = 1:T
         println("   t = $t")
-        z_sol, status = solve(q[end-1], q[end], h)
+        z_sol, status = _step(q[end-1], q[end], h)
 
         if !status
             @error "failed step (t = $t)"
-            return q, y, b
+            return q, n, b
         else
-            push!(q, z_sol[1:3])
-            push!(y, z_sol[4])
-            push!(b, z_sol[5:6])
+            push!(q, view(z_sol, 1:3))
+            push!(n, z_sol[4])
+            push!(b, view(z_sol, 5:6))
         end
     end
 
-    return q, y, b
+    return q, n, b
 end
 
+# simulation setup
+model = Particle(1.0, 9.81, 1.0, 3)
+h = 0.01
+
+# initial conditions
+v1 = [1.0; 1.0; 0.0]
+q1 = [0.0; 0.0; 1.0]
+v2 = v1 - gravity(model, q1) * h
+q2 = q1 + 0.5 * (v1 + v2) * h
+
 q_sol, y_sol, b_sol = simulate(q1, q2, 500, h)
-# q_sol[end]
-# q_sol[end-1]
+
 plot(hcat(q_sol...)[3:3, :]', xlabel = "")
 plot!(h .* hcat(y_sol...)', xlabel = "", linetype = :steppost)
 
