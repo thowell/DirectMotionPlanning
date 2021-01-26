@@ -26,6 +26,8 @@
 - [ ] atlas
 
 ## direct policy optimization examples
+<img src="examples/animations/rocket_landing_ghost.png" alt="drawing" width="200"/>
+
 We provide the [examples](src/examples/direct_policy_optimization) from [Direct Policy Optimization using Deterministic Sampling and Collocation](https://arxiv.org/abs/2010.08506). Optimizing the policies requires [SNOPT](https://en.wikipedia.org/wiki/SNOPT) and resources for its installation are available [here](src/solvers/snopt.jl). The trajectories and policies from these examples have been saved and can be loaded in order to run the policy simulations and visualizations.
 
 LQR
@@ -49,14 +51,22 @@ motion planning
 - [ ] robotic arm
 - [ ] quadrotor
 
+## model-predictive control
+- [X] double integrator
+- [X] acrobot
+
 ## simulation
 
 <img src="examples/animations/box_drop.gif" alt="drawing" width="200"/>
 
-we simulate objects / robots that experience contact (i.e., impact and Couloumb friction) using time-stepping techniques, discrete mechanics, nonlinear complementarity, and collocation
+we simulate objects / robots that experience contact (i.e., impact and Couloumb friction) using time-stepping techniques, discrete mechanics, nonlinear complementarity, (and collocation)
 
+linearized friction cone
 - [X] particle
 - [X] box drop
+
+second-order friction cone
+- [X] particle
 
 ## installation
 From the Julia REPL, type `]` to enter the Pkg REPL mode and run:

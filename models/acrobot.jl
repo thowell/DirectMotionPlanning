@@ -82,8 +82,8 @@ function k_ee(model::Acrobot, x)
               -1.0 * model.l1 * cos(x[1]) - model.l2 * cos(x[1] + x[2])]
 end
 
-n, m, d = 4, 1, 0
-model = Acrobot{Midpoint, FixedTime}(n, m , d, 1.0, 0.33, 1.0, 0.5, 1.0, 0.33, 1.0, 0.5, 9.81, 0.1, 0.1)
+n, m, d = 4, 1, 4
+model = Acrobot{Midpoint, FixedTime}(4, 1, 4, 1.0, 0.33, 1.0, 0.5, 1.0, 0.33, 1.0, 0.5, 9.81, 0.1, 0.1)
 
 # visualization
 function visualize!(vis, model::Acrobot, x;

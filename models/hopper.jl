@@ -218,7 +218,7 @@ model = Hopper{Discrete, FixedTime}(n, m, d,
 
 # Visualization
 function visualize!(vis, model::Hopper, q;
-		Δt = 0.1, scenario = :hop)
+		Δt = 0.1, scenario = :vertical)
 
     r_foot = 0.05
     r_leg = 0.5 * r_foot
