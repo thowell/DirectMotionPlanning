@@ -285,14 +285,14 @@ function simulate(q1, q2, T, h;
 end
 
 # simulation setup
-model = Particle(1.0, 9.81, 1.0, 3)
+model = Particle(1.0, 9.81, 0.5, 3)
 h = 0.01
 
 # initial conditions
 # v1 = [1.0; 1.0; 0.0]
 # q1 = [0.0; 0.0; 1.0]
 
-v1 = [1.0; 0.1; 0.0]
+v1 = [1.0; 1.0; 0.0]
 q1 = [0.0; 0.0; 1.0]
 
 v2 = v1 - gravity(model, q1) * h
