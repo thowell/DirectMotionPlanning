@@ -8,8 +8,8 @@ using Plots
 
     - configuration: q = (x, y, z) ∈ R³
     - impact force (magnitude): n ∈ R₊
-    - friction force: b ∈ R²
-        - contact force: λ = (b, n) ∈ R² × R₊
+    - friction force: β ∈ R⁴₊
+        - contact force: λ = (β, n) ∈ R⁴₊ × R₊
         - friction coefficient: μ ∈ R₊
 
     Discrete Mechanics and Variational Integrators
