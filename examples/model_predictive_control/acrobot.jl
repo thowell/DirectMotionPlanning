@@ -97,7 +97,7 @@ function run_mpc()
     			xu = xu_mpc)
 
     	# Pack trajectories into vector
-    	z0_mpc = pack(x_ref[shift .+ (1:T_mpc)], u_ref[shift .+ (1:T_mpc)], prob_mpc)
+    	z0_mpc = pack(x_ref[shift .+ (1:T_mpc)], u_ref[shift .+ (1:T_mpc-1)], prob_mpc)
 
     	# Solve
     	@time z_mpc, info = solve(prob_mpc, copy(z0_mpc),

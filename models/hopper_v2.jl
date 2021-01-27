@@ -44,7 +44,7 @@ end
 # Dimensions
 nq = 4 # configuration dimension
 nu = 2 # control dimension
-nc = 1 # number of contact points
+nc = 2 # number of contact points
 nf = 2 # number of faces for friction cone
 nb = nc * nf
 ns = 1
@@ -69,7 +69,8 @@ idx_η = nu + nc + nb + nc .+ (1:nb)
 idx_s = nu + nc + nb + nc + nb .+ (1:ns)
 
 # Kinematics
-kinematics(::Hopper, q) = [q[1] + q[4] * sin(q[3]), q[2] - q[4] * cos(q[3])]
+kinematics(::Hopper, q) = [q[1], q[2],
+	q[1] + q[4] * sin(q[3]), q[2] - q[4] * cos(q[3])]
 
 # Methods
 M_func(model::Hopper, q) = Diagonal(@SVector [
@@ -84,17 +85,21 @@ G_func(model::Hopper, q) = @SVector [0.0,
 									 0.0]
 
 function ϕ_func(::Hopper, q)
-    @SVector [q[2] - q[4] * cos(q[3])]
+    @SVector [q[2], q[2] - q[4] * cos(q[3])]
 end
 
-N_func(::Hopper, q) = @SMatrix [0.0 1.0 (q[4] * sin(q[3])) (-1.0 * cos(q[3]))]
+N_func(::Hopper, q) = @SMatrix [0.0 1.0 0.0 0.0;
+	0.0 1.0 (q[4] * sin(q[3])) (-1.0 * cos(q[3]))]
 
 function _P_func(model, q)
-	@SMatrix [1.0 0.0 (q[4] * cos(q[3])) sin(q[3])]
+	@SMatrix [1.0 0.0 0.0 0.0;
+		1.0 0.0 (q[4] * cos(q[3])) sin(q[3])]
 end
 
 function P_func(::Hopper, q)
-    @SMatrix [1.0 0.0 (q[4] * cos(q[3])) sin(q[3]);
+    @SMatrix [1.0 0.0 0.0 0.0;
+		1.0 0.0 (q[4] * cos(q[3])) sin(q[3]);
+		-1.0 0.0 0.0 0.0;
     	-1.0 0.0 (-1.0 * q[4] * cos(q[3])) -1.0 * sin(q[3])]
 end
 
@@ -115,8 +120,8 @@ function fd(model::Hopper{Discrete, FixedTime}, x⁺, x, u, w, h, t)
     - M_func(model, q2⁺) * (SVector{4}(q3) - SVector{4}(q2⁺)))
 	- h * G_func(model, q2⁺)
     + h * (transpose(B_func(model, q3)) * SVector{2}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{1}(λ)
-    + transpose(P_func(model, q3)) * SVector{2}(b))
+    + transpose(N_func(model, q3)) * SVector{2}(λ)
+    + transpose(P_func(model, q3)) * SVector{4}(b))
     + h * w)]
 end
 
@@ -124,7 +129,7 @@ function maximum_dissipation(model::Hopper{Discrete, FixedTime}, x⁺, u, h)
 	q3 = x⁺[model.nq .+ (1:model.nq)]
 	q2 = x⁺[1:model.nq]
 	ψ = u[model.idx_ψ]
-	ψ_stack = ψ[1] * ones(model.nf)
+	ψ_stack = [ψ[1] * ones(model.nf); ψ[2] * ones(model.nf)]
 	η = u[model.idx_η]
 	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
 end
@@ -144,8 +149,8 @@ function fd(model::Hopper{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	- M_func(model, q2⁺) * (SVector{4}(q3) - SVector{4}(q2⁺)))
 	- h * G_func(model, q2⁺)
 	+ h * (transpose(B_func(model, q3)) * SVector{2}(u_ctrl)
-	+ transpose(N_func(model, q3)) * SVector{1}(λ)
-	+ transpose(P_func(model, q3)) * SVector{2}(b))
+	+ transpose(N_func(model, q3)) * SVector{2}(λ)
+	+ transpose(P_func(model, q3)) * SVector{4}(b))
 	+ h * w)]
 end
 
@@ -153,7 +158,7 @@ function maximum_dissipation(model::Hopper{Discrete, FreeTime}, x⁺, u, h)
 	q3 = x⁺[model.nq .+ (1:model.nq)]
 	q2 = x⁺[1:model.nq]
 	ψ = u[model.idx_ψ]
-	ψ_stack = ψ[1] * ones(model.nf)
+	ψ_stack = [ψ[1] * ones(model.nf); ψ[2] * ones(model.nf)]
 	η = u[model.idx_η]
 	h = u[end]
 	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
@@ -180,7 +185,8 @@ end
 function friction_cone(model::Hopper, u)
 	λ = u[model.idx_λ]
 	b = u[model.idx_b]
-	return @SVector [model.μ * λ[1] - sum(b)]
+	return @SVector [model.μ * λ[1] - sum(b[1:model.nf]),
+		model.μ * λ[2] - sum(b[model.nf .+ (1:model.nf)])]
 end
 
 r = 0.5
@@ -237,39 +243,18 @@ function visualize!(vis, model::Hopper, q;
     p_leg = [zeros(3) for i = 1:n_leg]
     anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
 
-	if scenario == :push
-		p1 = Cylinder(Point3f0(0.0, 0.0, 0.0),
-			Point3f0(0.0, 0.0, 0.25),
-			convert(Float32, 0.025))
-		setobject!(vis["pusher1"], p1,
-			MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
-		settransform!(vis["pusher1"],
-			compose(Translation(-0.0875, 0.0, 0.5), LinearMap(RotY(-pi / 2))))
-
-		p2 = Cylinder(Point3f0(0.0, 0.0, 0.0),
-			Point3f0(0.0, 0.0, 0.075),
-			convert(Float32, 0.1))
-		setobject!(vis["pusher2"], p2,
-			MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
-		settransform!(vis["pusher2"],
-			compose(Translation(-0.0875, 0.0, 0.5), LinearMap(RotY(-pi / 2))))
-
-		x_push = [range(-2.0, stop = -0.088, length = 51)...,
-			range(-0.088, stop = -2.0, length = 400-51)...]
-	end
-
     for t = 1:length(q)
         p_body = [q[t][1], 0.0, q[t][2]]
-        p_foot = [kinematics(model, q[t])[1], 0.0, kinematics(model, q[t])[2]]
+        p_foot = [kinematics(model, q[t])[3], 0.0, kinematics(model, q[t])[4]]
 
         q_tmp = Array(copy(q[t]))
         r_range = range(0, stop = q[t][4], length = n_leg)
         for i = 1:n_leg
             q_tmp[4] = r_range[i]
-            p_leg[i] = [kinematics(model, q_tmp)[1], 0.0, kinematics(model, q_tmp)[2]]
+            p_leg[i] = [kinematics(model, q_tmp)[3], 0.0, kinematics(model, q_tmp)[4]]
         end
         q_tmp[4] = q[t][4]
-        p_foot = [kinematics(model, q_tmp)[1], 0.0, kinematics(model, q_tmp)[2]]
+        p_foot = [kinematics(model, q_tmp)[3], 0.0, kinematics(model, q_tmp)[4]]
 
         z_shift = [0.0; 0.0; r_foot]
 
@@ -280,22 +265,13 @@ function visualize!(vis, model::Hopper, q;
             for i = 1:n_leg
                 settransform!(vis["leg$i"], Translation(p_leg[i] + z_shift))
             end
-
-			if scenario == :push
-				settransform!(vis["pusher1"],
-					compose(Translation(x_push[t], 0.0, 0.725),
-						LinearMap(RotY(-pi / 2))))
-				settransform!(vis["pusher2"],
-					compose(Translation(x_push[t], 0.0, 0.725),
-						LinearMap(RotY(-pi / 2))))
-			end
         end
     end
 
 	if scenario == :flip
 		settransform!(vis["/Cameras/default"],
 			compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
-	elseif scenario == :vertical || scenario == :push
+	elseif scenario == :vertical
 		settransform!(vis["/Cameras/default"],
 			compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
 	end

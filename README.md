@@ -52,8 +52,11 @@ motion planning
 - [ ] quadrotor
 
 ## model-predictive control
+<img src="examples/animations/hopper_push_recovery.gif" alt="drawing" width="200"/>
+
 - [X] double integrator
 - [X] acrobot
+- [X] hopper push recovery
 
 ## simulation
 

@@ -3,7 +3,7 @@ include(joinpath(pwd(), "src/constraints/contact.jl"))
 
 # Simulate contact model one step
 function step_contact(model::Model{<: Integration, FixedTime}, x1, u1, w1, h;
-        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4)
+        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
     # Horizon
     T = 2
 
@@ -43,7 +43,8 @@ function step_contact(model::Model{<: Integration, FixedTime}, x1, u1, w1, h;
     # Pack trajectories into vector
     z0 = pack(x0, u0, prob)
 
-    @time z , info = solve(prob, copy(z0), tol = tol_opt, c_tol = tol_c, mapl = 0)
+    @time z, info = solve(prob, copy(z0),
+        tol = tol_opt, c_tol = tol_c, mapl = 0, nlp = nlp)
 
     @assert check_slack(z, prob) < tol_s
     x, u = unpack(z, prob)
