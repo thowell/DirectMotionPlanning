@@ -147,18 +147,18 @@ foot_1_x = [[foot_1_M[1] for t = 1:Tm]...,
 foot_1_z = sqrt.((zh^2.0) * (1.0 .- ((foot_1_x .- abs(foot_1_T[1] / 2.0)).^2.0)
     ./ abs(foot_1_T[1] / 2.0)^2.0) .+ 1.0e-8)
 
-# using Plots
-# plot(foot_2_x, foot_2_z)
-# plot!(foot_1_x, foot_1_z, aspect_ratio = :equal)
+using Plots
+plot(foot_2_x, foot_2_z)
+plot!(foot_1_x, foot_1_z, aspect_ratio = :equal)
 
 t = range(0.0, stop = tf, length = T)
 length(t)
 length(foot_2_x)
-# plot(t, foot_2_x)
-# plot!(t, foot_1_x)
-#
-# plot(t, foot_2_z)
-# plot!(t, foot_1_z)
+plot(t, foot_2_x)
+plot!(t, foot_1_x)
+
+plot(t, foot_2_z)
+plot!(t, foot_1_z)
 
 # Control
 # u = (τ1..7, λ1..4, β1..8, ψ1..4, η1...8, s1)
@@ -249,7 +249,7 @@ function l_stage_torso_feet(x, u, t)
 	x_foot2 = kinematics_3(model,
 				        get_q⁺(x), body = :foot_2, mode = :com)[1]
 
-	return 1.0 * (x_torso - (x_foot2 - x_foot1) / 2.0)^2.0
+	return 0.0 * (x_torso - (x_foot2 - x_foot1) / 2.0)^2.0
 end
 l_terminal_torso_feet(x) = 0.0
 obj_tf = nonlinear_stage_objective(l_stage_torso_feet, l_terminal_torso_feet)
