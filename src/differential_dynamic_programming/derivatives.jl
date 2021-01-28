@@ -24,8 +24,8 @@ function objective_derivatives(obj, x, u)
     guu_hist = []
 
     for t = 1:T-1
-        gx(z) = obj.g[t](z, u[t])
-        gu(z) = obj.g[t](x[t], z)
+        gx(z) = g(obj, z, u[t], t)
+        gu(z) = g(obj, x[t], z, t)
 
         push!(gx_hist, ForwardDiff.gradient(gx, x[t]))
         push!(gu_hist, ForwardDiff.gradient(gu, u[t]))
@@ -33,7 +33,7 @@ function objective_derivatives(obj, x, u)
         push!(guu_hist, ForwardDiff.hessian(gu, u[t]))
     end
 
-    gx(z) = obj.g[T](z)
+    gx(z) = g(obj, z, nothing, T)
 
     push!(gx_hist, ForwardDiff.gradient(gx, x[T]))
     push!(gxx_hist, ForwardDiff.hessian(gx, x[T]))

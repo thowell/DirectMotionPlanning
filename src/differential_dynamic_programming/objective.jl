@@ -1,13 +1,23 @@
-struct StageObjective
-    g
+abstract type StageObjective <: Objective end
+
+struct StageQuadratic <: StageObjective
+    Q
+    q
+    R
+    r
+    T
 end
 
+g(obj::StageObjective, x, u, t) = 0.0
+
 function objective(obj::StageObjective, x, u)
-    T = length(x)
+    T = obj.T
     J = 0.0
+
     for t = 1:T-1
-        J += obj.g[t](x[t], u[t])
+        J += g(obj, x[t], u[t], t)
     end
-    J += obj.g[T](x[T])
+    J += g(obj, x[T], nothing, T)
+
     return J
 end

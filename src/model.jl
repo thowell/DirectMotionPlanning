@@ -2,28 +2,30 @@ abstract type Integration end
 
 abstract type Model{I <: Integration, T <: Time} end
 
-struct TemplateModel{I, T} <: Model{I, T}
-	n::Int # state dimension
-	m::Int # control dimension
-	d::Int # disturbance dimension
+"""
+	struct TemplateModel{I, T} <: Model{I, T}
+		n::Int # state dimension
+		m::Int # control dimension
+		d::Int # disturbance dimension
 
-	# additional model parameters ...
-end
+		# additional model parameters ...
+	end
 
-function f(model::TemplateModel, x, u, w)
-	# continuous-time dynamics
-	nothing
-end
+	function f(model::TemplateModel, x, u, w)
+		# continuous-time dynamics
+		nothing
+	end
 
-function k(model::TemplateModel, x)
-	# kinematics
-	nothing
-end
+	function k(model::TemplateModel, x)
+		# kinematics
+		nothing
+	end
 
-model = TemplateModel{Integration, Time}(0, 0, 0)
+	model = TemplateModel{Integration, Time}(0, 0, 0)
 
-state_output(model, x) = x
-control_output(model, u) = u
+	state_output(model, x) = x
+	control_output(model, u) = u
+"""
 
 include_model(str::String) = include(joinpath(pwd(), "models", str * ".jl"))
 
