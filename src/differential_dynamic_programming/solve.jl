@@ -18,7 +18,7 @@ function solve(model, obj, x̄, ū, w, h, T;
     s_data = solver_data(model, T)
 
     # compute objective
-    s_data.obj = objective(m_data.obj, m_data.x̄, m_data.ū)
+    s_data.obj = Inf # objective(m_data.obj, m_data.x̄, m_data.ū)
 
     for i = 1:max_iter
         # derivatives
@@ -38,7 +38,7 @@ function solve(model, obj, x̄, ū, w, h, T;
         (!s_data.status || grad_norm < grad_tol) && break
     end
 
-    return m_data.x̄, m_data.ū
+    return p_data, m_data, s_data
 end
 
 """

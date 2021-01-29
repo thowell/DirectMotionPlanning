@@ -26,20 +26,22 @@ end
 n, m, d = 2, 1, 2
 model = DoubleIntegrator{Discrete, FixedTime}(n, m, d)
 
-# """
-#     continuous-time double integrator
-# """
-# struct DoubleIntegratorContinuous{I, T} <: Model{I, T}
-#     n::Int
-#     m::Int
-#     d::Int
-# end
-#
-# function f(model::DoubleIntegrator{Continuous, FixedTime}, x, u, w)
-#     [x[2] + w[1]; u[1] + w[2]]
-# end
-#
-# model_con = DoubleIntegratorContinuous{Midpoint, FixedTime}(n, m, d)
+"""
+    continuous-time double integrator
+"""
+struct DoubleIntegratorContinuous{I, T} <: Model{I, T}
+    n::Int
+    m::Int
+    d::Int
+end
+
+function f(model::DoubleIntegratorContinuous, x, u, w)
+    [x[2] + w[1]; u[1] + w[2]]
+end
+
+state_output(model::DoubleIntegratorContinuous, z) = z
+
+model_con = DoubleIntegratorContinuous{Midpoint, FixedTime}(n, m, d)
 
 # visualization
 function visualize!(vis, model::DoubleIntegrator, x;

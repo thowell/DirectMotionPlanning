@@ -19,7 +19,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelData, s_data::SolverData
             J = objective(m_data.obj, m_data.x, m_data.u)
             Δz!(m_data)
         catch
-            # @warn "rollout failure"
+            @warn "rollout failure"
             fill!(m_data.z, 0.0)
         end
 

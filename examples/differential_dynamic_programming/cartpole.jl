@@ -40,8 +40,11 @@ function g(obj::StageQuadratic, x, u, t)
 end
 
 # Solve
-@time x, u = solve(model, obj, copy(x̄), copy(ū), w, h, T,
+@time p_data, m_data, s_data = solve(model, obj, copy(x̄), copy(ū), w, h, T,
     max_iter = 1000, verbose = true)
+
+x = m_data.x
+u = m_data.u
 
 # Visualize
 using Plots

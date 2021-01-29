@@ -30,15 +30,15 @@ function simulate(
     Jx = 0.0
     Ju = 0.0
 
-    A_state = hcat(z_nom...)
-    A_ctrl = hcat(u_nom...)
+    A_state = Array(hcat(z_nom...))
+    A_ctrl = Array(hcat(u_nom...))
 
     for tt = 1:T_sim-1
         t = t_sim[tt]
         k = searchsortedlast(times, t)
-        z = z_rollout[end] + dt_sim * w[:, tt]
+        z = z_rollout[end]
 
-        z_cubic = zero(z_nom[1])
+        z_cubic = Array(zero(z_nom[1]))
         for i = 1:length(z_nom[1])
             interp_cubic = CubicSplineInterpolation(t_ctrl, A_state[i,:])
             z_cubic[i] = interp_cubic(t)
@@ -50,7 +50,7 @@ function simulate(
         u = max.(u, ul[u_idx])
         u = min.(u, uu[u_idx])
 
-        push!(z_rollout, fd(model, z, u, zeros(model.d), dt_sim, tt))
+        push!(z_rollout, fd(model, z, u, w[:, tt], dt_sim, tt))
         push!(u_rollout, u)
 
         if _norm == 2

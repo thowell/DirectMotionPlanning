@@ -25,9 +25,6 @@ Q = [(t < T ? Diagonal(1.0e-3 * ones(model.n))
 R = Diagonal(1.0e-5 * ones(model.m))
 obj = StageQuadratic(Q, nothing, R, nothing, T)
 
-# m_data = model_data(model, obj, w, h, T)
-# Δz!(m_data)
-
 function g(obj::StageQuadratic, x, u, t)
     Q = obj.Q[t]
     R = obj.R
@@ -43,8 +40,11 @@ function g(obj::StageQuadratic, x, u, t)
 end
 
 # Solve
-@time x, u = solve(model, obj, copy(x̄), copy(ū), w, h, T,
+@time p_data, m_data, s_data = solve(model, obj, copy(x̄), copy(ū), w, h, T,
     max_iter = 1000, verbose = true)
+
+x = m_data.x
+u = m_data.u
 
 # Visualize
 using Plots
