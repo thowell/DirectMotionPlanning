@@ -48,7 +48,7 @@ struct ModelData{X, U, D, S}
     h::S
 
     # horizon
-    T
+    T::Int
 
     # nominal trajectory
     x̄::Vector{X}
@@ -65,11 +65,15 @@ struct ModelData{X, U, D, S}
 
     # objective derivatives data
     obj_deriv::ObjectiveDerivativesData
+
+    # z = (x1...,xT,u1,...,uT-1) | Δz = (Δx1...,ΔxT,Δu1,...,ΔuT-1)
+    z::Vector{S}
 end
 
 function model_data(model, obj, w, h, T)
     n = model.n
     m = model.m
+    num_var = n * T + m * (T - 1)
 
     x = [SVector{n}(zeros(n)) for t = 1:T]
     u = [SVector{m}(zeros(m)) for t = 1:T-1]
@@ -80,7 +84,21 @@ function model_data(model, obj, w, h, T)
     dyn_deriv = dynamics_derivatives_data(model, T)
     obj_deriv = objective_derivatives_data(model, T)
 
-    ModelData(x, u, w, h, T, x̄, ū, model, obj, dyn_deriv, obj_deriv)
+    z = zeros(num_var)
+
+    ModelData(x, u, w, h, T, x̄, ū, model, obj, dyn_deriv, obj_deriv, z)
+end
+
+function Δz!(m_data::ModelData)
+    for t = 1:T
+        idx_x = (t - 1) * n .+ (1:n)
+        m_data.z[idx_x] = m_data.x[t] - m_data.x̄[t]
+
+        t == T && continue
+
+        idx_u = n * T + (t - 1) * m .+ (1:m)
+        m_data.z[idx_u] = m_data.u[t] - m_data.ū[t]
+    end
 end
 
 """
@@ -94,7 +112,6 @@ struct PolicyData{N, M, NN, MM, MN}
     # value function approximation
     P::Vector{NN}
     p::Vector{N}
-    ΔV::Vector
 
     # state-action value function approximation
     Qx::Vector{N}
@@ -113,7 +130,6 @@ function policy_data(model::Model, T)
 
     P = [SMatrix{n, n}(zeros(n, n)) for t = 1:T]
     p = [SVector{n}(zeros(n)) for t = 1:T]
-    ΔV = [() for t = 1:T]
 
     Qx = [SVector{n}(zeros(n)) for t = 1:T-1]
     Qu = [SVector{m}(zeros(m)) for t = 1:T-1]
@@ -121,5 +137,25 @@ function policy_data(model::Model, T)
     Quu = [SMatrix{m, m}(zeros(m, m)) for t = 1:T-1]
     Qux = [SMatrix{m, n}(zeros(m, n)) for t = 1:T-1]
 
-    PolicyData(K, k, P, p, ΔV, Qx, Qu, Qxx, Quu, Qux)
+    PolicyData(K, k, P, p, Qx, Qu, Qxx, Quu, Qux)
+end
+
+"""
+    Solver Data
+"""
+mutable struct SolverData{T}
+    obj::T              # objective value
+    gradient::Vector{T} # Lagrangian gradient
+    status::Bool        # solver status
+end
+
+function solver_data(model::Model, T)
+    n = model.n
+    m = model.m
+    num_var = n * T + m * (T - 1)
+
+    obj = Inf
+    gradient = zeros(num_var)
+
+    SolverData(obj, gradient, false)
 end

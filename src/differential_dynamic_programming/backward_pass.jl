@@ -14,7 +14,6 @@ function backward_pass!(p_data::PolicyData, m_data::ModelData)
     # value function approximation
     P = p_data.P
     p = p_data.p
-    ΔV = p_data.ΔV
 
     # state-action value function approximation
     Qx = p_data.Qx
@@ -39,6 +38,5 @@ function backward_pass!(p_data::PolicyData, m_data::ModelData)
 
         P[t] =  Qxx[t] + K[t]' * Quu[t] * K[t] + K[t]' * Qux[t] + Qux[t]' * K[t]
         p[t] =  Qx[t] + K[t]' * Quu[t] * k[t] + K[t]' * Qu[t] + Qux[t]' * k[t]
-        # push!(ΔV, (k[t]' * Qu[t], 0.5 * k[t]' * Quu[t] * k[t]))
     end
 end

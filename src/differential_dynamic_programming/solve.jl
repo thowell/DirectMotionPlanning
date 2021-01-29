@@ -1,6 +1,3 @@
-
-
-
 function solve(model, obj, x̄, ū, w, h, T;
     max_iter = 10,
     grad_tol = 1.0e-5,
@@ -9,16 +6,19 @@ function solve(model, obj, x̄, ū, w, h, T;
     println()
     verbose && println("differential dynamic programming")
 
-    # allocate data
+    # allocate model data
     m_data = model_data(model, obj, w, h, T)
     m_data.x̄ .= x̄
     m_data.ū .= ū
 
+    # allocate policy data
     p_data = policy_data(model, T)
-    grad = zeros(model.n * T + model.m * (T - 1))
+
+    # allocate solver data
+    s_data = solver_data(model, T)
 
     # compute objective
-    J = objective(obj, m_data.x̄, m_data.ū)
+    s_data.obj = objective(m_data.obj, m_data.x̄, m_data.ū)
 
     for i = 1:max_iter
         # derivatives
@@ -28,43 +28,38 @@ function solve(model, obj, x̄, ū, w, h, T;
         backward_pass!(p_data, m_data)
 
         # forward pass
-        J, status = forward_pass!(p_data, m_data, J)
+        forward_pass!(p_data, m_data, s_data)
 
-        # compute gradient of Lagrangian
-        gradient!(grad, p_data, m_data)
-        grad_norm = norm(grad, Inf)
-
+        # check convergence
+        grad_norm = norm(s_data.gradient, Inf)
         verbose && println("    iter: $i
-            cost: $J
+            cost: $(s_data.obj)
             grad norm: $(grad_norm)")
-        (!status || grad_norm < grad_tol) && break
+        (!s_data.status || grad_norm < grad_tol) && break
     end
 
-    return m_data.x̄, m_data.ū#, K, k, P, p, J
+    return m_data.x̄, m_data.ū
 end
 
 """
-    gradient
+    gradient of Lagrangian
         https://web.stanford.edu/class/ee363/lectures/lqr-lagrange.pdf
 """
-function gradient!(grad, p_data::PolicyData, m_data::ModelData)
-    fx = m_data.dyn_deriv.fx
-    fu = m_data.dyn_deriv.fu
-    gx = m_data.obj_deriv.gx
-    gu = m_data.obj_deriv.gu
+function lagrangian_gradient!(s_data::SolverData, p_data::PolicyData, m_data::ModelData)
     T = m_data.T
     n = m_data.model.n
     m = m_data.model.m
 
     p = p_data.p
+    Qx = p_data.Qx
+    Qu = p_data.Qu
 
-    for t = 1:T
+    for t = 1:T-1
         idx_x = (t - 1) * n .+ (1:n)
-        grad[idx_x] = (t < T ? gx[t] + fx[t]' * p[t+1] - p[t] : gx[T] - p[T])
-
-        t == T && continue
+        s_data.gradient[idx_x] = Qx[t] - p[t]
+        # NOTE: gradient wrt xT is satisfied implicitly
 
         idx_u = n * T + (t - 1) * m .+ (1:m)
-        grad[idx_u] = gu[t] + fu[t]' * p[t+1]
+        s_data.gradient[idx_u] = Qu[t]
     end
 end

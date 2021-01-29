@@ -64,7 +64,7 @@ iterative LQR is currently implemented
 - [X] double integrator
 - [X] pendulum
 - [X] cartpole
-- [ ] acrobot
+- [X] acrobot
 
 ## simulation
 
