@@ -2,12 +2,13 @@ function solve(model, obj, x̄, ū, w, h, T;
     max_iter = 10,
     grad_tol = 1.0e-6,
     verbose = true)
-
+    println()
     verbose && println("differential dynamic programming")
 
     # compute initial objective
     J = objective(obj, x̄, ū)
-    verbose && println("    cost: $J")
+    # verbose && println("    initial cost: $J
+    # ------------------")
 
     # compute initial derivatives
     fx, fu = dynamics_derivatives(model, x̄, ū, w, h, T)
@@ -15,10 +16,14 @@ function solve(model, obj, x̄, ū, w, h, T;
 
     for i = 1:max_iter
         K, k, P, p, ΔV, Qx, Qu, Qxx, Quu, Qux = backward_pass(fx, fu, gx, gu, gxx, guu)
-        x̄, ū, fx, fu, gx, gu, gxx, guu, J = forward_pass(model, obj, K, k, x̄, ū, w, h, T, J)
+        x̄, ū, fx, fu, gx, gu, gxx, guu, J, status = forward_pass(model, obj, K, k, x̄, ū, w, h, T, J)
+        !status && break
         grad_norm = norm(gradient(fx, fu, gx, gu, p))
-        verbose && println("    cost: $J\n    grad norm: $(grad_norm)")
-        grad_norm < grad_tol && break
+        verbose && println("    iter: $i
+            cost: $J
+            grad norm: $(grad_norm)")
+        # grad_norm < grad_tol && break
+
     end
 
     return x̄, ū#, K, k, P, p, J

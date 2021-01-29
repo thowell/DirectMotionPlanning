@@ -16,6 +16,7 @@ w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
 x̄ = rollout(model, x1, ū, w, h, T)
+# x̄ = linear_interpolation(x1, zeros(model.n), T)
 
 # Objective
 Q = Diagonal(ones(model.n))

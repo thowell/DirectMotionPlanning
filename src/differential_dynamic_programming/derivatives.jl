@@ -33,10 +33,10 @@ function objective_derivatives(obj, x, u)
         push!(guu_hist, ForwardDiff.hessian(gu, u[t]))
     end
 
-    gx(z) = g(obj, z, nothing, T)
+    gxT(z) = g(obj, z, nothing, T)
 
-    push!(gx_hist, ForwardDiff.gradient(gx, x[T]))
-    push!(gxx_hist, ForwardDiff.hessian(gx, x[T]))
+    push!(gx_hist, ForwardDiff.gradient(gxT, x[T]))
+    push!(gxx_hist, ForwardDiff.hessian(gxT, x[T]))
 
     return gx_hist, gu_hist, gxx_hist, guu_hist
 end
