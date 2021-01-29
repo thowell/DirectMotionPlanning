@@ -7,7 +7,12 @@ function forward_pass!(p_data::PolicyData, m_data::ModelData, J̄; max_iter = 25
     while true
         iter > max_iter && (@error "forward pass failure", break)
 
-        rollout!(p_data, m_data, α = α)
+        try
+            rollout!(p_data, m_data, α = α)
+        catch
+            @warn "rollout failure"
+        end
+
         J = objective(m_data.obj, m_data.x, m_data.u)
 
         if J < J̄
