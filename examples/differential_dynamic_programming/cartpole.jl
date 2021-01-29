@@ -1,5 +1,4 @@
-using BenchmarkTools
-include(joinpath(@__DIR__, "differential_dynamic_programming.jl"))
+include_ddp()
 
 # Model
 include_model("cartpole")
@@ -7,7 +6,7 @@ n = model.n
 m = model.m
 
 # Time
-T = 31
+T = 51
 h = 0.1
 
 # Initial conditions, controls, disturbances
@@ -21,9 +20,9 @@ x̄ = rollout(model, x1, ū, w, h, T)
 # x̄ = linear_interpolation(x1, xT, T)
 
 # Objective
-Q = [(t < T ? Diagonal(1.0 * ones(model.n))
-    : Diagonal(100.0 * ones(model.n))) for t = 1:T]
-R = Diagonal(1.0e-1 * ones(model.m))
+Q = [(t < T ? Diagonal(1.0e-1 * ones(model.n))
+    : Diagonal(10.0 * ones(model.n))) for t = 1:T]
+R = Diagonal(1.0e-3 * ones(model.m))
 obj = StageQuadratic(Q, nothing, R, nothing, T)
 
 function g(obj::StageQuadratic, x, u, t)
@@ -42,15 +41,18 @@ end
 
 # Solve
 @time x, u = solve(model, obj, copy(x̄), copy(ū), w, h, T,
-    max_iter = 500, verbose = true)
+    max_iter = 1000, verbose = true)
 
-"""
-    benchmark times
-    1.97s
-    2.20s
-
-"""
 # Visualize
 using Plots
-plot(hcat(x...)', label = "")
-plot(hcat(u..., u[end])', linetype = :steppost)
+plot(π * ones(T),
+    width = 2.0, color = :black, linestyle = :dash)
+plot!(hcat(x...)', width = 2.0, label = "")
+plot(hcat(u..., u[end])',
+    width = 2.0, linetype = :steppost)
+
+include(joinpath(pwd(), "models/visualize.jl"))
+vis = Visualizer()
+render(vis)
+# open(vis)
+visualize!(vis, model, x, Δt = h)

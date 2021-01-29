@@ -3,7 +3,7 @@
 
 function solve(model, obj, x̄, ū, w, h, T;
     max_iter = 10,
-    grad_tol = 1.0e-6,
+    grad_tol = 1.0e-5,
     verbose = true)
 
     println()
@@ -20,17 +20,20 @@ function solve(model, obj, x̄, ū, w, h, T;
     # compute objective
     J = objective(obj, m_data.x̄, m_data.ū)
 
-    # compute derivatives
-    dynamics_derivatives!(m_data)
-    objective_derivatives!(m_data)
-
     for i = 1:max_iter
+        # derivatives
+        derivatives!(m_data)
+
+        # backward pass
         backward_pass!(p_data, m_data)
+
+        # forward pass
         J, status = forward_pass!(p_data, m_data, J)
 
-        # check convergence
+        # compute gradient of Lagrangian
         gradient!(grad, p_data, m_data)
-        grad_norm = norm(grad)
+        grad_norm = norm(grad, Inf)
+
         verbose && println("    iter: $i
             cost: $J
             grad norm: $(grad_norm)")

@@ -1,4 +1,4 @@
-include(joinpath(@__DIR__, "differential_dynamic_programming.jl"))
+include_ddp()
 
 # Model
 include_model("double_integrator")

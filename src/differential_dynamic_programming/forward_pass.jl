@@ -23,9 +23,5 @@ function forward_pass!(p_data::PolicyData, m_data::ModelData, J̄; max_iter = 25
         end
     end
 
-    # derivatives
-    dynamics_derivatives!(m_data)
-    objective_derivatives!(m_data)
-
     return J̄, status
 end

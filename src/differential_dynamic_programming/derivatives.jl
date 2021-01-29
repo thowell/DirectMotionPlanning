@@ -38,3 +38,8 @@ function objective_derivatives!(data::ModelData)
     data.obj_deriv.gx[T] = ForwardDiff.gradient(gxT, x̄[T])
     data.obj_deriv.gxx[T] = ForwardDiff.hessian(gxT, x̄[T])
 end
+
+function derivatives!(m_data::ModelData)
+    dynamics_derivatives!(m_data)
+    objective_derivatives!(m_data)
+end

@@ -58,6 +58,14 @@ motion planning
 - [X] acrobot
 - [X] hopper push recovery
 
+## differential dynamic programming
+iterative LQR is currently implemented
+
+- [X] double integrator
+- [X] pendulum
+- [X] cartpole
+- [ ] acrobot
+
 ## simulation
 
 <img src="examples/animations/box_drop.gif" alt="drawing" width="200"/>

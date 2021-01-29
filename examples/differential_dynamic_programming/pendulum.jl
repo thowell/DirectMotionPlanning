@@ -1,4 +1,4 @@
-include(joinpath(@__DIR__, "differential_dynamic_programming.jl"))
+include_ddp()
 
 # Model
 include_model("pendulum")
@@ -21,7 +21,7 @@ x̄ = rollout(model, x1, ū, w, h, T)
 
 # Objective
 Q = [(t < T ? Diagonal(1.0 * ones(model.n))
-        : Diagonal(10.0 * ones(model.n))) for t = 1:T]
+        : Diagonal(1000.0 * ones(model.n))) for t = 1:T]
 R = Diagonal(1.0e-1 * ones(model.m))
 
 obj = StageQuadratic(Q, nothing, R, nothing, T)
@@ -40,7 +40,6 @@ function g(obj::StageQuadratic, x, u, t)
     end
 end
 
-g(obj, x̄[1], ū[1], 1)
 # Solve
 @time x, u = solve(model, obj, copy(x̄), copy(ū), w, h, T,
     max_iter = 25)

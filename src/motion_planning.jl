@@ -4,6 +4,7 @@ using LinearAlgebra, ForwardDiff, FiniteDiff, StaticArrays, SparseArrays
 using MathOptInterface, Ipopt
 using Distributions, Interpolations
 using JLD2
+using BenchmarkTools
 
 using Colors
 using CoordinateTransformations
@@ -40,6 +41,11 @@ include("unscented.jl")
 # direct policy optimization
 function include_dpo()
     include(joinpath(pwd(), "src/direct_policy_optimization/dpo.jl"))
+end
+
+# differential dynamic programming
+function include_ddp()
+    include(joinpath(pwd(), "src/differential_dynamic_programming/ddp.jl"))
 end
 
 end # module
