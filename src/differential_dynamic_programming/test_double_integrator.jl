@@ -16,14 +16,12 @@ w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
 x̄ = rollout(model, x1, ū, w, h, T)
-# x̄ = linear_interpolation(x1, zeros(model.n), T)
 
 # Objective
 Q = Diagonal(ones(model.n))
 R = Diagonal(ones(model.m))
-q = zeros(model.n)
-r = zeros(model.m)
-obj = StageQuadratic(Q, q, R, r, T)
+
+obj = StageQuadratic(Q, nothing, R, nothing, T)
 
 function g(obj::StageObjective, x, u, t)
     Q = obj.Q
@@ -39,10 +37,9 @@ function g(obj::StageObjective, x, u, t)
     end
 end
 
-# Solve
-x̄, ū = solve(model, obj, x̄, ū, w, h, T)
+@time x, u = solve(model, obj, copy(x̄), copy(ū), w, h, T)
 
 # Visualize
 using Plots
-plot(hcat(x̄...)')
-plot(hcat(ū..., ū[end])', linetype = :steppost)
+plot(hcat(x...)')
+plot(hcat(u..., u[end])', linetype = :steppost)

@@ -1,6 +1,4 @@
-function forward_pass(model, obj, K, k, x̄, ū, w, h, T, J̄,
-        max_iter = 25)
-
+function forward_pass!(p_data::PolicyData, m_data::ModelData, J̄; max_iter = 25)
     status = false
 
     # line search with rollout
@@ -9,13 +7,13 @@ function forward_pass(model, obj, K, k, x̄, ū, w, h, T, J̄,
     while true
         iter > max_iter && (@error "forward pass failure", break)
 
-        x, u = rollout(model, K, k, x̄, ū, w, h, T, α = α)
-        J = objective(obj, x, u)
+        rollout!(p_data, m_data, α = α)
+        J = objective(m_data.obj, m_data.x, m_data.u)
 
         if J < J̄
             # update nominal
-            x̄ .= x
-            ū .= u
+            m_data.x̄ .= deepcopy(m_data.x)
+            m_data.ū .= deepcopy(m_data.u)
             J̄ = J
             status = true
             break
@@ -26,8 +24,8 @@ function forward_pass(model, obj, K, k, x̄, ū, w, h, T, J̄,
     end
 
     # derivatives
-    fx, fu = dynamics_derivatives(model, x̄, ū, w, h, T)
-    gx, gu, gxx, guu = objective_derivatives(obj, x̄, ū)
+    dynamics_derivatives!(m_data)
+    objective_derivatives!(m_data)
 
-    return x̄, ū, fx, fu, gx, gu, gxx, guu, J̄, status
+    return J̄, status
 end

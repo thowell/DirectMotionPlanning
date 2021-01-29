@@ -1,41 +1,44 @@
-function backward_pass(fx, fu, gx, gu, gxx, guu)
-    T = length(gx)
+function backward_pass!(p_data::PolicyData, m_data::ModelData)
+    T = m_data.T
+    fx = m_data.dyn_deriv.fx
+    fu = m_data.dyn_deriv.fu
+    gx = m_data.obj_deriv.gx
+    gu = m_data.obj_deriv.gu
+    gxx = m_data.obj_deriv.gxx
+    guu = m_data.obj_deriv.guu
 
     # policy
-    K = []
-    k = []
+    K = p_data.K
+    k = p_data.k
 
     # value function approximation
-    P = []
-    p = []
-    ΔV = []
+    P = p_data.P
+    p = p_data.p
+    ΔV = p_data.ΔV
 
     # state-action value function approximation
-    Qx = []
-    Qu = []
-    Qxx = []
-    Quu = []
-    Qux = []
+    Qx = p_data.Qx
+    Qu = p_data.Qu
+    Qxx = p_data.Qxx
+    Quu = p_data.Quu
+    Qux = p_data.Qux
 
-    push!(P, gxx[T])
-    push!(p, gx[T])
+    # terminal value function
+    P[T] = gxx[T]
+    p[T] =  gx[T]
 
     for t = T-1:-1:1
-        push!(Qx, gx[t] + fx[t]' * p[end])
-        push!(Qu, gu[t] + fu[t]' * p[end])
-        push!(Qxx, gxx[t] + fx[t]' * P[end] * fx[t])
-        push!(Quu, guu[t] + fu[t]' * P[end] * fu[t])
-        push!(Qux, fu[t]' * P[end] * fx[t])
+        Qx[t] = gx[t] + fx[t]' * p[t+1]
+        Qu[t] = gu[t] + fu[t]' * p[t+1]
+        Qxx[t] = gxx[t] + fx[t]' * P[t+1] * fx[t]
+        Quu[t] = guu[t] + fu[t]' * P[t+1] * fu[t]
+        Qux[t] = fu[t]' * P[t+1] * fx[t]
 
-        push!(K, -1.0 * Quu[end] \ Qux[end])
-        push!(k, -1.0 * Quu[end] \ Qu[end])
+        K[t] = -1.0 * Quu[t] \ Qux[t]
+        k[t] = -1.0 * Quu[t] \ Qu[t]
 
-        push!(P, Qxx[end] + K[end]' * Quu[end] * K[end]
-            + K[end]' * Qux[end] + Qux[end]' * K[end])
-        push!(p, Qx[end] + K[end]' * Quu[end] * k[end]
-            + K[end]' * Qu[end] + Qux[end]' * k[end])
-        push!(ΔV, (k[end]' * Qu[end], 0.5 * k[end]' * Quu[end] * k[end]))
+        P[t] =  Qxx[t] + K[t]' * Quu[t] * K[t] + K[t]' * Qux[t] + Qux[t]' * K[t]
+        p[t] =  Qx[t] + K[t]' * Quu[t] * k[t] + K[t]' * Qu[t] + Qux[t]' * k[t]
+        # push!(ΔV, (k[t]' * Qu[t], 0.5 * k[t]' * Quu[t] * k[t]))
     end
-
-    return reverse(K), reverse(k), reverse(P), reverse(p), reverse(ΔV), reverse(Qx), reverse(Qu), reverse(Qxx), reverse(Quu), reverse(Qux)
 end
