@@ -22,15 +22,21 @@ function objective_derivatives!(data::ModelData)
     h = data.h
     T = data.T
     model = data.model
+    obj = data.obj
+    n = model.n
+    m = model.m
 
     for t = 1:T-1
         gx(z) = g(obj, z, ū[t], t)
         gu(z) = g(obj, x̄[t], z, t)
+        gz(z) = g(obj, z[1:n], z[n .+ (1:m)], t)
 
         data.obj_deriv.gx[t] = ForwardDiff.gradient(gx, x̄[t])
         data.obj_deriv.gu[t] = ForwardDiff.gradient(gu, ū[t])
         data.obj_deriv.gxx[t] = ForwardDiff.hessian(gx, x̄[t])
         data.obj_deriv.guu[t] = ForwardDiff.hessian(gu, ū[t])
+        data.obj_deriv.gux[t] = ForwardDiff.hessian(gz,
+            [x̄[t]; ū[t]])[n .+ (1:m), 1:n]
     end
 
     gxT(z) = g(obj, z, nothing, T)

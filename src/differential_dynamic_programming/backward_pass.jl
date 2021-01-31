@@ -6,6 +6,7 @@ function backward_pass!(p_data::PolicyData, m_data::ModelData)
     gu = m_data.obj_deriv.gu
     gxx = m_data.obj_deriv.gxx
     guu = m_data.obj_deriv.guu
+    gux = m_data.obj_deriv.gux
 
     # policy
     K = p_data.K
@@ -31,7 +32,7 @@ function backward_pass!(p_data::PolicyData, m_data::ModelData)
         Qu[t] = gu[t] + fu[t]' * p[t+1]
         Qxx[t] = gxx[t] + fx[t]' * P[t+1] * fx[t]
         Quu[t] = guu[t] + fu[t]' * P[t+1] * fu[t]
-        Qux[t] = fu[t]' * P[t+1] * fx[t]
+        Qux[t] = gux[t] + fu[t]' * P[t+1] * fx[t]
 
         K[t] = -1.0 * Quu[t] \ Qux[t]
         k[t] = -1.0 * Quu[t] \ Qu[t]

@@ -1,18 +1,18 @@
 include_ddp()
 
 # Model
-include_model("cartpole")
+include_model("acrobot")
 n = model.n
 m = model.m
 
 # Time
-T = 51
-h = 0.1
+T = 101
+h = 0.05
 
 # Initial conditions, controls, disturbances
 x1 = [0.0, 0.0, 0.0, 0.0]
-xT = [0.0, π, 0.0, 0.0] # goal state
-ū = [1.0e-1 * ones(model.m) for t = 1:T-1]
+xT = [π, 0.0, 0.0, 0.0] # goal state
+ū = [1.0 * rand(model.m) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
@@ -20,25 +20,51 @@ x̄ = rollout(model, x1, ū, w, h, T)
 # x̄ = linear_interpolation(x1, xT, T)
 
 # Objective
-Qt = Diagonal(1.0e-1 * ones(model.n))
-Rt = Diagonal(1.0e-3 * ones(model.m))
-QT = Diagonal(10.0 * ones(model.n))
-obj = StageCosts([(t < T ? QuadraticCost(Qt, nothing, Rt, nothing)
-    : QuadraticCost(QT, nothing, nothing, nothing)) for t = 1:T], T)
+Q = [(t < T ? Diagonal(1.0e-3 * ones(model.n))
+    : Diagonal(100.0 * ones(model.n))) for t = 1:T]
+R = Diagonal(1.0e-5 * ones(model.m))
+obj = StageQuadratic(Q, nothing, R, nothing, T)
 
-function g(obj::StageCosts, x, u, t) #TODO fix global: T, xT
+function g(obj::StageQuadratic, x, u, t)
+    Q = obj.Q[t]
+    R = obj.R
     T = obj.T
+
     if t < T
-        Q = obj.cost[t].Q
-        R = obj.cost[t].R
         return (x - xT)' * Q * (x - xT) + u' * R * u
     elseif t == T
-        Q = obj.cost[T].Q
         return (x - xT)' * Q * (x - xT)
     else
         return 0.0
     end
 end
+
+# Constraints
+struct CartpoleConstraints <: StageConstraints
+    # control limits
+    p_u_limits
+    ul
+    uu
+
+    # terminal state
+    p_xT
+    xT
+end
+con = CartpoleConstraints(2 * m, -50.0, 50.0, n, xT)
+
+function c!(c, con::CartpoleConstraints, x, u, t)
+    if t < T
+        c = SVector{con.p_u_limits}([u[t] - con.ul; con.uu - u[t]])
+    elseif t == T
+        c = SVector{con.p_xT}(x[T] - con.xT)
+    else
+        nothing
+    end
+end
+
+p = [t < T ? 2 * m : n for t = 1:T]
+cones = [t < T ? :no : :free for t = 1:T]
+
 
 # Solve
 @time p_data, m_data, s_data = solve(model, obj, copy(x̄), copy(ū), w, h, T,

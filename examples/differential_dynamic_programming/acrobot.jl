@@ -23,16 +23,17 @@ x̄ = rollout(model, x1, ū, w, h, T)
 Q = [(t < T ? Diagonal(1.0e-3 * ones(model.n))
     : Diagonal(100.0 * ones(model.n))) for t = 1:T]
 R = Diagonal(1.0e-5 * ones(model.m))
-obj = StageQuadratic(Q, nothing, R, nothing, T)
+obj = StageCosts([QuadraticCost(Q[t], nothing,
+	t < T ? R : nothing, nothing) for t = 1:T], T)
 
-function g(obj::StageQuadratic, x, u, t)
-    Q = obj.Q[t]
-    R = obj.R
+function g(obj::StageCosts, x, u, t)
     T = obj.T
-
     if t < T
+		Q = obj.cost[t].Q
+		R = obj.cost[t].R
         return (x - xT)' * Q * (x - xT) + u' * R * u
     elseif t == T
+		Q = obj.cost[t].Q
         return (x - xT)' * Q * (x - xT)
     else
         return 0.0

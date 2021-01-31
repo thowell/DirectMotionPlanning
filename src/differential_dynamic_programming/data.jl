@@ -17,11 +17,12 @@ function dynamics_derivatives_data(model::Model, T)
     DynamicsDerivativesData(fx, fu)
 end
 
-struct ObjectiveDerivativesData{X, U, XX, UU}
+struct ObjectiveDerivativesData{X, U, XX, UU, UX}
     gx::Vector{X}
     gu::Vector{U}
     gxx::Vector{XX}
     guu::Vector{UU}
+    gux::Vector{UX}
 end
 
 function objective_derivatives_data(model::Model, T)
@@ -32,8 +33,9 @@ function objective_derivatives_data(model::Model, T)
     gu = [SVector{m}(ones(m)) for t = 1:T-1]
     gxx = [SMatrix{n, n}(ones(n, n)) for t = 1:T]
     guu = [SMatrix{m, m}(ones(m, m)) for t = 1:T-1]
+    gux = [SMatrix{m, n}(ones(m, n)) for t = 1:T-1]
 
-    ObjectiveDerivativesData(gx, gu, gxx, guu)
+    ObjectiveDerivativesData(gx, gu, gxx, guu, gux)
 end
 
 struct ModelData{X, U, D, S}
@@ -58,7 +60,7 @@ struct ModelData{X, U, D, S}
     model::Model
 
     # objective
-    obj::StageObjective
+    obj::StageCosts
 
     # dynamics derivatives data
     dyn_deriv::DynamicsDerivativesData
@@ -158,4 +160,23 @@ function solver_data(model::Model, T)
     gradient = zeros(num_var)
 
     SolverData(obj, gradient, false)
+end
+
+"""
+    Constraints Data
+"""
+struct ConstraintsData
+    c
+    cx
+    cu
+end
+
+function constraints_data(model::Model, p::Vector, T::Int)
+    n = model.n
+    m = model.m
+    c = [SVector{p[t]}(zeros(p[t])) for t = 1:T]
+    cx = [SMatrix{p[t], n}(zeros(p[t], n)) for t = 1:T]
+    cu = [SMatrix{p[t], m}(zeros(p[t], m)) for t = 1:T]
+
+    ConstraintsData(c, cx, cu)
 end
