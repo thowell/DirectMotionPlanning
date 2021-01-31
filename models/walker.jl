@@ -26,8 +26,8 @@ struct Walker{I, T} <: Model{I, T}
     J_calf1
 
 		# foot
-	l_foot1
-	d_foot1
+	l_foot1 # toe length
+	d_foot1 # heel length
 	m_foot1
 	J_foot1
 
@@ -45,8 +45,8 @@ struct Walker{I, T} <: Model{I, T}
     J_calf2
 
 		# foot
-	l_foot2
-	d_foot2
+	l_foot2 # toe length
+	d_foot2 # heel length
 	m_foot2
 	J_foot2
 
@@ -87,24 +87,26 @@ g = 9.81     # gravity
 
 # Model parameters
 m_torso = 1.0
-m_thigh = 0.01
-m_calf = 0.01
-m_foot = 0.001
+m_thigh = 0.25
+m_calf = 0.1
+m_foot = 0.025
 
-J_torso = 0.1
-J_thigh = 0.001
-J_calf = 0.001
-J_foot = 0.0001
+l_torso = 0.5
+l_thigh = 0.5
+l_calf = 0.5
+l_foot = 0.1875
 
-l_torso = 0.25
-l_thigh = 0.25
-l_calf = 0.25
-l_foot = 0.1
+d_torso = 0.25
+d_thigh = 0.25
+d_calf = 0.25
+d_foot = 0.0625
 
-d_torso = 0.125
-d_thigh = 0.125
-d_calf = 0.125
-d_foot = 0.05
+J_torso = 1.0 / 12.0 * m_torso * l_torso^2.0
+J_thigh = 1.0 / 12.0 * m_thigh * l_thigh^2.0
+J_calf = 1.0 / 12.0 * m_calf * l_calf^2.0
+J_foot = 1.0 / 12.0 * m_foot * (l_foot + d_foot)^2.0
+
+
 
 n = 2 * nq
 m = nu + nc + nb + nc + nb + ns
@@ -250,6 +252,7 @@ function kinematics_3(model::Walker, q; body = :foot_1, mode = :ee)
 
 		lb = model.l_foot1
 		db = model.d_foot1
+		cb = 0.5 * (model.l_foot1 - model.d_foot1)
 	elseif body == :foot_2
 		p = kinematics_2(model, q, body = :calf_2, mode = :ee)
 
@@ -257,14 +260,17 @@ function kinematics_3(model::Walker, q; body = :foot_1, mode = :ee)
 
 		lb = model.l_foot2
 		db = model.d_foot2
+		cb = 0.5 * (model.l_foot2 - model.d_foot2)
 	else
 		@error "incorrect body specification"
 	end
 
-	if mode == :ee
+	if mode == :toe
 		return p + [lb * sin(θb); -1.0 * lb * cos(θb)]
+	elseif mode == :heel
+		return p + [-db * sin(θb); 1.0 * db * cos(θb)]
 	elseif mode == :com
-		return p + [db * sin(θb); -1.0 * db * cos(θb)]
+		return p + [cb * sin(θb); -1.0 * cb * cos(θb)]
 	else
 		@error "incorrect mode specification"
 	end
@@ -277,7 +283,15 @@ function jacobian_3(model::Walker, q; body = :foot_1, mode = :ee)
 
 		θb = q[8]
 
-		r = mode == :ee ? model.l_foot1 : model.d_foot1
+		if mode == :toe
+			r = model.l_foot1
+		elseif mode == :heel
+			r = -1.0 * model.d_foot1
+		elseif mode == :com
+			r = 0.5 * (model.l_foot1 - model.d_foot1)
+		else
+			@error "incorrect mode specification"
+		end
 
 		jac[1, 8] += r * cos(θb)
 		jac[2, 8] += r * sin(θb)
@@ -287,8 +301,15 @@ function jacobian_3(model::Walker, q; body = :foot_1, mode = :ee)
 
 		θb = q[9]
 
-		r = mode == :ee ? model.l_foot2 : model.d_foot2
-
+		if mode == :toe
+			r = model.l_foot2
+		elseif mode == :heel
+			r = -1.0 * model.d_foot2
+		elseif mode == :com
+			r = 0.5 * (model.l_foot2 - model.d_foot2)
+		else
+			@error "incorrect mode specification"
+		end
 		jac[1, 9] += r * cos(θb)
 		jac[2, 9] += r * sin(θb)
 
@@ -427,12 +448,12 @@ function C_func(model::Walker, q, q̇)
 end
 
 function ϕ_func(model::Walker, q)
-	p_calf_1 = kinematics_2(model, q, body = :calf_1, mode = :ee)
-	p_calf_2 = kinematics_2(model, q, body = :calf_2, mode = :ee)
-	p_foot_1 = kinematics_3(model, q, body = :foot_1, mode = :ee)
-	p_foot_2 = kinematics_3(model, q, body = :foot_2, mode = :ee)
+	p_toe_1 = kinematics_3(model, q, body = :foot_1, mode = :toe)
+	p_heel_1 = kinematics_3(model, q, body = :foot_1, mode = :heel)
+	p_toe_2 = kinematics_3(model, q, body = :foot_2, mode = :toe)
+	p_heel_2 = kinematics_3(model, q, body = :foot_2, mode = :heel)
 
-	@SVector [p_calf_1[2], p_calf_2[2], p_foot_1[2], p_foot_2[2]]
+	@SVector [p_toe_1[2], p_heel_1[2], p_toe_2[2], p_heel_2[2]]
 end
 
 function B_func(model::Walker, q)
@@ -446,40 +467,40 @@ function B_func(model::Walker, q)
 end
 
 function N_func(model::Walker, q)
-	J_calf_1 = jacobian_2(model, q, body = :calf_1, mode = :ee)
-	J_calf_2 = jacobian_2(model, q, body = :calf_2, mode = :ee)
-	J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :ee)
-	J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :ee)
+	J_toe_1 = jacobian_3(model, q, body = :foot_1, mode = :toe)
+	J_heel_1 = jacobian_3(model, q, body = :foot_1, mode = :heel)
+	J_toe_2 = jacobian_3(model, q, body = :foot_2, mode = :toe)
+	J_heel_2 = jacobian_3(model, q, body = :foot_2, mode = :heel)
 
-	return [view(J_calf_1, 2:2, :);
-			view(J_calf_2, 2:2, :);
-			view(J_foot_1, 2:2, :);
-			view(J_foot_2, 2:2, :)]
+	return [view(J_toe_1, 2:2, :);
+			view(J_heel_1, 2:2, :);
+			view(J_toe_2, 2:2, :);
+			view(J_heel_2, 2:2, :)]
 end
 
 function _P_func(model::Walker, q)
-	J_calf_1 = jacobian_2(model, q, body = :calf_1, mode = :ee)
-	J_calf_2 = jacobian_2(model, q, body = :calf_2, mode = :ee)
-	J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :ee)
-	J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :ee)
+	J_toe_1 = jacobian_3(model, q, body = :foot_1, mode = :toe)
+	J_heel_1 = jacobian_3(model, q, body = :foot_1, mode = :heel)
+	J_toe_2 = jacobian_3(model, q, body = :foot_2, mode = :toe)
+	J_heel_2 = jacobian_3(model, q, body = :foot_2, mode = :heel)
 
-	return [view(J_calf_1, 1:1, :);
-			view(J_calf_2, 1:1, :);
-			view(J_foot_1, 1:1, :);
-			view(J_foot_2, 1:1, :)]
+	return [view(J_toe_1, 1:1, :);
+			view(J_heel_1, 1:1, :);
+			view(J_toe_2, 1:1, :);
+			view(J_heel_2, 1:1, :)]
 end
 
 function P_func(model::Walker, q)
-	J_calf_1 = jacobian_2(model, q, body = :calf_1, mode = :ee)
-	J_calf_2 = jacobian_2(model, q, body = :calf_2, mode = :ee)
-	J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :ee)
-	J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :ee)
+	J_toe_1 = jacobian_3(model, q, body = :foot_1, mode = :toe)
+	J_heel_1 = jacobian_3(model, q, body = :foot_1, mode = :heel)
+	J_toe_2 = jacobian_3(model, q, body = :foot_2, mode = :toe)
+	J_heel_2 = jacobian_3(model, q, body = :foot_2, mode = :heel)
 	map = [1.0; -1.0]
 
-	return [map * view(J_calf_1, 1:1, :);
-			map * view(J_calf_2, 1:1, :);
-			map * view(J_foot_1, 1:1, :);
-			map * view(J_foot_2, 1:1, :)]
+	return [map * view(J_toe_1, 1:1, :);
+			map * view(J_heel_1, 1:1, :);
+			map * view(J_toe_2, 1:1, :);
+			map * view(J_heel_2, 1:1, :)]
 end
 
 function friction_cone(model::Walker, u)
@@ -612,7 +633,8 @@ function visualize!(vis, model::Walker, q;
 	setobject!(vis["calf1"], calf_1,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
-	foot_1 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_foot1),
+	foot_1 = Cylinder(Point3f0(0.0,0.0,0.0),
+		Point3f0(0.0, 0.0, model.l_foot1 + model.d_foot1),
 		convert(Float32, 0.025))
 	setobject!(vis["foot1"], foot_1,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
@@ -627,7 +649,8 @@ function visualize!(vis, model::Walker, q;
 	setobject!(vis["calf2"], calf_2,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
-	foot_2 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_foot2),
+	foot_2 = Cylinder(Point3f0(0.0,0.0,0.0),
+		Point3f0(0.0, 0.0, model.l_foot2 + model.d_foot2),
 		convert(Float32, 0.025))
 	setobject!(vis["foot2"], foot_2,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
@@ -674,31 +697,37 @@ function visualize!(vis, model::Walker, q;
 			k_calf_1 = kinematics_2(model, q[t], body = :calf_1, mode = :ee)
 			p_calf_1 = [k_calf_1[1], 0.0, k_calf_1[2]] + p_shift
 
-			k_foot_1 = kinematics_3(model, q[t], body = :foot_1, mode = :ee)
-			p_foot_1 = [k_foot_1[1], 0.0, k_foot_1[2]] + p_shift
-
 			k_thigh_2 = kinematics_1(model, q[t], body = :thigh_2, mode = :ee)
 			p_thigh_2 = [k_thigh_2[1], 0.0, k_thigh_2[2]] + p_shift
 
 			k_calf_2 = kinematics_2(model, q[t], body = :calf_2, mode = :ee)
 			p_calf_2 = [k_calf_2[1], 0.0, k_calf_2[2]] + p_shift
 
-			k_foot_2 = kinematics_3(model, q[t], body = :foot_2, mode = :ee)
-			p_foot_2 = [k_foot_2[1], 0.0, k_foot_2[2]] + p_shift
+			k_toe_1 = kinematics_3(model, q[t], body = :foot_1, mode = :toe)
+			p_toe_1 = [k_toe_1[1], 0.0, k_toe_1[2]] + p_shift
+
+			k_heel_1 = kinematics_3(model, q[t], body = :foot_1, mode = :heel)
+			p_heel_1 = [k_heel_1[1], 0.0, k_heel_1[2]] + p_shift
+
+			k_toe_2 = kinematics_3(model, q[t], body = :foot_2, mode = :toe)
+			p_toe_2 = [k_toe_2[1], 0.0, k_toe_2[2]] + p_shift
+
+			k_heel_2 = kinematics_3(model, q[t], body = :foot_2, mode = :heel)
+			p_heel_2 = [k_heel_2[1], 0.0, k_heel_2[2]] + p_shift
 
 			settransform!(vis["thigh1"], cable_transform(p, p_thigh_1))
 			settransform!(vis["calf1"], cable_transform(p_thigh_1, p_calf_1))
-			settransform!(vis["foot1"], cable_transform(p_calf_1, p_foot_1))
+			settransform!(vis["foot1"], cable_transform(p_toe_1, p_heel_1))
 
 			settransform!(vis["thigh2"], cable_transform(p, p_thigh_2))
 			settransform!(vis["calf2"], cable_transform(p_thigh_2, p_calf_2))
-			settransform!(vis["foot2"], cable_transform(p_calf_2, p_foot_2))
+			settransform!(vis["foot2"], cable_transform(p_toe_2, p_heel_2))
 
 			settransform!(vis["torso"], cable_transform(p_torso,p))
-			settransform!(vis["heel1"], Translation(p_calf_1))
-			settransform!(vis["heel2"], Translation(p_calf_2))
-			settransform!(vis["toe1"], Translation(p_foot_1))
-			settransform!(vis["toe2"], Translation(p_foot_2))
+			settransform!(vis["heel1"], Translation(p_heel_1))
+			settransform!(vis["heel2"], Translation(p_heel_2))
+			settransform!(vis["toe1"], Translation(p_toe_1))
+			settransform!(vis["toe2"], Translation(p_toe_2))
 			settransform!(vis["knee1"], Translation(p_thigh_1))
 			settransform!(vis["knee2"], Translation(p_thigh_2))
 			settransform!(vis["hip"], Translation(p))
