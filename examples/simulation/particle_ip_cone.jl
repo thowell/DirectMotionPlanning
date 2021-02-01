@@ -14,10 +14,10 @@ function κ_so(z)
 
     if norm(z1) <= z0
         z_proj = copy(z)
-        # if norm(z1) < z0
-        #     status = true
-        # end
-        status = true
+        if norm(z1) < z0
+            status = true
+        end
+        # status = true
     elseif norm(z1) <= -z0
         z_proj = zero(z)
     else
@@ -33,6 +33,50 @@ J = [1.0 zeros(1, 2);
 H_inv(u) = 2.0 * u * u' - (u' * J * u) * J
 H_inv_sq(u) = [u[1] u[2:3]';
                u[2:3] (u[2:3] * u[2:3]') / (u[1] + (u' * J * u)^0.5) + ((u' * J * u)^0.5) * Diagonal(ones(2))]
+H_sq(u) = (1.0 / (u' * J * u)) * [u[1] -u[2:3]'; -u[2:3] ((u[1] + (u' * J * u)^0.5) \ (u[2:3] * u[2:3]') + ((u' * J * u)^0.5) * I)]
+barrier_grad(u) = -1.0 * (u' * J * u) \ (J * u)
+
+ss = [2.0; 0.5; 0.5]
+zz = -1.0 * barrier_grad(ss)
+H_sq(ss) * H_inv_sq(ss)
+
+function normalized_vector(u)
+    (1.0 / (u' * J * u)^0.5) * u
+end
+norm(normalized_vector(qq))
+
+function gamma(z, s)
+    (0.5 * (1.0 + normalized_vector(z)' * normalized_vector(s)))^0.5
+end
+
+function w̄(z, s)
+    0.5 * gamma(z, s) * (normalized_vector(s) + J * normalized_vector(z))
+end
+
+H_inv(w̄(zz, ss)) * normalized_vector(zz) - normalized_vector(ss)
+
+function W̄(z, s)
+    w = w̄(z, s)
+    [w[1] w[2:3]'; w[2:3] (I + (w[1] + 1.0)) \ (w[2:3] * w[2:3]')]
+end
+W̄(ss, qq)
+
+function W̄inv(z, s)
+    w = w̄(z, s)
+    [w[1] -w[2:3]'; -w[2:3] (I + (w[1] + 1.0)) \ (w[2:3] * w[2:3]')]
+end
+
+function cone_product(z, s)
+    [z' * s; z[1] * s[2:3] + s[1] * z[2:3]]
+end
+
+function W(z, s)
+    _W̄ = W̄(z, s)
+    (((s' * J * s) / (z' * J * z))^0.25) * _W̄
+end
+
+inv(W(zz,ss))
+
 # ww, _ = κ_so(rand(3))
 # ww[1] += 1.0
 # hh = H_inv(ww)
@@ -151,6 +195,9 @@ function _step(q1, q2, h;
             G = [zeros(1, 2); -Diagonal(ones(2))]
             g = [model.μ * n; zeros(2)]
 
+            W = W̄(bz, bs)
+            Winv = W̄inv(bz, bs)
+
             # action optimality conditions
             [dynamics(model, q1, q2, q3, λ, h);
              s1 - ϕ;
@@ -159,8 +206,7 @@ function _step(q1, q2, h;
              # maximum dissipation optimality conditions
              G' * bz + vT;
              bs + G * b - g;
-             bs' * bz - ρ;
-             bs[1] * bz[2:3] + bz[1] * bs[1:2]]
+             cone_product(bz, bs) - ρ * [1.0; 0.0; 0.0]]
         end
 
         # Jacobian
@@ -311,18 +357,16 @@ h = 0.1
 # v1 = [1.0; 1.0; 0.0]
 # q1 = [0.0; 0.0; 1.0]
 
-v1 = [0.0; 0.0; 0.0]
+v1 = [3.0; -10.0; 0.0]
 q1 = [0.0; 0.0; 1.0]
 
 v2 = v1 - gravity(model, q1) * h
 q2 = q1 + 0.5 * (v1 + v2) * h
 
-q_sol, y_sol, b_sol = simulate(q1, q2, 1, h)
+q_sol, y_sol, b_sol = simulate(q1, q2, 100, h)
 
 plot(hcat(q_sol...)[3:3, :]', xlabel = "", label = "z")
 plot!(h .* hcat(y_sol...)', xlabel = "", label = "n", linetype = :steppost)
 
 plot(hcat(q_sol...)[1:2, :]', xlabel = "", label = ["x" "y"])
 plot!(h * hcat(b_sol...)', label = ["b1" "b2"], linetype = :steppost)
-
-b_sol
