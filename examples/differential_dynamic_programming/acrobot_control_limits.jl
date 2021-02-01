@@ -7,7 +7,7 @@ m = model.m
 
 # Time
 T = 101
-h = 0.02
+h = 0.1
 
 # Initial conditions, controls, disturbances
 x1 = [0.0, 0.0, 0.0, 0.0]
@@ -20,8 +20,8 @@ x̄ = rollout(model, x1, ū, w, h, T)
 plot(hcat(x̄...)')
 
 # Objective
-Q = [(t < T ? Diagonal(1.0e-2 * ones(model.n))
-    : Diagonal(1.0e-2 * ones(model.n))) for t = 1:T]
+Q = [(t < T ? Diagonal(1.0e-3 * ones(model.n))
+    : Diagonal(1.0e-3 * ones(model.n))) for t = 1:T]
 R = Diagonal(1.0e-3 * ones(model.m))
 obj = StageCosts([QuadraticCost(Q[t], nothing,
 	t < T ? R : nothing, nothing) for t = 1:T], T)
@@ -41,8 +41,8 @@ function g(obj::StageCosts, x, u, t)
 end
 
 # Constraints
-p = [t < T ? 0.0 : n for t = 1:T]
-info_t = Dict(:ul => [-25.0], :uu => [25.0])#, :inequality => (1:2 * m))
+p = [t < T ? 2 * m : n for t = 1:T]
+info_t = Dict(:ul => [-10.0], :uu => [10.0], :inequality => (1:2 * m))
 info_T = Dict(:xT => xT)
 con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
 
@@ -51,9 +51,9 @@ function c!(c, cons::StageConstraints, x, u, t)
 	p = cons.con[t].p
 
 	if t < T
-		# ul = cons.con[t].info[:ul]
-		# uu = cons.con[t].info[:uu]
-		# c .= [ul - u; u - uu]
+		ul = cons.con[t].info[:ul]
+		uu = cons.con[t].info[:uu]
+		c .= [ul - u; u - uu]
 	elseif t == T
 		xT = cons.con[T].info[:xT]
 		c .= x - xT
@@ -100,11 +100,10 @@ end
 
 
 @time x, u, obj_al = solve(model, obj, con_set, copy(x̄), copy(ū), w, h, T,
-    max_iter = 1000, max_al_iter = 5,
+    max_iter = 1000, max_al_iter = 7,
 	ρ_init = 1.0, ρ_scale = 10.0,
 	verbose = true)
-obj_al.ρj
-x[T]
+
 # Visualize
 using Plots
 plot(π * ones(T),
