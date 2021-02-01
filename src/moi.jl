@@ -94,12 +94,23 @@ function solve(prob::MOI.AbstractNLPEvaluator, x0;
         nothing, [], [], nothing,
         0, 0, 0,
         nothing,
+        # Dict("Major_feasibility_tolerance" => c_tol,
+        #      "Minor_feasibility_tolerance" => c_tol,
+        #      "Minor_optimality_tolerance" => tol,
+        #      "Major_optimality_tolerance" => tol,
+        #      "Time_limit" => time_limit,
+        #      "Major_print_level" => mapl,
+        #      "Minor_print_level" => mipl))
         Dict("Major_feasibility_tolerance" => c_tol,
-             "Minor_feasibility_tolerance" => tol,
              "Major_optimality_tolerance" => tol,
+             # "Minor_feasibility_tolerance" => c_tol,
+             # "Minor_optimality_tolerance" => tol,
              "Time_limit" => time_limit,
              "Major_print_level" => mapl,
-             "Minor_print_level" => mipl))
+             "Minor_print_level" => mipl,
+             "Major_iterations_limit" => 10000,
+             "Minor_iterations_limit" => 200000,
+             "Iterations_limit" => 1000000))
     else
         @error "nlp not setup"
     end
