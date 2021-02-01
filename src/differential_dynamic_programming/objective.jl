@@ -1,10 +1,11 @@
 abstract type StageCost end
-g(obj::StageCosts, x, u, t) = 0.0
 
 struct StageCosts <: Objective
     cost::Vector{StageCost}
     T::Int
 end
+
+g(obj::StageCosts, x, u, t) = 0.0
 
 function objective(obj::StageCosts, x, u)
     T = obj.T

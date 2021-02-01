@@ -1,4 +1,4 @@
-function solve(model, obj, x̄, ū, w, h, T;
+function solve(model, obj::Objective, x̄, ū, w, h, T;
     max_iter = 10,
     grad_tol = 1.0e-5,
     verbose = true)
@@ -18,7 +18,7 @@ function solve(model, obj, x̄, ū, w, h, T;
     s_data = solver_data(model, T)
 
     # compute objective
-    s_data.obj = Inf # objective(m_data.obj, m_data.x̄, m_data.ū)
+    s_data.obj = objective(m_data.obj, m_data.x̄, m_data.ū)
 
     for i = 1:max_iter
         # derivatives
@@ -62,4 +62,10 @@ function lagrangian_gradient!(s_data::SolverData, p_data::PolicyData, m_data::Mo
         idx_u = n * T + (t - 1) * m .+ (1:m)
         s_data.gradient[idx_u] = Qu[t]
     end
+end
+
+"""
+    augmented Lagrangian solve
+"""
+function solve()
 end

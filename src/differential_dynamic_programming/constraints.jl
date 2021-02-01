@@ -1,14 +1,24 @@
-abstract type StageConstraint end
-abstract type StageConstraints end
+struct StageConstraint
+    p::Int
+    info::Dict
+end
 
-c!(c, con::StageConstraint, x, u, t) = nothing
+ConstraintSet = Vector{StageConstraint}
 
-function constraints!(c_data::ConstraintsData, con::StageConstraints, x, u)
-    T = con.T
+struct StageConstraints <: Constraints
+    con::ConstraintSet
+    data::ConstraintsData
+    T::Int
+end
+
+c!(a, cons::StageConstraints, x, u, t) = nothing
+
+function constraints!(cons::StageConstraints, x, u)
+    T = cons.T
 
     for t = 1:T-1
-        c!(c_data.c[t], con[t], x[t], u[t], t)
+        c!(cons.data.c[t], cons, x[t], u[t], t)
     end
 
-    c!(c_data.c[T], con[T], x[T], nothing, T)
+    c!(cons.data.c[T], cons, x[T], nothing, T)
 end

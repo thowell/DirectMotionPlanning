@@ -60,7 +60,7 @@ struct ModelData{X, U, D, S}
     model::Model
 
     # objective
-    obj::StageCosts
+    obj::Objective
 
     # dynamics derivatives data
     dyn_deriv::DynamicsDerivativesData
@@ -174,9 +174,11 @@ end
 function constraints_data(model::Model, p::Vector, T::Int)
     n = model.n
     m = model.m
-    c = [SVector{p[t]}(zeros(p[t])) for t = 1:T]
-    cx = [SMatrix{p[t], n}(zeros(p[t], n)) for t = 1:T]
-    cu = [SMatrix{p[t], m}(zeros(p[t], m)) for t = 1:T]
-
+    # c = [SVector{p[t]}(zeros(p[t])) for t = 1:T]
+    # cx = [SMatrix{p[t], n}(zeros(p[t], n)) for t = 1:T]
+    # cu = [SMatrix{p[t], m}(zeros(p[t], m)) for t = 1:T-1]
+    c = [zeros(p[t]) for t = 1:T]
+    cx = [zeros(p[t], n) for t = 1:T]
+    cu = [zeros(p[t], m) for t = 1:T-1]
     ConstraintsData(c, cx, cu)
 end
