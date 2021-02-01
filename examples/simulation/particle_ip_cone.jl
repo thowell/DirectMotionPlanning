@@ -30,20 +30,21 @@ function κ_so(z)
 end
 J = [1.0 zeros(1, 2);
      zeros(2) Diagonal(-1.0 * ones(2))]
-H_inv(u) = 2.0 * u * u' - (u' * J * u) * J
-H_inv_sq(u) = [u[1] u[2:3]';
-               u[2:3] (u[2:3] * u[2:3]') / (u[1] + (u' * J * u)^0.5) + ((u' * J * u)^0.5) * Diagonal(ones(2))]
-H_sq(u) = (1.0 / (u' * J * u)) * [u[1] -u[2:3]'; -u[2:3] ((u[1] + (u' * J * u)^0.5) \ (u[2:3] * u[2:3]') + ((u' * J * u)^0.5) * I)]
-barrier_grad(u) = -1.0 * (u' * J * u) \ (J * u)
 
-ss = [2.0; 0.5; 0.5]
-zz = -1.0 * barrier_grad(ss)
-H_sq(ss) * H_inv_sq(ss)
+# H_inv(u) = 2.0 * u * u' - (u' * J * u) * J
+# H_inv_sq(u) = [u[1] u[2:3]';
+#                u[2:3] (u[2:3] * u[2:3]') / (u[1] + (u' * J * u)^0.5) + ((u' * J * u)^0.5) * Diagonal(ones(2))]
+# H_sq(u) = (1.0 / (u' * J * u)) * [u[1] -u[2:3]'; -u[2:3] ((u[1] + (u' * J * u)^0.5) \ (u[2:3] * u[2:3]') + ((u' * J * u)^0.5) * I)]
+# barrier_grad(u) = -1.0 * (u' * J * u) \ (J * u)
+#
+# ss = [2.0; 0.5; 0.5]
+# zz = -1.0 * barrier_grad(ss)
+# H_sq(ss) * H_inv_sq(ss)
 
 function normalized_vector(u)
     (1.0 / (u' * J * u)^0.5) * u
 end
-norm(normalized_vector(qq))
+# norm(normalized_vector(qq))
 
 function gamma(z, s)
     (0.5 * (1.0 + normalized_vector(z)' * normalized_vector(s)))^0.5
@@ -53,13 +54,13 @@ function w̄(z, s)
     0.5 * gamma(z, s) * (normalized_vector(s) + J * normalized_vector(z))
 end
 
-H_inv(w̄(zz, ss)) * normalized_vector(zz) - normalized_vector(ss)
+# H_inv(w̄(zz, ss)) * normalized_vector(zz) - normalized_vector(ss)
 
 function W̄(z, s)
     w = w̄(z, s)
     [w[1] w[2:3]'; w[2:3] (I + (w[1] + 1.0)) \ (w[2:3] * w[2:3]')]
 end
-W̄(ss, qq)
+# W̄(ss, qq)
 
 function W̄inv(z, s)
     w = w̄(z, s)
@@ -75,7 +76,7 @@ function W(z, s)
     (((s' * J * s) / (z' * J * z))^0.25) * _W̄
 end
 
-inv(W(zz,ss))
+# inv(W(zz,ss))
 
 # ww, _ = κ_so(rand(3))
 # ww[1] += 1.0
@@ -162,7 +163,7 @@ function _step(q1, q2, h;
     #     s are slack variables for convenience
 
     # initialize
-    z = 1.0e-1 * ones(14)
+    z = 1.0e-1 * ones(13)
     z[1:3] = copy(q2)
 
     # initialize soc variables
@@ -186,7 +187,6 @@ function _step(q1, q2, h;
             bs = view(z, 7:9)
             bz = view(z, 10:12)
             s1 = z[13]
-            s2 = z[14]
 
             λ = [b; n] # contact forces
             ϕ = signed_distance(model, q3)        # signed-distance function
@@ -226,7 +226,6 @@ function _step(q1, q2, h;
             bz = view(z, 10:12)
 
             s1 = z[13]
-            s2 = z[14]
 
             if n <= 0.0
                 return true
@@ -243,10 +242,6 @@ function _step(q1, q2, h;
             end
 
             if s1 <= 0.0
-                return true
-            end
-
-            if s2 <= 0.0
                 return true
             end
 
@@ -350,23 +345,60 @@ function simulate(q1, q2, T, h;
 end
 
 # simulation setup
-model = Particle(1.0, 9.81, 1.0, 3)
+model = Particle(1.0, 9.81, 0.5, 3)
 h = 0.1
 
 # initial conditions
 # v1 = [1.0; 1.0; 0.0]
 # q1 = [0.0; 0.0; 1.0]
 
-v1 = [3.0; -10.0; 0.0]
+v1 = [5.0; 5.0; 0.0]
 q1 = [0.0; 0.0; 1.0]
 
 v2 = v1 - gravity(model, q1) * h
 q2 = q1 + 0.5 * (v1 + v2) * h
 
-q_sol, y_sol, b_sol = simulate(q1, q2, 100, h)
+# q1 = zeros(3)
+# q2 = zeros(3)
 
-plot(hcat(q_sol...)[3:3, :]', xlabel = "", label = "z")
-plot!(h .* hcat(y_sol...)', xlabel = "", label = "n", linetype = :steppost)
+q_sol, y_sol, b_sol = simulate(q1, q2, 50, h)
 
-plot(hcat(q_sol...)[1:2, :]', xlabel = "", label = ["x" "y"])
-plot!(h * hcat(b_sol...)', label = ["b1" "b2"], linetype = :steppost)
+# plot(hcat(q_sol...)[3:3, :]', xlabel = "", label = "z")
+# plot!(h .* hcat(y_sol...)', xlabel = "", label = "n", linetype = :steppost)
+#
+# plot(hcat(q_sol...)[1:2, :]', xlabel = "", label = ["x" "y"])
+# plot!(h * hcat(b_sol...)', label = ["b1" "b2"], linetype = :steppost)
+
+include(joinpath(pwd(), "models/visualize.jl"))
+vis = Visualizer()
+render(vis)
+
+
+function visualize!(vis, model, q;
+	Δt = 0.1, r = 0.1)
+
+	default_background!(vis)
+    setobject!(vis["particle"],
+		Rect(Vec(0, 0, 0),Vec(2r, 2r, 2r)),
+		MeshPhongMaterial(color = RGBA(1.0, 165.0 / 255.0, 0, 1.0)))
+
+    anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
+
+    for t = 1:length(q)
+        MeshCat.atframe(anim, t) do
+            settransform!(vis["particle"], Translation(q[t][1:3]...))
+        end
+    end
+
+    MeshCat.setanimation!(vis, anim)
+end
+
+visualize!(vis, model,
+    q_sol,
+    Δt = h)
+
+settransform!(vis["/Cameras/default"],
+    compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(pi))))
+
+settransform!(vis["/Cameras/default"],
+	compose(Translation(0.0, 0.0, 3.0),LinearMap(RotY(-pi/2.5))))

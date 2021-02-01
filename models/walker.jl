@@ -82,31 +82,29 @@ nb = nc * nf              # number of friction parameters
 ns = 1                    # slack
 
 # World parameters
-μ = 1.0      # coefficient of friction
+μ = 0.5      # coefficient of friction
 g = 9.81     # gravity
 
 # Model parameters
 m_torso = 1.0
-m_thigh = 0.25
-m_calf = 0.1
-m_foot = 0.025
+m_thigh = 0.01
+m_calf = 0.01
+m_foot = 0.001
 
-l_torso = 0.5
-l_thigh = 0.5
-l_calf = 0.5
-l_foot = 0.1875
+l_torso = 0.25
+l_thigh = 0.25
+l_calf = 0.25
+l_foot = 0.075
 
-d_torso = 0.25
-d_thigh = 0.25
-d_calf = 0.25
-d_foot = 0.0625
+d_torso = 0.125
+d_thigh = 0.125
+d_calf = 0.125
+d_foot = 0.025
 
-J_torso = 1.0 / 12.0 * m_torso * l_torso^2.0
-J_thigh = 1.0 / 12.0 * m_thigh * l_thigh^2.0
-J_calf = 1.0 / 12.0 * m_calf * l_calf^2.0
-J_foot = 1.0 / 12.0 * m_foot * (l_foot + d_foot)^2.0
-
-
+J_torso = 0.1   # 1.0 / 12.0 * m_torso * l_torso^2.0
+J_thigh = 0.001 # 1.0 / 12.0 * m_thigh * l_thigh^2.0
+J_calf = 0.001  # 1.0 / 12.0 * m_calf * l_calf^2.0
+J_foot = 0.0001 # 1.0 / 12.0 * m_foot * (l_foot + d_foot)^2.0
 
 n = 2 * nq
 m = nu + nc + nb + nc + nb + ns
@@ -614,7 +612,7 @@ model = Walker{Discrete, FixedTime}(n, m, d,
 
 # visualization
 function visualize!(vis, model::Walker, q;
-      r = 0.035, Δt = 0.1)
+      r = 0.03, Δt = 0.1)
 
 	default_background!(vis)
 

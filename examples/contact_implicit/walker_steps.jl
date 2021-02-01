@@ -110,7 +110,7 @@ function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2
     pM_2 = kinematics_2(model, qM, body = :calf_2, mode = :ee)
 
     qT = copy(q1)
-    qT[1] = 2 * stride
+    qT[1] = 1.5#2 * stride
 
     pT_1 = kinematics_2(model, qT, body = :calf_1, mode = :ee)
     pT_2 = kinematics_2(model, qT, body = :calf_2, mode = :ee)
@@ -122,10 +122,12 @@ q1, qM, qT = initial_configuration(model, -pi / 100.0, pi / 10.0, -pi / 25.0, -p
 # q_ref = [linear_interpolation(q1, qM, Tm)...,
 #     linear_interpolation(qM, qT, Tm)[1:end]...]
 # q_ref = linear_interpolation(q1, qM, T)
-# # q_ref = linear_interpolation(q1, qT, T)
-# x_ref = configuration_to_state(q_ref)
-# visualize!(vis, model, q_ref, Δt = h)
-# # visualize!(vis, model, [q1], Δt = h)
+# qT = copy(q1)
+qT[1] = q1[1] + 1.0
+q_ref = linear_interpolation(q1, qT, T)
+x_ref = configuration_to_state(q_ref)
+visualize!(vis, model, q_ref, Δt = h)
+# visualize!(vis, model, [q1], Δt = h)
 
 # feet positions
 # Tm = convert(Int64, floor(0.5 * T))
@@ -175,18 +177,18 @@ q1, qM, qT = initial_configuration(model, -pi / 100.0, pi / 10.0, -pi / 25.0, -p
 # ul <= u <= uu
 u1 = initial_torque(model, q1, h)[model.idx_u] # gravity compensation for current q
 _uu = Inf * ones(model.m)
-_uu[model.idx_u] .= 100.0
+_uu[model.idx_u] .= 10.0
 _ul = zeros(model.m)
-_ul[model.idx_u] .= -100.0
+_ul[model.idx_u] .= -10.0
 ul, uu = control_bounds(model, T, _ul, _uu)
 
 qL = [-Inf; -Inf; q1[3:end] .- pi / 4.0; -Inf; -Inf; q1[3:end] .- pi / 4.0]
-qU = [Inf; Inf; q1[3:end] .+ pi / 4.0; Inf; Inf; q1[3:end] .+ pi / 4.0]
+qU = [Inf; q1[2] + 0.001; q1[3:end] .+ pi / 4.0; Inf; Inf; q1[3:end] .+ pi / 4.0]
 
 xl, xu = state_bounds(model, T,
     qL, qU,
-    x1 = [q1; q1])#, # initial state
-    # xT = [qT; qT]) # goal state
+    x1 = [q1; q1], # initial state
+    xT = [Inf * ones(model.nq); qT]) # goal state
 
 # Objective
 include_objective(["velocity", "nonlinear_stage", "control_velocity"])
@@ -194,21 +196,26 @@ include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 x0 = configuration_to_state(q_ref)
 
 # penalty on slack variable
-obj_penalty = PenaltyObjective(1.0e3, model.m)
+obj_penalty = PenaltyObjective(1.0e5, model.m)
 
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
+q_penalty = 0.1 * ones(model.nq)
+q_penalty[1] = 0.0
+q_penalty[2] = 10.0
+q_penalty[3] = 1.0
+x_penalty = [q_penalty; q_penalty]
 obj_control = quadratic_tracking_objective(
-    [Diagonal(0.0 * ones(model.n)) for t = 1:T],
-    [Diagonal([0.0 * ones(model.nu)..., 0.0 * ones(model.m - model.nu)...]) for t = 1:T-1],
-    [x_ref[t] for t = 1:T],
-    [[u1; zeros(model.m - model.nu)] for t = 1:T-1])
+    [Diagonal(x_penalty) for t = 1:T],
+    [Diagonal([10.0 * ones(model.nu)..., 0.0 * ones(model.m - model.nu)...]) for t = 1:T-1],
+    [x_ref[T] for t = 1:T],
+    [[zeros(model.nu); zeros(model.m - model.nu)] for t = 1:T-1])
 
 # quadratic velocity penalty
 # Σ v' Q v
-q_v = 1.0 * ones(model.nq)
-q_v[2] = 0.0e-1
-q_v[3] = 0.0
+q_v = 10.0 * ones(model.nq)
+# q_v[1] = 0.0
+# q_v[2] = 0.0
 obj_velocity = velocity_objective(
     [Diagonal(q_v) for t = 1:T-1],
     model.nq,
@@ -266,10 +273,10 @@ obj_tf = nonlinear_stage_objective(l_stage_torso_feet, l_terminal_torso_feet)
 # obj_forward = nonlinear_stage_objective(l_stage_forward, l_terminal_forward)
 
 obj = MultiObjective([obj_penalty,
-                      # obj_control,
-                      # obj_velocity,
+                      obj_control,
+                      obj_velocity])
 					  # obj_control_velocity,
-                      obj_th])#,
+                      # obj_th])#,
                       # obj_fh1,
                       # obj_fh2,
 					  # obj_tf])
@@ -294,17 +301,17 @@ prob = trajectory_optimization_problem(model,
                con = con)
 
 # trajectory initialization
-u0 = [[u1; 1.0e-6 * rand(model.m - model.nu)] for t = 1:T-1] # random controls
+u0 = [[0.001 * rand(model.nu); 1.0e-5 * rand(model.m - model.nu)] for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-z0 = pack(x0, u0, prob) + 1.0e-6 * rand(prob.num_var)
+z0 = pack(x0, u0, prob) + 1.0e-5 * rand(prob.num_var)
 
 # Solve
 include_snopt()
 @time z̄, info = solve(prob, copy(z0),
     nlp = :SNOPT7,
-    tol = 1.0e-3, c_tol = 1.0e-3, mapl = 5,
-    time_limit = 60 * 3)
+    tol = 1.0e-5, c_tol = 1.0e-5, mapl = 5,
+    time_limit = 60 * 1)
 
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
