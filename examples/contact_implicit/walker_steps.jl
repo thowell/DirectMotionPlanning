@@ -229,11 +229,13 @@ prob = trajectory_optimization_problem(model,
                con = con)
 
 # trajectory initialization
-u0 = [0.1 * randn(model.m) for t = 1:T-1] # random controls
+u0 = [0.01 * randn(model.m) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 z0 = pack(x0, u0, prob)
+
 # Solve
+# NOTE: run multiple times to get good trajectory
 include_snopt()
 @time z̄, info = solve(prob, copy(z0),
     nlp = :SNOPT7,

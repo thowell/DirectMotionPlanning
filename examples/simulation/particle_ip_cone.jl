@@ -159,7 +159,7 @@ function _step(q1, q2, h;
     #     find z
     #     s.t. r(z) = 0
     #
-    # z = (q, n, b, bs, bz, s)
+    # z = (q, n, b, by, bz, s)
     #     s are slack variables for convenience
 
     # initialize
@@ -186,22 +186,22 @@ function _step(q1, q2, h;
             b = view(z, 5:6)
             bs = view(z, 7:9)
             bz = view(z, 10:12)
-            s1 = z[13]
+            ϕs = z[13]
 
             λ = [b; n] # contact forces
-            ϕ = signed_distance(model, q3)        # signed-distance function
+            ϕ = signed_distance(model, q3) # signed-distance function
             vT = (view(q3, 1:2) - view(q2, 1:2)) ./ h
 
             G = [zeros(1, 2); -Diagonal(ones(2))]
             g = [model.μ * n; zeros(2)]
 
-            W = W̄(bz, bs)
-            Winv = W̄inv(bz, bs)
+            # W = W̄(bz, bs)
+            # Winv = W̄inv(bz, bs)
 
             # action optimality conditions
             [dynamics(model, q1, q2, q3, λ, h);
-             s1 - ϕ;
-             n * s1 - ρ;
+             ϕs - ϕ;
+             n * ϕs - ρ;
 
              # maximum dissipation optimality conditions
              G' * bz + vT;
@@ -225,9 +225,13 @@ function _step(q1, q2, h;
             bs = view(z, 7:9)
             bz = view(z, 10:12)
 
-            s1 = z[13]
+            ϕs = z[13]
 
             if n <= 0.0
+                return true
+            end
+
+            if ϕs <= 0.0
                 return true
             end
 
@@ -238,10 +242,6 @@ function _step(q1, q2, h;
 
             if !κ_so(bz)[2]
                 println("bz not in cone")
-                return true
-            end
-
-            if s1 <= 0.0
                 return true
             end
 
@@ -317,7 +317,7 @@ end
     - time step: h
 """
 function simulate(q1, q2, T, h;
-    z0_scale = 0.0, step_type = :gmres)
+    z0_scale = 0.0, step_type = nothing)
     println("simulation")
 
     # initialize histories
@@ -346,22 +346,20 @@ end
 
 # simulation setup
 model = Particle(1.0, 9.81, 0.5, 3)
-h = 0.1
+h = 0.01
 
 # initial conditions
-# v1 = [1.0; 1.0; 0.0]
-# q1 = [0.0; 0.0; 1.0]
-
-v1 = [5.0; 5.0; 0.0]
+v1 = [1.0; 10.0; 0.0]
 q1 = [0.0; 0.0; 1.0]
 
 v2 = v1 - gravity(model, q1) * h
 q2 = q1 + 0.5 * (v1 + v2) * h
 
-# q1 = zeros(3)
-# q2 = zeros(3)
+# v1 = [10.0; -20.0; 0.0]
+q1 = [0.0; 0.0; 0.0]
+q2 = [h * 5.0; h * 1.0; 0.0]
 
-q_sol, y_sol, b_sol = simulate(q1, q2, 50, h)
+q_sol, y_sol, b_sol = simulate(q1, q2, 500, h)
 
 # plot(hcat(q_sol...)[3:3, :]', xlabel = "", label = "z")
 # plot!(h .* hcat(y_sol...)', xlabel = "", label = "n", linetype = :steppost)
