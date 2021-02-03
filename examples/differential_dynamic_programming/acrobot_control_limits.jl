@@ -17,7 +17,7 @@ w = [zeros(model.d) for t = 1:T-1]
 # Rollout
 x̄ = rollout(model, x1, ū, w, h, T)
 # x̄ = linear_interpolation(x1, xT, T)
-plot(hcat(x̄...)')
+# plot(hcat(x̄...)')
 
 # Objective
 Q = [(t < T ? Diagonal(1.0e-3 * ones(model.n))
@@ -62,46 +62,10 @@ function c!(c, cons::StageConstraints, x, u, t)
 	end
 end
 
-# Solve
-function solve(model, obj::StageCosts, con_set::ConstraintSet, x̄, ū, w, h, T;
-    max_iter = 10,
-	max_al_iter = 5,
-    grad_tol = 1.0e-5,
-	con_tol = 1.0e-3,
-	ρ_init = 1.0,
-	ρ_scale = 10.0,
-    verbose = true)
-
-	c_data = constraints_data(model, [c.p for c in con_set], T)
-	cons = StageConstraints(con_set, c_data, T)
-
-	obj_al = augmented_lagrangian(obj, cons, ρ = ρ_init)
-
-	for i = 1:max_al_iter
-		# primal minimization
-		p_data, m_data, s_data = solve(model, obj_al, x̄, ū, w, h, T;
-		    max_iter = max_iter,
-		    grad_tol = grad_tol,
-		    verbose = verbose)
-
-		# dual ascent
-		x̄ = m_data.x̄
-		ū = m_data.ū
-		objective(obj_al, x̄, ū)
-		augmented_lagrangian_update!(obj_al, s = ρ_scale)
-		println("  al iter: $i")
-		println("  xT norm: $(norm(x̄[T] - xT))")
-		println("  xT norm: $(norm(obj_al.cons.data.c[T]))")
-
-	end
-
-	return x̄, ū, obj_al
-end
-
-
 @time x, u, obj_al = solve(model, obj, con_set, copy(x̄), copy(ū), w, h, T,
     max_iter = 1000, max_al_iter = 7,
 	ρ_init = 1.0, ρ_scale = 10.0,
+	con_tol = 1.0e-3,
 	verbose = true)
 
 # Visualize
@@ -117,7 +81,7 @@ plot!(hcat([con_set[1].info[:uu] for t = 1:T]...)',
 plot!(hcat(u..., u[end])',
     width = 2.0, linetype = :steppost,
 	label = "", color = :orange)
-x[T]
+
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
