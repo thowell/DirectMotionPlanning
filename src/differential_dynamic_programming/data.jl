@@ -105,6 +105,14 @@ function Δz!(m_data::ModelData)
     end
 end
 
+function objective(data::ModelData; mode = :nominal)
+    if mode == :nominal
+        return objective(data.obj, data.x̄, data.ū)
+    elseif mode == :current
+        return objective(data.obj, data.x, data.u)
+    end
+end
+
 """
     Policy Data
 """
@@ -181,6 +189,19 @@ function problem_data(model::Model, obj::StageCosts, x̄, ū, w, h, T)
     m_data = model_data(model, obj, w, h, T)
     m_data.x̄ .= x̄
     m_data.ū .= ū
+
+    # allocate solver data
+    s_data = solver_data(model, T)
+
+	ProblemData(p_data, m_data, s_data)
+end
+
+function problem_data(m_data::ModelsData)
+	model = m_data[1].model
+	T = m_data[1].T
+
+	# allocate policy data
+    p_data = policy_data(model, T)
 
     # allocate solver data
     s_data = solver_data(model, T)

@@ -17,14 +17,6 @@ function objective(obj::StageCosts, x, u)
     return J
 end
 
-function objective(data::ModelData; mode = :nominal)
-    if mode == :nominal
-        return objective(data.obj, data.x̄, data.ū)
-    elseif mode == :current
-        return objective(data.obj, data.x, data.u)
-    end
-end
-
 """
     quadratic stage cost
 """

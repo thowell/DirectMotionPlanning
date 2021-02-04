@@ -4,7 +4,7 @@ function ddp_solve!(prob::ProblemData;
     verbose = true)
 
 	println()
-    (verbose && prob.m_data.obj isa StageCosts) && println("Differential Dynamic Programming")
+    verbose && println("Differential Dynamic Programming")
 
 	# data
 	p_data = prob.p_data
@@ -21,6 +21,9 @@ function ddp_solve!(prob::ProblemData;
         # backward pass
         backward_pass!(p_data, m_data)
 
+		# check gradient of Lagrangian convergence
+
+
         # forward pass
         forward_pass!(p_data, m_data, s_data)
 
@@ -28,8 +31,9 @@ function ddp_solve!(prob::ProblemData;
         grad_norm = norm(s_data.gradient, Inf)
         verbose && println("     iter: $i
              cost: $(s_data.obj)
-             grad norm: $(grad_norm)")
-        (!s_data.status || grad_norm < grad_tol) && break
+			 grad_norm: $(grad_norm)")
+		grad_norm < grad_tol && break
+        !s_data.status && break
     end
 end
 
@@ -50,6 +54,11 @@ function lagrangian_gradient!(s_data::SolverData, p_data::PolicyData, n, m, T)
         idx_u = n * T + (t - 1) * m .+ (1:m)
         s_data.gradient[idx_u] = Qu[t]
     end
+end
+
+function lagrangian_gradient!(s_data::SolverData, p_data::PolicyData, m_data::ModelData)
+	lagrangian_gradient!(s_data, p_data,
+		m_data.model.n, m_data.model.m, m_data.T)
 end
 
 """
