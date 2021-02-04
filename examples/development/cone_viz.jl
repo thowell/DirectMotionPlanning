@@ -3,6 +3,7 @@ using CoordinateTransformations
 using GeometryBasics
 using MeshCat
 using Rotations
+using LinearAlgebra
 
 # second-order cone
 function κ_so(z)
@@ -70,10 +71,10 @@ function project_point!(vis, p)
 end
 
 
-vis = second_order_cone_viz()
+vis = second_order_cone_viz(h = 2.0)
 render(vis)
 
-p = [1.0, 0.0, 0.5]
+p = [1.0, 0.0, 1.0]
 
 set_point!(vis, p)
 p_proj = project_point!(vis, p)
