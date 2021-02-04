@@ -6,7 +6,7 @@ mutable struct AugmentedLagrangianCosts{T} <: Objective
     a::Vector # active set
 end
 
-function augmented_lagrangian(costs::StageCosts, cons::Constraints; ρ = 1.0)
+function augmented_lagrangian(costs::StageCosts, cons::Constraints; ρ = 0.0)
     λ = [zeros(cons.con[t].p) for t = 1:cons.T]
     a = [ones(cons.con[t].p) for t = 1:cons.T]
     AugmentedLagrangianCosts(costs, cons, ρ, λ, a)

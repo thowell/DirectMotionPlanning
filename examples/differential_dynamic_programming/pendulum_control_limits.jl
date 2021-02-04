@@ -63,12 +63,16 @@ function c!(c, cons::StageConstraints, x, u, t)
 	end
 end
 
-# Solve
-@time x, u, obj_al = solve(model, obj, con_set, copy(x̄), copy(ū), w, h, T,
-    max_iter = 1000, max_al_iter = 6,
-	ρ_init = 1.0, ρ_scale = 10.0,
+prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T)
 
-	verbose = true)
+# Solve
+@time constrained_ddp_solve!(prob,
+    max_iter = 1000, max_al_iter = 6,
+	ρ_init = 1.0, ρ_scale = 10.0)
+
+	# verbose = true)
+x, u = current_trajectory(prob)
+x̄, ū = nominal_trajectory(prob)
 
 # Visualize
 using Plots

@@ -5,7 +5,8 @@ function forward_pass!(p_data::PolicyData, m_data::ModelData, s_data::SolverData
     s_data.status = false
 
     # compute gradient of Lagrangian
-    lagrangian_gradient!(s_data, p_data, m_data)
+    lagrangian_gradient!(s_data, p_data,
+        m_data.model.n, m_data.model.m, m_data.T)
 
     # line search with rollout
     α = 1.0

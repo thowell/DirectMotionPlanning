@@ -72,6 +72,8 @@ struct ModelData{X, U, D, S}
     z::Vector{S}
 end
 
+ModelsData = Vector{ModelData}
+
 function model_data(model, obj, w, h, T)
     n = model.n
     m = model.m
@@ -163,6 +165,38 @@ function solver_data(model::Model, T)
 end
 
 """
+    Problem Data
+"""
+struct ProblemData
+	p_data
+	m_data
+	s_data
+end
+
+function problem_data(model::Model, obj::StageCosts, x̄, ū, w, h, T)
+	# allocate policy data
+    p_data = policy_data(model, T)
+
+    # allocate model data
+    m_data = model_data(model, obj, w, h, T)
+    m_data.x̄ .= x̄
+    m_data.ū .= ū
+
+    # allocate solver data
+    s_data = solver_data(model, T)
+
+	ProblemData(p_data, m_data, s_data)
+end
+
+function nominal_trajectory(prob::ProblemData)
+	return prob.m_data.x̄, prob.m_data.ū
+end
+
+function current_trajectory(prob::ProblemData)
+	return prob.m_data.x, prob.m_data.u
+end
+
+"""
     Constraints Data
 """
 struct ConstraintsData
@@ -181,4 +215,28 @@ function constraints_data(model::Model, p::Vector, T::Int)
     cx = [zeros(p[t], n) for t = 1:T]
     cu = [zeros(p[t], m) for t = 1:T-1]
     ConstraintsData(c, cx, cu)
+end
+
+function problem_data(model, obj::StageCosts, con_set::ConstraintSet,
+		x̄, ū, w, h, T)
+
+	# constraints
+	c_data = constraints_data(model, [c.p for c in con_set], T)
+	cons = StageConstraints(con_set, c_data, T)
+
+	# augmented Lagrangian
+	obj_al = augmented_lagrangian(obj, cons)
+
+	# allocate policy data
+    p_data = policy_data(model, T)
+
+    # allocate model data
+    m_data = model_data(model, obj_al, w, h, T)
+    m_data.x̄ .= x̄
+    m_data.ū .= ū
+
+    # allocate solver data
+    s_data = solver_data(model, T)
+
+	ProblemData(p_data, m_data, s_data)
 end

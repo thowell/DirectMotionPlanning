@@ -40,12 +40,16 @@ function g(obj::StageCosts, x, u, t) #TODO fix global: T, xT
     end
 end
 
-# Solve
-@time p_data, m_data, s_data = solve(model, obj, copy(x̄), copy(ū), w, h, T,
-    max_iter = 1000, verbose = true)
+# Problem
+prob = problem_data(model, obj, copy(x̄), copy(ū), w, h, T)
 
-x = m_data.x
-u = m_data.u
+# Solve
+@time ddp_solve!(prob,
+    max_iter = 100, verbose = true)
+
+x, u = current_trajectory(prob)
+x̄, ū = nominal_trajectory(prob)
+
 
 # Visualize
 using Plots

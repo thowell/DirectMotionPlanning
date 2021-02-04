@@ -1,24 +1,18 @@
-function solve(model, obj::Objective, x̄, ū, w, h, T;
+function ddp_solve!(prob::ProblemData;
     max_iter = 10,
     grad_tol = 1.0e-5,
     verbose = true)
 
 	println()
-    (verbose && obj isa StageCosts) && println("Differential Dynamic Programming")
+    (verbose && prob.m_data.obj isa StageCosts) && println("Differential Dynamic Programming")
 
-    # allocate model data
-    m_data = model_data(model, obj, w, h, T)
-    m_data.x̄ .= x̄
-    m_data.ū .= ū
-
-    # allocate policy data
-    p_data = policy_data(model, T)
-
-    # allocate solver data
-    s_data = solver_data(model, T)
+	# data
+	p_data = prob.p_data
+	m_data = prob.m_data
+	s_data = prob.s_data
 
     # compute objective
-    s_data.obj = objective(m_data.obj, m_data.x̄, m_data.ū)
+    s_data.obj = objective(m_data, mode = :nominal)
 
     for i = 1:max_iter
         # derivatives
@@ -37,19 +31,13 @@ function solve(model, obj::Objective, x̄, ū, w, h, T;
              grad norm: $(grad_norm)")
         (!s_data.status || grad_norm < grad_tol) && break
     end
-
-    return p_data, m_data, s_data
 end
 
 """
     gradient of Lagrangian
         https://web.stanford.edu/class/ee363/lectures/lqr-lagrange.pdf
 """
-function lagrangian_gradient!(s_data::SolverData, p_data::PolicyData, m_data::ModelData)
-    T = m_data.T
-    n = m_data.model.n
-    m = m_data.model.m
-
+function lagrangian_gradient!(s_data::SolverData, p_data::PolicyData, n, m, T)
     p = p_data.p
     Qx = p_data.Qx
     Qu = p_data.Qu
@@ -67,7 +55,7 @@ end
 """
     augmented Lagrangian solve
 """
-function solve(model, obj::StageCosts, con_set::ConstraintSet, x̄, ū, w, h, T;
+function constrained_ddp_solve!(prob::ProblemData;
     max_iter = 10,
 	max_al_iter = 5,
     grad_tol = 1.0e-5,
@@ -80,33 +68,29 @@ function solve(model, obj::StageCosts, con_set::ConstraintSet, x̄, ū, w, h, T
 	println()
 	verbose && println("Differential Dynamic Programming")
 
-	c_data = constraints_data(model, [c.p for c in con_set], T)
-	cons = StageConstraints(con_set, c_data, T)
-
-	obj_al = augmented_lagrangian(obj, cons, ρ = ρ_init)
+	# initial penalty
+	prob.m_data.obj.ρ = ρ_init
 
 	for i = 1:max_al_iter
 		verbose && println("  al iter: $i")
+
 		# primal minimization
-		p_data, m_data, s_data = solve(model, obj_al, x̄, ū, w, h, T;
+		ddp_solve!(prob,
 		    max_iter = max_iter,
 		    grad_tol = grad_tol,
 		    verbose = verbose)
 
 		# update trajectories
-		x̄ = m_data.x̄
-		ū = m_data.ū
-		objective(obj_al, x̄, ū)
+		objective(prob.m_data, mode = :nominal)
 
 		# constraint violation
-		c_max = constraint_violation(obj_al.cons, x̄, ū,
+		c_max = constraint_violation(prob.m_data.obj.cons,
+			prob.m_data.x̄, prob.m_data.ū,
 			norm_type = con_norm_type)
 		verbose && println("    c_max: $c_max\n")
 		c_max <= con_tol && break
 
 		# dual ascent
-		augmented_lagrangian_update!(obj_al, s = ρ_scale)
+		augmented_lagrangian_update!(prob.m_data.obj, s = ρ_scale)
 	end
-
-	return x̄, ū, obj_al
 end
