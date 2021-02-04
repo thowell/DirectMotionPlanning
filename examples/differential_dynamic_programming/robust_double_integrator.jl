@@ -18,11 +18,11 @@ n = model.n
 m = model.m
 
 # Models
-N = 1000# 2 * n + 1
+N = 100 #2 * n + 1
 
 # Time
-T = 11
-h = 0.1
+T = 101
+h = 0.01
 tf = h * (T - 1)
 t = range(0, stop = tf, length = T)
 
@@ -35,9 +35,9 @@ p_ref = [0.0 for t = 1:T]
 # Initial conditions, controls, disturbances
 # x1 = [p_ref[1]; 0.0]
 x1 = [10.0; 0.0]
-ū = [[0.001 * rand(model.m) for t = 1:T-1] for i = 1:N]
+ū = [[0.1 * rand(model.m) for t = 1:T-1] for i = 1:N]
 
-W = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 0.1]))
+W = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 1.0]))
 # w = [[zeros(model.d) for t = 1:T-1], [[rand(W, 1) for t = 1:T-1] for i = 1:N-1]...]
 w = [[rand(W, 1) for t = 1:T-1] for i = 1:N]
 # w = [[zeros(model.d, 1) for t = 1:T-1] for i = 1:N]
@@ -54,7 +54,7 @@ end
 display(plt)
 
 # Objective
-Q = Diagonal([100.0; 0.1])
+Q = Diagonal([100.0; 1.0])
 R = Diagonal(0.01 * ones(model.m))
 
 obj = StageCosts([QuadraticCost(Q, nothing,
@@ -65,7 +65,7 @@ function g(obj::StageCosts, x, u, t)
     if t < T
 		Q = obj.cost[t].Q
 	    R = obj.cost[t].R
-        return (x - [p_ref[t]; 0.0])' * Q * (x - [p_ref[t]; 0.0]) + u' * R * u
+        return h * ((x - [p_ref[t]; 0.0])' * Q * (x - [p_ref[t]; 0.0]) + u' * R * u)
     elseif t == T
 		Q = obj.cost[T].Q
         return (x - [p_ref[T]; 0.0])' * Q * (x - [p_ref[T]; 0.0])
@@ -141,13 +141,13 @@ function ddp_solve!(prob::ProblemData;
 		u_ref = [sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
 
 		# disturbances
-		# w = [[rand(W, 1) for t = 1:T-1] for i = 1:N]
+		w = [[rand(W, 1) for t = 1:T-1] for i = 1:N]
 
-		# for i = 1:N
-		# 	# m_data[i].x̄ .= deepcopy(x_ref)
-		# 	# m_data[i].ū .= deepcopy(u_ref)
-		# 	m_data[i].w .= deepcopy(w[i])
-		# end
+		for i = 1:N
+			# m_data[i].x̄ .= deepcopy(x_ref)
+			# m_data[i].ū .= deepcopy(u_ref)
+			m_data[i].w .= deepcopy(w[i])
+		end
 
         # forward pass
         forward_pass!(p_data, m_data, s_data)
@@ -157,7 +157,7 @@ function ddp_solve!(prob::ProblemData;
         verbose && println("     iter: $i
              cost: $(s_data.obj)
 			 grad_norm: $(grad_norm)")
-		# grad_norm < grad_tol && break
+		grad_norm < grad_tol && break
         # !s_data.status && break
     end
 end
@@ -204,10 +204,10 @@ include(joinpath(pwd(), "examples/direct_policy_optimization/simulate.jl"))
 # Model
 model_sim = model
 x1_sim = copy(x1)
-T_sim = 10 * T
+T_sim = 10 * (T-1) + 1
 
 # Disturbance distributions
-W_sim = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 0.1]))
+W_sim = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 10.0]))
 w_sim = rand(W_sim, T_sim)
 
 # Time
@@ -220,7 +220,7 @@ policy = linear_feedback(model.n, model.m)
 K = [-K for K in prob.p_data.K]
 
 # Simulate
-N_sim = 1000
+N_sim = 100
 x_sim = []
 J_sim = []
 for i = 1:N_sim
@@ -244,12 +244,15 @@ idx = (1:1)
 _plt = plot(t, hcat(x_ref...)[idx, :]',
     width = 2.0, color = :black, label = "")
 
-for xi in x_sim
+for (i, xi) in enumerate(x_sim)
 	_plt = plot!(t_sim, hcat(xi...)[idx, :]',
-    	width = 1.0, color = :magenta, label = "")
+    	width = 1.0, color = :magenta, label = i == 1 ? "sim" : "")
 end
 _plt = plot!(t, hcat(x_ref...)[idx, :]',
-    width = 2.0, color = :black, label = "")
-
+    width = 2.0, color = :black, label = "ref")
+_plt = plot!(; xlabel = "time (s)",
+	ylabel = "position",
+	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))")
 display(_plt)
 @show mean(J_sim)
+round(mean(J_sim), digits = 2)

@@ -122,7 +122,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelsData, s_data::SolverDat
 		J = objective(m_data, mode = :current)
 		println("J_prev: $(s_data.obj)")
 		println("J     : $(J)")
-        if true#J < s_data.obj #+ 0.001 * α * s_data.gradient' * (sum([m.z for m in models_data]) ./ N)
+        if J < s_data.obj #+ 0.001 * α * s_data.gradient' * (sum([m.z for m in models_data]) ./ N)
             # update nominal
 			for i = 1:N
 	            m_data[i].x̄ .= deepcopy(m_data[i].x)
