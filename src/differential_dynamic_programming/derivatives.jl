@@ -9,9 +9,11 @@ function dynamics_derivatives!(data::ModelData)
     for t = 1:T-1
         fx(z) = fd(model, z, ū[t], w[t], h, t)
         fu(z) = fd(model, x̄[t], z, w[t], h, t)
+        fw(z) = fd(model, x̄[t], ū[t], z, h, t)
 
         data.dyn_deriv.fx[t] = ForwardDiff.jacobian(fx, x̄[t])
         data.dyn_deriv.fu[t] = ForwardDiff.jacobian(fu, ū[t])
+        data.dyn_deriv.fw[t] = ForwardDiff.jacobian(fw, w[t])
     end
 end
 

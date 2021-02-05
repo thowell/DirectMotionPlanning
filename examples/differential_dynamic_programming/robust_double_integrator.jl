@@ -18,11 +18,11 @@ n = model.n
 m = model.m
 
 # Models
-N = 100 #2 * n + 1
+N = 1000#2 * n + 1
 
 # Time
-T = 101
-h = 0.01
+T = 51
+h = 0.02
 tf = h * (T - 1)
 t = range(0, stop = tf, length = T)
 
@@ -34,16 +34,19 @@ p_ref = [0.0 for t = 1:T]
 
 # Initial conditions, controls, disturbances
 # x1 = [p_ref[1]; 0.0]
-x1 = [10.0; 0.0]
+x1 = [1.0; 0.0]
 ū = [[0.1 * rand(model.m) for t = 1:T-1] for i = 1:N]
 
-W = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 1.0]))
+W = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 10.0]))
 # w = [[zeros(model.d) for t = 1:T-1], [[rand(W, 1) for t = 1:T-1] for i = 1:N-1]...]
-w = [[rand(W, 1) for t = 1:T-1] for i = 1:N]
-# w = [[zeros(model.d, 1) for t = 1:T-1] for i = 1:N]
+w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
+# w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
 
 # Rollout
 x̄ = [rollout(model, x1, ū[i], w[i], h, T) for i = 1:N]
+
+# x_ref = [sum([x̄i[t] for x̄i in x̄]) ./ N for t = 1:T]
+# u_ref = [sum([ūi[t] for ūi in ū]) ./ N for t = 1:T-1]
 
 p_idx = (1:1)
 plt = plot()
@@ -81,7 +84,7 @@ end
 
 
 
-models_data = models(model, obj, x̄, ū, w, h, T)
+models_data = models(model, obj, deepcopy(x̄), deepcopy(ū), w, h, T)
 # objective(obj, x̄[4], ū[4])
 #
 #
@@ -136,18 +139,18 @@ function ddp_solve!(prob::ProblemData;
         # backward pass
         backward_pass!(p_data, m_data)
 
-		# set nominal trajectories
-		x_ref = [sum([m.x̄[t] for m in prob.m_data]) ./ N for t = 1:T]
-		u_ref = [sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
-
-		# disturbances
-		w = [[rand(W, 1) for t = 1:T-1] for i = 1:N]
-
-		for i = 1:N
-			# m_data[i].x̄ .= deepcopy(x_ref)
-			# m_data[i].ū .= deepcopy(u_ref)
-			m_data[i].w .= deepcopy(w[i])
-		end
+		# # set nominal trajectories
+		# x_ref = [sum([m.x̄[t] for m in prob.m_data]) ./ N for t = 1:T]
+		# u_ref = [sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
+		#
+		# # disturbances
+		# w = [[rand(W, 1) for t = 1:T-1] for i = 1:N]
+		#
+		# for i = 1:N
+		# 	# m_data[i].x̄ .= deepcopy(x_ref)
+		# 	# m_data[i].ū .= deepcopy(u_ref)
+		# 	m_data[i].w .= deepcopy(w[i])
+		# end
 
         # forward pass
         forward_pass!(p_data, m_data, s_data)
@@ -158,7 +161,7 @@ function ddp_solve!(prob::ProblemData;
              cost: $(s_data.obj)
 			 grad_norm: $(grad_norm)")
 		grad_norm < grad_tol && break
-        # !s_data.status && break
+        !s_data.status && break
     end
 end
 
@@ -171,11 +174,11 @@ prob = problem_data(models_data)
 	# prob.m_data[i].w .= deepcopy(w[i])
 	# rollout!(prob.p_data, prob.m_data[i], α = 1.0)
 # end
-
-
+prob.p_data
+prob.m_data[1].obj_deriv.gx
 # Solve
 @time ddp_solve!(prob,
-    max_iter = 100, verbose = true)
+    max_iter = 1000, verbose = true)
 
 x = [m.x for m in prob.m_data]
 u = [m.u for m in prob.m_data]
@@ -207,7 +210,7 @@ x1_sim = copy(x1)
 T_sim = 10 * (T-1) + 1
 
 # Disturbance distributions
-W_sim = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 10.0]))
+W_sim = W#Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 1.0e-1]))
 w_sim = rand(W_sim, T_sim)
 
 # Time
@@ -220,7 +223,7 @@ policy = linear_feedback(model.n, model.m)
 K = [-K for K in prob.p_data.K]
 
 # Simulate
-N_sim = 100
+N_sim = 1000
 x_sim = []
 J_sim = []
 for i = 1:N_sim

@@ -2,19 +2,22 @@
     Model Data
 """
 
-struct DynamicsDerivativesData{X, U}
+struct DynamicsDerivativesData{X, U, W}
     fx::Vector{X}
     fu::Vector{U}
+	fw::Vector{W}
 end
 
 function dynamics_derivatives_data(model::Model, T)
     n = model.n
     m = model.m
+	d = model.d
 
     fx = [SMatrix{n, n}(zeros(n, n)) for t = 1:T-1]
     fu = [SMatrix{n, m}(zeros(n, m)) for t = 1:T-1]
+	fw = [SMatrix{n, d}(zeros(n, d)) for t = 1:T-1]
 
-    DynamicsDerivativesData(fx, fu)
+    DynamicsDerivativesData(fx, fu, fw)
 end
 
 struct ObjectiveDerivativesData{X, U, XX, UU, UX}

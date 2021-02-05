@@ -450,8 +450,8 @@ function simulate(q1, q2, T, h;
 end
 
 # simulation setup
-model
-h = 0.1
+# model
+h = 0.01
 
 # initial conditions
 mrp = MRP(UnitQuaternion(RotY(pi / 10.0) * RotX(pi / 20.0)))
@@ -463,9 +463,9 @@ v2 = v1 - gravity(model) * h
 q2 = q1 + 0.5 * (v1 + v2) * h
 
 signed_distance(model, q2)
-q_sol, y_sol, b_sol = simulate(q1, q2, 25, h)
+q_sol, y_sol, b_sol = simulate(q1, q2, 100, h)
 
-unpack(z_sol)[5][1]
+# unpack(z_sol)[5][1]
 # plot(hcat(q_sol...)[3:3, :]', xlabel = "", label = "z")
 # plot!(h .* hcat(y_sol...)', xlabel = "", label = "n", linetype = :steppost)
 #
@@ -482,11 +482,11 @@ function visualize!(vis, model::Box, q;
 
 	default_background!(vis)
 
-    setobject!(vis["box"], GeometryBasics.Rect(Vec(-1.0 * model.r,
-		-1.0 * model.r,
-		-1.0 * model.r),
-		Vec(2.0 * model.r, 2.0 * model.r, 2.0 * model.r)),
-		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
+    # setobject!(vis["box"], GeometryBasics.Rect(Vec(-1.0 * model.r,
+	# 	-1.0 * model.r,
+	# 	-1.0 * model.r),
+	# 	Vec(2.0 * model.r, 2.0 * model.r, 2.0 * model.r)),
+	# 	MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
     for i = 1:model.n_corners
         setobject!(vis["corner$i"], GeometryBasics.Sphere(Point3f0(0),

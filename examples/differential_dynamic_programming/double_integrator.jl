@@ -43,7 +43,7 @@ function g(obj::StageCosts, x, u, t)
     if t < T
 		Q = obj.cost[t].Q
 	    R = obj.cost[t].R
-        return (x - [p_ref[t]; 0.0])' * Q * (x - [p_ref[t]; 0.0]) + u' * R * u
+        return h * (x - [p_ref[t]; 0.0])' * Q * (x - [p_ref[t]; 0.0]) + u' * R * u
     elseif t == T
 		Q = obj.cost[T].Q
         return (x - [p_ref[T]; 0.0])' * Q * (x - [p_ref[T]; 0.0])
