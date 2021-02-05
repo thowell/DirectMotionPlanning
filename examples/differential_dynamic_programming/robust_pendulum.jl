@@ -7,40 +7,42 @@ include_ddp()
 include(joinpath(pwd(), "src/differential_dynamic_programming/multiple_models.jl"))
 
 # Model
-include_model("double_integrator")
+include_model("pendulum")
 
-function f(model::DoubleIntegratorContinuous, x, u, w)
-    [x[2] + w[1]; (1.0 + w[3]) * u[1] + w[2]]
+function f(model::Pendulum, x, u, w)
+	mass = model.mass + w[1]
+    @SVector [x[2],
+              (u[1] / ((mass * model.lc * model.lc))
+                - model.g * sin(x[1]) / model.lc
+                - model.b * x[2] / (mass * model.lc * model.lc))]
 end
+state_output(model::Pendulum, x) = x
 
-model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 1, 3)
+n, m, d = 2, 1, 1
+model = Pendulum{Midpoint, FixedTime}(n, m, d, 1.0, 0.1, 0.5, 9.81)
 n = model.n
 m = model.m
+d = model.d
 
 # Models
-N = 1000#2 * n + 1
+N = 10#2 * n + 1
 
 # Time
-T = 101
-h = 0.01
+T = 51
+h = 0.1
 tf = h * (T - 1)
 t = range(0, stop = tf, length = T)
 
-# Reference position trajectory
-# z = range(0.0, stop = 3.0 * 2.0 * π, length = T)
-# p_ref = 1.0 * cos.(1.0 * z)
-# plot(z, p_ref)
-p_ref = [0.0 for t = 1:T]
-
 # Initial conditions, controls, disturbances
 # x1 = [p_ref[1]; 0.0]
-x1 = [10.0; 0.0]
-ū = [[0.1 * rand(model.m) for t = 1:T-1] for i = 1:N]
+x1 = [0.0; 0.0]
+xT = [π; 0.0]
+ū = [[0.001 * rand(model.m) for t = 1:T-1] for i = 1:N]
 
-W = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 10.0]))
+W = Distributions.MvNormal(zeros(model.d), Diagonal([0.01]))
 # w = [[zeros(model.d) for t = 1:T-1], [[rand(W, 1) for t = 1:T-1] for i = 1:N-1]...]
-# w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
-w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
+w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
+# w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
 
 # Rollout
 x̄ = [rollout(model, x1, ū[i], w[i], h, T) for i = 1:N]
@@ -48,7 +50,7 @@ x̄ = [rollout(model, x1, ū[i], w[i], h, T) for i = 1:N]
 # x_ref = [sum([x̄i[t] for x̄i in x̄]) ./ N for t = 1:T]
 # u_ref = [sum([ūi[t] for ūi in ū]) ./ N for t = 1:T-1]
 
-p_idx = (1:1)
+p_idx = (1:2)
 plt = plot()
 for i = 1:N
 	plt = plot!(t, hcat(x̄[i]...)[p_idx, :]',
@@ -57,8 +59,8 @@ end
 display(plt)
 
 # Objective
-Q = Diagonal([100.0; 1.0])
-R = Diagonal(0.01 * ones(model.m))
+Q = Diagonal([10.0; 10.0])
+R = Diagonal(1.0e-3 * ones(model.m))
 
 obj = StageCosts([QuadraticCost(Q, nothing,
 	t < T ? R : nothing, nothing) for t = 1:T], T)
@@ -68,10 +70,10 @@ function g(obj::StageCosts, x, u, t)
     if t < T
 		Q = obj.cost[t].Q
 	    R = obj.cost[t].R
-        return h * ((x - [p_ref[t]; 0.0])' * Q * (x - [p_ref[t]; 0.0]) + u' * R * u)
+        return h * ((x - xT)' * Q * (x - xT) + u' * R * u)
     elseif t == T
 		Q = obj.cost[T].Q
-        return (x - [p_ref[T]; 0.0])' * Q * (x - [p_ref[T]; 0.0])
+        return (x - xT)' * Q * (x - xT)
     else
         return 0.0
     end
@@ -167,19 +169,10 @@ end
 
 prob = problem_data(models_data)
 
-# w = [[rand(W, 1) for t = 1:T-1] for i = 1:N]
-# for i = 1:N
-	# m_data[i].x̄ .= deepcopy(x_ref)
-	# m_data[i].ū .= deepcopy(u_ref)
-	# prob.m_data[i].w .= deepcopy(w[i])
-	# rollout!(prob.p_data, prob.m_data[i], α = 1.0)
-# end
-prob.p_data
-prob.m_data[1].obj_deriv.gx
 # Solve
 @time ddp_solve!(prob,
     max_iter = 1000, verbose = true,
-	grad_tol = 1.0e-8)
+	grad_tol = 1.0e-6)
 
 x = [m.x for m in prob.m_data]
 u = [m.u for m in prob.m_data]
@@ -191,7 +184,7 @@ x_ref = [sum([m.x̄[t] for m in prob.m_data]) ./ N for t = 1:T]
 u_ref = [sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
 
 # Visualize
-idx = (1:1)
+idx = (1:2)
 _plt = plot(hcat([[p_ref[t]; 0.0][idx] for t = 1:T]...)',
     width = 2.0, color = :black, label = "")
 for i = 1:N
@@ -226,7 +219,6 @@ K = [-K for K in prob.p_data.K]
 # Simulate
 N_sim = 100
 x_sim = []
-u_sim = []
 J_sim = []
 for i = 1:N_sim
 	println("sim: $i")
@@ -239,11 +231,8 @@ for i = 1:N_sim
 		[Q * (t < T ? h : 1.0) for t = 1:T], [R for t = 1:T-1],
 		T_sim, h,
 		x1_sim,
-		w_sim,
-		ul = [-1000.0],
-		uu = [500.0])
+		w_sim)
 	push!(x_sim, x_ddp)
-	push!(u_sim, u_ddp)
 	push!(J_sim, J_ddp)
 end
 
@@ -254,26 +243,13 @@ _plt = plot(t, hcat(x_ref...)[idx, :]',
 
 for (i, xi) in enumerate(x_sim)
 	_plt = plot!(t_sim, hcat(xi...)[idx, :]',
-    	width = 1.0, color = :magenta, label = i == 1 ? "sim" : "")
+    	width = 1.0, color = :magenta, label = i == 1 ? ["sim" ""] : "")
 end
 _plt = plot!(t, hcat(x_ref...)[idx, :]',
-    width = 2.0, color = :black, label = "ref")
-_plt = plot!(; xlabel = "time (s)",
+    width = 2.0, color = :black, label = ["ref" ""])
+_plt = plot!(ylims=(-1, π + 1.0); xlabel = "time (s)",
 	ylabel = "position",
-	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))")
-display(_plt)
-
-_plt = plot(t, hcat(u_ref..., u_ref[end])[1:1, :]',
-    width = 2.0, color = :black, label = "")
-for (i, ui) in enumerate(u_sim)
-	_plt = plot!(t_sim, hcat(ui..., ui[end])[1:1, :]',
-    	width = 1.0, color = :magenta, label = i == 1 ? "sim" : "")
-end
-_plt = plot!(t, hcat(u_ref..., u_ref[end])[1:1, :]',
-    width = 2.0, color = :black, label = "ref")
-_plt = plot!(; xlabel = "time (s)",
-	ylabel = "control",
-	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))")
+	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 3))")
 display(_plt)
 @show mean(J_sim)
-round(mean(J_sim), digits = 2)
+round(mean(J_sim), digits = 3)

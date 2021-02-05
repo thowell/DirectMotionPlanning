@@ -115,14 +115,14 @@ end
 # Kinematics
 num_contacts = 8
 r = 0.5
-c1 = @SVector [r, r, r]
-c2 = @SVector [r, r, -r]
+c1 = @SVector [0.0, 0.0, 2.0 * r]
+c2 = @SVector [r, r, 0.0]
 c3 = @SVector [r, -r, r]
-c4 = @SVector [r, -r, -r]
+c4 = @SVector [r, -r, 0.0]
 c5 = @SVector [-r, r, r]
-c6 = @SVector [-r, r, -r]
+c6 = @SVector [-r, r, 0.0]
 c7 = @SVector [-r, -r, r]
-c8 = @SVector [-r, -r, -r]
+c8 = @SVector [-r, -r, 0.0]
 
 corner_offset = @SVector [c2, c4, c6, c8, c1, c3, c5, c7]
 
@@ -192,7 +192,7 @@ function _step(q1, q2, h;
     ρ = 1.0 # barrier parameter
     flag = false
 
-    for k = 1:5
+    for k = 1:8
         function r(z)
             # system variables
 			# q3, n, ϕs, b = unpack(z)
@@ -236,6 +236,7 @@ function _step(q1, q2, h;
 			 vT[3:4] - bz[2][2:3];
 			 vT[5:6] - bz[3][2:3];
 			 vT[7:8] - bz[4][2:3];
+			 vT[9:10] - bz[5][2:3];
 
              # vT - [bz[1][2:3];
 			 #       bz[2][2:3];
@@ -249,7 +250,7 @@ function _step(q1, q2, h;
 			  # b[2];
 			  # b[3];
 			  # b[4];
-			  b[5];
+			  # b[5];
 			  b[6];
 			  b[7];
 			  b[8];
@@ -257,7 +258,7 @@ function _step(q1, q2, h;
 			  # bs[2];
 			  # bs[3];
 			  # bs[4];
-			  bs[5];
+			  # bs[5];
 			  bs[6];
 			  bs[7];
 			  bs[8];
@@ -265,7 +266,7 @@ function _step(q1, q2, h;
 			  # bz[2];
 			  # bz[3];
 			  # bz[4];
-			  bz[5];
+			  # bz[5];
 			  bz[6];
 			  bz[7];
 			  bz[8];
@@ -273,6 +274,8 @@ function _step(q1, q2, h;
 			  bs[2] - [model.μ * n[2]; b[2]];
 			  bs[3] - [model.μ * n[3]; b[3]];
 			  bs[4] - [model.μ * n[4]; b[4]];
+			  bs[5] - [model.μ * n[5]; b[5]];
+
              # [bs[1];
 			 #  bs[2];
 			 #  bs[3];
@@ -292,7 +295,8 @@ function _step(q1, q2, h;
              cone_product(bz[1], bs[1]) - ρ * [1.0; 0.0; 0.0];
 			 cone_product(bz[2], bs[2]) - ρ * [1.0; 0.0; 0.0];
 			 cone_product(bz[3], bs[3]) - ρ * [1.0; 0.0; 0.0];
-			 cone_product(bz[4], bs[4]) - ρ * [1.0; 0.0; 0.0]]
+			 cone_product(bz[4], bs[4]) - ρ * [1.0; 0.0; 0.0]
+			 cone_product(bz[5], bs[5]) - ρ * [1.0; 0.0; 0.0]]
 			 # cone_product(bz[3], bs[3]) - ρ * [1.0; 0.0; 0.0];
 			 # cone_product(bz[4], bs[4]) - ρ * [1.0; 0.0; 0.0];
 			 # cone_product(bz[5], bs[5]) - ρ * [1.0; 0.0; 0.0];
@@ -323,7 +327,7 @@ function _step(q1, q2, h;
             end
 
             if any([!κ_so(bsi)[2] for bsi in bs])
-				println("bs not in cone")
+				# println("bs not in cone")
 
 				# for bsi in bs
 				# 	println(bsi)
@@ -332,7 +336,7 @@ function _step(q1, q2, h;
             end
 
             if any([!κ_so(bzi)[2] for bzi in bz])
-                println("bz not in cone")
+                # println("bz not in cone")
                 return true
             end
 
@@ -346,9 +350,9 @@ function _step(q1, q2, h;
         for i = 1:max_iter
             # compute residual, residual Jacobian
             res = r(z)
-			println("res: $(norm(res, Inf))")
+			# println("res: $(norm(res, Inf))")
             if norm(res) < tol
-                println("   iter ($i) - norm: $(norm(res))")
+                # println("   iter ($i) - norm: $(norm(res))")
                 # return z, true
                 flag = true
                 continue
@@ -374,7 +378,7 @@ function _step(q1, q2, h;
             iter = 0
             while check_variables(z - α * Δ) # backtrack inequalities
 				# println("ITER: $iter")
-				println("+res: $(norm(r(z - α * Δ), Inf))")
+				# println("+res: $(norm(r(z - α * Δ), Inf))")
 
                 α = 0.5 * α
                 # println("   α = $α")
@@ -392,7 +396,7 @@ function _step(q1, q2, h;
 			# end
 
 			while norm(r(z - α * Δ), Inf) >= norm(res, Inf)
-				println("+res: $(norm(r(z - α * Δ), Inf))")
+				# println("+res: $(norm(r(z - α * Δ), Inf))")
             # while norm(r(z - α * Δ))^2.0 >= (1.0 - 0.001 * α) * norm(res)^2.0
                 α = 0.5 * α
                 # println("   α = $α")
@@ -409,7 +413,7 @@ function _step(q1, q2, h;
         end
 
         ρ = 0.1 * ρ
-        println("ρ: $ρ")
+        # println("ρ: $ρ")
     end
 
     return z, flag
@@ -451,20 +455,23 @@ end
 
 # simulation setup
 # model
-h = 0.01
+h = 0.05
 
 # initial conditions
-mrp = MRP(UnitQuaternion(RotY(pi / 10.0) * RotX(pi / 20.0)))
+mrp = MRP(UnitQuaternion(RotY(pi / 3.0) * RotX(0.0)))
 
-v1 = [-2.5; 1.0; 0.0; 0.0; 0.0; 0.0]
+v1 = [-5.0; 1.0; 0.0; 0.0; 0.0; 0.0]
 q1 = [0.0; 0.0; 1.0; mrp.x; mrp.y; mrp.z]
 
 v2 = v1 - gravity(model) * h
 q2 = q1 + 0.5 * (v1 + v2) * h
 
 signed_distance(model, q2)
-q_sol, y_sol, b_sol = simulate(q1, q2, 100, h)
+q_sol, y_sol, b_sol = simulate(q1, q2, 50, h)
 
+y_sol[end]
+signed_distance(model, q_sol[end])
+kinematics(model, q_sol[end])
 # unpack(z_sol)[5][1]
 # plot(hcat(q_sol...)[3:3, :]', xlabel = "", label = "z")
 # plot!(h .* hcat(y_sol...)', xlabel = "", label = "n", linetype = :steppost)
@@ -488,7 +495,11 @@ function visualize!(vis, model::Box, q;
 	# 	Vec(2.0 * model.r, 2.0 * model.r, 2.0 * model.r)),
 	# 	MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
-    for i = 1:model.n_corners
+	pyramid = Pyramid(Point3(0.0, 0.0, 0.0), 2.0 * model.r, 2.0 * model.r)
+	setobject!(vis["pyramid"], pyramid,
+		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
+
+    for i = 1:5
         setobject!(vis["corner$i"], GeometryBasics.Sphere(Point3f0(0),
             convert(Float32, 0.05)),
             MeshPhongMaterial(color = RGBA(1.0, 165.0 / 255.0, 0.0, 1.0)))
@@ -499,10 +510,10 @@ function visualize!(vis, model::Box, q;
     for t = 1:length(q)
         MeshCat.atframe(anim, t) do
 
-            settransform!(vis["box"],
+            settransform!(vis["pyramid"],
 				compose(Translation(q[t][1:3]...), LinearMap(MRP(q[t][4:6]...))))
 
-            for i = 1:model.n_corners
+            for i = 1:5
                 settransform!(vis["corner$i"],
                     Translation((q[t][1:3] + MRP(q[t][4:6]...) * (corner_offset[i]))...))
             end
