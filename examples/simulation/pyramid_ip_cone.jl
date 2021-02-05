@@ -458,16 +458,16 @@ end
 h = 0.05
 
 # initial conditions
-mrp = MRP(UnitQuaternion(RotY(pi / 3.0) * RotX(0.0)))
+mrp = MRP(UnitQuaternion(RotY(pi / 2.0) * RotX(0.0)))
 
-v1 = [-5.0; 1.0; 0.0; 0.0; 0.0; 0.0]
-q1 = [0.0; 0.0; 1.0; mrp.x; mrp.y; mrp.z]
+v1 = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+q1 = [0.0; 0.0; 1.5; mrp.x; mrp.y; mrp.z]
 
 v2 = v1 - gravity(model) * h
 q2 = q1 + 0.5 * (v1 + v2) * h
 
 signed_distance(model, q2)
-q_sol, y_sol, b_sol = simulate(q1, q2, 50, h)
+q_sol, y_sol, b_sol = simulate(q1, q2, 100, h)
 
 y_sol[end]
 signed_distance(model, q_sol[end])

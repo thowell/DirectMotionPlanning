@@ -6,7 +6,6 @@ Random.seed!(1)
 include_ddp()
 include(joinpath(pwd(), "src/differential_dynamic_programming/multiple_models.jl"))
 
-# Model
 include_model("pendulum")
 
 function f(model::Pendulum, x, u, w)
@@ -25,11 +24,11 @@ m = model.m
 d = model.d
 
 # Models
-N = 10#2 * n + 1
+N = 1#2 * n + 1
 
 # Time
-T = 51
-h = 0.1
+T = 101
+h = 0.01
 tf = h * (T - 1)
 t = range(0, stop = tf, length = T)
 
@@ -37,15 +36,17 @@ t = range(0, stop = tf, length = T)
 # x1 = [p_ref[1]; 0.0]
 x1 = [0.0; 0.0]
 xT = [π; 0.0]
-ū = [[0.001 * rand(model.m) for t = 1:T-1] for i = 1:N]
+_ū = [1.0e-3 * rand(model.m) for t = 1:T-1]
+ū = [_ū for i = 1:N]
 
-W = Distributions.MvNormal(zeros(model.d), Diagonal([0.01]))
-# w = [[zeros(model.d) for t = 1:T-1], [[rand(W, 1) for t = 1:T-1] for i = 1:N-1]...]
-w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
+W = Distributions.MvNormal(zeros(model.d), Diagonal([1.0e-1]))
+wi = [vec(rand(W, 1)) for i = 1:N]
+w = [[zeros(model.d) for t = 1:T-1], [[wi[i] for t = 1:T-1] for i = 1:N-1]...]
+# w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
 # w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
 
 # Rollout
-x̄ = [rollout(model, x1, ū[i], w[i], h, T) for i = 1:N]
+x̄ = [rollout(model, x1, ū[i], w[1], h, T) for i = 1:N]
 
 # x_ref = [sum([x̄i[t] for x̄i in x̄]) ./ N for t = 1:T]
 # u_ref = [sum([ūi[t] for ūi in ū]) ./ N for t = 1:T-1]
@@ -59,18 +60,18 @@ end
 display(plt)
 
 # Objective
-Q = Diagonal([10.0; 10.0])
-R = Diagonal(1.0e-3 * ones(model.m))
+Q = [t < T ? h * Diagonal([1.0e-1; 1.0e-1]) : Diagonal([1000.0; 1000.0]) for t = 1:T]
+R = [h * Diagonal(1.0e-2 * ones(model.m)) for t = 1:T-1]
 
-obj = StageCosts([QuadraticCost(Q, nothing,
-	t < T ? R : nothing, nothing) for t = 1:T], T)
+obj = StageCosts([QuadraticCost(Q[t], nothing,
+	t < T ? R[t] : nothing, nothing) for t = 1:T], T)
 
 function g(obj::StageCosts, x, u, t)
 	T = obj.T
     if t < T
 		Q = obj.cost[t].Q
 	    R = obj.cost[t].R
-        return h * ((x - xT)' * Q * (x - xT) + u' * R * u)
+        return (x - xT)' * Q * (x - xT) + u' * R * u
     elseif t == T
 		Q = obj.cost[T].Q
         return (x - xT)' * Q * (x - xT)
@@ -78,43 +79,6 @@ function g(obj::StageCosts, x, u, t)
         return 0.0
     end
 end
-
-# g(obj, x̄[1][T], nothing, T)
-# objective(obj, x̄[1], ū[1])
-
-# Model(s) data
-
-
-
-models_data = models(model, obj, deepcopy(x̄), deepcopy(ū), w, h, T)
-# objective(obj, x̄[4], ū[4])
-#
-#
-# # allocate policy data
-# p_data = policy_data(model, T)
-#
-# # allocate solver data
-# s_data = solver_data(model, T)
-#
-# # compute objective
-#
-#
-# J = objective(models_data, mode = :nominal)
-#
-#
-#
-# derivatives!(models_data)
-#
-#
-#
-# backward_pass!(p_data, models_data)
-#
-#
-#
-# s_data.obj = J
-#
-# forward_pass!(p_data, models_data, s_data)
-# s_data.obj
 
 function ddp_solve!(prob::ProblemData;
     max_iter = 10,
@@ -157,6 +121,17 @@ function ddp_solve!(prob::ProblemData;
         # forward pass
         forward_pass!(p_data, m_data, s_data)
 
+		if i > 1
+			for i = 2:N
+				m_data[i].x̄ .= deepcopy(m_data[1].x̄)
+				m_data[i].ū .= deepcopy(m_data[1].ū)
+				# m_data[i].w .= deepcopy(w[i])
+			end
+		end
+		# # set nominal trajectories
+		# x_ref = [sum([m.x̄[t] for m in prob.m_data]) ./ N for t = 1:T]
+		# u_ref = [sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
+
         # check convergence
         grad_norm = norm(s_data.gradient, Inf)
         verbose && println("     iter: $i
@@ -167,12 +142,14 @@ function ddp_solve!(prob::ProblemData;
     end
 end
 
+models_data = models(model, obj, deepcopy(x̄), deepcopy(ū), w, h, T)
+
 prob = problem_data(models_data)
 
 # Solve
 @time ddp_solve!(prob,
     max_iter = 1000, verbose = true,
-	grad_tol = 1.0e-6)
+	grad_tol = 1.0e-8)
 
 x = [m.x for m in prob.m_data]
 u = [m.u for m in prob.m_data]
@@ -180,8 +157,8 @@ u = [m.u for m in prob.m_data]
 x̄ = [m.x̄ for m in prob.m_data]
 ū = [m.ū for m in prob.m_data]
 
-x_ref = [sum([m.x̄[t] for m in prob.m_data]) ./ N for t = 1:T]
-u_ref = [sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
+x_ref = deepcopy(prob.m_data[1].x̄)#[sum([m.x̄[t] for m in prob.m_data]) ./ N for t = 1:T]
+u_ref = deepcopy(prob.m_data[1].ū)#[sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
 
 # Visualize
 idx = (1:2)
@@ -204,8 +181,6 @@ x1_sim = copy(x1)
 T_sim = 10 * (T-1) + 1
 
 # Disturbance distributions
-W_sim = W#Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 1.0e-1]))
-w_sim = rand(W_sim, T_sim)
 
 # Time
 t_sim = range(0, stop = tf, length = T_sim)
@@ -219,20 +194,27 @@ K = [-K for K in prob.p_data.K]
 # Simulate
 N_sim = 100
 x_sim = []
+u_sim = []
 J_sim = []
+Random.seed!(1)
+W_sim = W#Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 1.0e-1]))
+w_sim = rand(W_sim, T_sim)
 for i = 1:N_sim
 	println("sim: $i")
-	w_sim = rand(W_sim, T_sim)
+	wi = vec(rand(W_sim, 1))
+	w_sim = [wi for t = 1:T_sim]
 
 	x_ddp, u_ddp, J_ddp, Jx_ddp, Ju_ddp = simulate(
 		model_sim,
 		linear_feedback(model.n, model.m), K,
 	    x_ref, u_ref,
-		[Q * (t < T ? h : 1.0) for t = 1:T], [R for t = 1:T-1],
+		Q, R,
 		T_sim, h,
 		x1_sim,
 		w_sim)
+
 	push!(x_sim, x_ddp)
+	push!(u_sim, u_ddp)
 	push!(J_sim, J_ddp)
 end
 
@@ -243,13 +225,27 @@ _plt = plot(t, hcat(x_ref...)[idx, :]',
 
 for (i, xi) in enumerate(x_sim)
 	_plt = plot!(t_sim, hcat(xi...)[idx, :]',
-    	width = 1.0, color = :magenta, label = i == 1 ? ["sim" ""] : "")
+    	width = 1.0, color = :magenta, label = i == 1 ? "sim" : "")
 end
 _plt = plot!(t, hcat(x_ref...)[idx, :]',
-    width = 2.0, color = :black, label = ["ref" ""])
-_plt = plot!(ylims=(-1, π + 1.0); xlabel = "time (s)",
+    width = 2.0, color = :black, label = "ref")
+_plt = plot!(; xlabel = "time (s)",
 	ylabel = "position",
-	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 3))")
+	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))")
 display(_plt)
+
+# _plt = plot(t, hcat(u_ref..., u_ref[end])[1:1, :]',
+#     width = 2.0, color = :black, label = "")
+# for (i, ui) in enumerate(u_sim)
+# 	_plt = plot!(t_sim, hcat(ui..., ui[end])[1:1, :]',
+#     	width = 1.0, color = :magenta, label = i == 1 ? "sim" : "")
+# end
+# _plt = plot!(t, hcat(u_ref..., u_ref[end])[1:1, :]',
+#     width = 2.0, color = :black, label = "ref", linetype = :steppost)
+# _plt = plot!(; xlabel = "time (s)",
+# 	ylabel = "control",
+# 	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))",
+# 	linetype = :steppost)
+# display(_plt)
 @show mean(J_sim)
-round(mean(J_sim), digits = 3)
+round(mean(J_sim), digits = 2)

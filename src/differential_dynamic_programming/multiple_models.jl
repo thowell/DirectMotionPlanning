@@ -66,11 +66,6 @@ function backward_pass!(p_data::PolicyData, models_data::ModelsData)
     p[T] = sum([gx[i][T] for i = 1:N]) ./ N
 
     for t = T-1:-1:1
-		# println(fw[1][t])
-		# println(w[1][t])
-		# println(P[t+1] * fw[1][t] * w[1][t])
-		# println(sum([gx[i][t] + fx[i][t]' * (p[t+1] + P[t+1] * fw[i][t] * w[i][t]) for i = 1:N]) ./ N)
-		# println(Qx[t])
         Qx[t] =  sum([gx[i][t] + fx[i][t]' * (p[t+1] + P[t+1] * fw[i][t] * w[i][t]) for i = 1:N]) ./ N
         Qu[t] =  sum([gu[i][t] + fu[i][t]' * (p[t+1] + P[t+1] * fw[i][t] * w[i][t]) for i = 1:N]) ./ N
         Qxx[t] = sum([gxx[i][t] + fx[i][t]' * P[t+1] * fx[i][t] for i = 1:N]) ./ N
@@ -99,7 +94,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelsData, s_data::SolverDat
 	lagrangian_gradient!(s_data, p_data, m_data)
 
     # reset solver status
-    s_data.status = true
+    s_data.status = false
 
     # line search with rollout
     α = 1.0
@@ -132,7 +127,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelsData, s_data::SolverDat
 		println("J_prev: $(s_data.obj)")
 		println("J     : $(J)")
 		println("iter: $iter")
-		if true#J < s_data.obj + 0.001 * α * s_data.gradient' * (sum([m.z for m in models_data]) ./ N)
+		if 0.9 * J < s_data.obj + 0.001 * α * s_data.gradient' * (sum([m.z for m in models_data]) ./ N)
             # update nominal
 			# set nominal trajectories
 			# x_ref = [sum([m.x̄[t] for m in m_data]) ./ N for t = 1:T]
