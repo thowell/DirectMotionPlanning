@@ -14,6 +14,13 @@ end
 
 function objective(data::ModelsData; mode = :nominal)
 	N = length(data)
+	# J = []
+	#
+	# for i = 1:N
+	# 	push!(J, objective(data[i], mode = mode))
+	# end
+	#
+	# return maximum(J)
 	J = 0.0
 
 	for i = 1:N
@@ -94,7 +101,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelsData, s_data::SolverDat
 	lagrangian_gradient!(s_data, p_data, m_data)
 
     # reset solver status
-    s_data.status = false
+    s_data.status = true
 
     # line search with rollout
     α = 1.0
@@ -127,7 +134,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelsData, s_data::SolverDat
 		println("J_prev: $(s_data.obj)")
 		println("J     : $(J)")
 		println("iter: $iter")
-		if 0.9 * J < s_data.obj + 0.001 * α * s_data.gradient' * (sum([m.z for m in models_data]) ./ N)
+		if true #J < s_data.obj #+ 0.001 * α * s_data.gradient' * (sum([m.z for m in models_data]) ./ N)
             # update nominal
 			# set nominal trajectories
 			# x_ref = [sum([m.x̄[t] for m in m_data]) ./ N for t = 1:T]
@@ -145,6 +152,16 @@ function forward_pass!(p_data::PolicyData, m_data::ModelsData, s_data::SolverDat
         else
             α *= 0.5
             iter += 1
+
+			if iter >= max_iter
+				for i = 1:N
+		            m_data[i].x̄ .= deepcopy(m_data[i].x)
+		            m_data[i].ū .= deepcopy(m_data[i].u)
+					# m_data[i].x̄ .= x_ref
+		            # m_data[i].ū .= u_ref
+				end
+	            s_data.obj = J
+			end
         end
     end
 end

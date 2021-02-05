@@ -39,14 +39,14 @@ xT = [π; 0.0]
 _ū = [1.0e-3 * rand(model.m) for t = 1:T-1]
 ū = [_ū for i = 1:N]
 
-W = Distributions.MvNormal(zeros(model.d), Diagonal([1.0e-1]))
+W = Distributions.MvNormal(zeros(model.d), Diagonal([25.0e-3]))
 wi = [vec(rand(W, 1)) for i = 1:N]
 w = [[zeros(model.d) for t = 1:T-1], [[wi[i] for t = 1:T-1] for i = 1:N-1]...]
 # w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
-# w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
+w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
 
 # Rollout
-x̄ = [rollout(model, x1, ū[i], w[1], h, T) for i = 1:N]
+x̄ = [rollout(model, x1, ū[1], w[i], h, T) for i = 1:N]
 
 # x_ref = [sum([x̄i[t] for x̄i in x̄]) ./ N for t = 1:T]
 # u_ref = [sum([ūi[t] for ūi in ū]) ./ N for t = 1:T-1]
@@ -80,6 +80,9 @@ function g(obj::StageCosts, x, u, t)
     end
 end
 
+models_data = models(model, obj, deepcopy(x̄), deepcopy(ū), w, h, T)
+
+prob = problem_data(models_data)
 function ddp_solve!(prob::ProblemData;
     max_iter = 10,
     grad_tol = 1.0e-5,
@@ -142,10 +145,6 @@ function ddp_solve!(prob::ProblemData;
     end
 end
 
-models_data = models(model, obj, deepcopy(x̄), deepcopy(ū), w, h, T)
-
-prob = problem_data(models_data)
-
 # Solve
 @time ddp_solve!(prob,
     max_iter = 1000, verbose = true,
@@ -202,7 +201,7 @@ w_sim = rand(W_sim, T_sim)
 for i = 1:N_sim
 	println("sim: $i")
 	wi = vec(rand(W_sim, 1))
-	w_sim = [wi for t = 1:T_sim]
+	w_sim = hcat([wi for t = 1:T_sim]...)
 
 	x_ddp, u_ddp, J_ddp, Jx_ddp, Ju_ddp = simulate(
 		model_sim,
@@ -229,23 +228,24 @@ for (i, xi) in enumerate(x_sim)
 end
 _plt = plot!(t, hcat(x_ref...)[idx, :]',
     width = 2.0, color = :black, label = "ref")
-_plt = plot!(; xlabel = "time (s)",
-	ylabel = "position",
-	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))")
+_plt = plot!(ylims = (-2, π + 2.0); xlabel = "time (s)",
+	ylabel = "state",
+	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 3))",
+	legend = :bottomright)
 display(_plt)
 
 # _plt = plot(t, hcat(u_ref..., u_ref[end])[1:1, :]',
-#     width = 2.0, color = :black, label = "")
+#     width = 2.0, color = :black, label = "", linetype = :steppost)
 # for (i, ui) in enumerate(u_sim)
 # 	_plt = plot!(t_sim, hcat(ui..., ui[end])[1:1, :]',
 #     	width = 1.0, color = :magenta, label = i == 1 ? "sim" : "")
 # end
 # _plt = plot!(t, hcat(u_ref..., u_ref[end])[1:1, :]',
 #     width = 2.0, color = :black, label = "ref", linetype = :steppost)
-# _plt = plot!(; xlabel = "time (s)",
+# _plt = plot!(ylims = (-20.0, 20.0); xlabel = "time (s)",
 # 	ylabel = "control",
 # 	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))",
 # 	linetype = :steppost)
 # display(_plt)
-@show mean(J_sim)
-round(mean(J_sim), digits = 2)
+@show mean(J_sim) # 0.00157
+round(mean(J_sim), digits = 3)

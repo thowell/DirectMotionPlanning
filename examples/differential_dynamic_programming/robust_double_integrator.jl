@@ -10,7 +10,8 @@ include(joinpath(pwd(), "src/differential_dynamic_programming/multiple_models.jl
 include_model("double_integrator")
 
 function f(model::DoubleIntegratorContinuous, x, u, w)
-    [x[2] + w[1]; (1.0 + w[3]) * u[1] + w[2]]
+    [x[2] + w[1];
+	 (1.0 + w[3]) * u[1] + w[2]]
 end
 
 model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 1, 3)
@@ -18,7 +19,7 @@ n = model.n
 m = model.m
 
 # Models
-N = 1#2 * n + 1
+N = 1000#2 * n + 1
 
 # Time
 T = 101
@@ -38,14 +39,14 @@ x1 = [1.0; 0.0]
 _ū = [0.1 * rand(model.m) for t = 1:T-1]
 ū = [_ū for i = 1:N]
 
-W = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 1.0e-1]))
+W = Distributions.MvNormal(zeros(model.d), Diagonal([0.0, 0.0, 0.1]))
 wi = [vec(rand(W, 1)) for i = 1:N]
 w = [[zeros(model.d) for t = 1:T-1], [[wi[i] for t = 1:T-1] for i = 1:N-1]...]
 # w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
-w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
+# w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
 
 # Rollout
-x̄ = [rollout(model, x1, ū[i], w[i], h, T) for i = 1:N]
+x̄ = [rollout(model, x1, ū[i], w[1], h, T) for i = 1:N]
 
 # x_ref = [sum([x̄i[t] for x̄i in x̄]) ./ N for t = 1:T]
 # u_ref = [sum([ūi[t] for ūi in ū]) ./ N for t = 1:T-1]
@@ -120,13 +121,13 @@ function ddp_solve!(prob::ProblemData;
         # forward pass
         forward_pass!(p_data, m_data, s_data)
 
-		# if i > 1
-		# 	for i = 2:N
-		# 		m_data[i].x̄ .= deepcopy(m_data[1].x̄)
-		# 		m_data[i].ū .= deepcopy(m_data[1].ū)
-		# 		# m_data[i].w .= deepcopy(w[i])
-		# 	end
-		# end
+		if i > 1
+			for i = 2:N
+				m_data[i].x̄ .= deepcopy(m_data[1].x̄)
+				m_data[i].ū .= deepcopy(m_data[1].ū)
+				# m_data[i].w .= deepcopy(w[i])
+			end
+		end
 		# # set nominal trajectories
 		# x_ref = [sum([m.x̄[t] for m in prob.m_data]) ./ N for t = 1:T]
 		# u_ref = [sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
@@ -146,8 +147,25 @@ models_data = models(model, obj, deepcopy(x̄), deepcopy(ū), w, h, T)
 prob = problem_data(models_data)
 
 # Solve
+# for j = 1:10
+# 	wi = [vec(rand(W, 1)) for i = 1:N]
+# 	w = [[zeros(model.d) for t = 1:T-1], [[wi[i] for t = 1:T-1] for i = 1:N-1]...]
+# 	# w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
+# 	# w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
+# 	for i = 1:N
+# 		prob.m_data[i].w .= w[i]
+# 		prob.m_data[i].x̄ .= rollout(model,
+# 			prob.m_data[i].x̄[1], prob.m_data[1].ū,
+# 			prob.m_data[1].w, h, T)
+# 	end
+# 	# Rollout
+#
+# 	@time ddp_solve!(prob,
+# 	    max_iter = 1000, verbose = true,
+# 		grad_tol = 1.0e-8)
+# end
 @time ddp_solve!(prob,
-    max_iter = 1000, verbose = true,
+	max_iter = 1000, verbose = true,
 	grad_tol = 1.0e-8)
 
 x = [m.x for m in prob.m_data]
@@ -230,7 +248,8 @@ _plt = plot!(t, hcat(x_ref...)[idx, :]',
     width = 2.0, color = :black, label = "ref")
 _plt = plot!(; xlabel = "time (s)",
 	ylabel = "position",
-	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))")
+	legend = :topleft,
+	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 3))")
 display(_plt)
 
 _plt = plot(t, hcat(u_ref..., u_ref[end])[1:1, :]',
@@ -243,8 +262,8 @@ _plt = plot!(t, hcat(u_ref..., u_ref[end])[1:1, :]',
     width = 2.0, color = :black, label = "ref", linetype = :steppost)
 _plt = plot!(; xlabel = "time (s)",
 	ylabel = "control",
-	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 2))",
+	title = "N_mc = $N, N_sim = $(N_sim), J_avg = $(round(mean(J_sim), digits = 3))",
 	linetype = :steppost)
 display(_plt)
 @show mean(J_sim)
-round(mean(J_sim), digits = 2)
+round(mean(J_sim), digits = 3)
