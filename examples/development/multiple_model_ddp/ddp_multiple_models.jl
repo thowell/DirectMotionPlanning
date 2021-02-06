@@ -69,7 +69,9 @@ function backward_pass!(p_data::PolicyData, models_data::ModelsData)
     Qux = p_data.Qux
 
     # terminal value function
-    P[T] = sum([gxx[i][T] for i = 1:N]) ./ N
+    # P[T] = gxx[1][T] #sum([gxx[i][T] for i = 1:N]) ./ N
+    # p[T] = gx[1][T] #sum([gx[i][T] for i = 1:N]) ./ N
+	P[T] = sum([gxx[i][T] for i = 1:N]) ./ N
     p[T] = sum([gx[i][T] for i = 1:N]) ./ N
 
     for t = T-1:-1:1
@@ -78,6 +80,12 @@ function backward_pass!(p_data::PolicyData, models_data::ModelsData)
         Qxx[t] = sum([gxx[i][t] + fx[i][t]' * P[t+1] * fx[i][t] for i = 1:N]) ./ N
         Quu[t] = sum([guu[i][t] + fu[i][t]' * P[t+1] * fu[i][t] for i = 1:N]) ./ N
         Qux[t] = sum([gux[i][t] + fu[i][t]' * P[t+1] * fx[i][t] for i = 1:N]) ./ N
+
+		# Qx[t] = gx[1][t] + sum([fx[i][t]' * (p[t+1] + P[t+1] * fw[i][t] * w[i][t]) for i = 1:N]) ./ N
+        # Qu[t] =  gu[1][t] + sum([fu[i][t]' * (p[t+1] + P[t+1] * fw[i][t] * w[i][t]) for i = 1:N]) ./ N
+        # Qxx[t] = gxx[1][t] + sum([fx[i][t]' * P[t+1] * fx[i][t] for i = 1:N]) ./ N
+        # Quu[t] = guu[1][t] + sum([fu[i][t]' * P[t+1] * fu[i][t] for i = 1:N]) ./ N
+        # Qux[t] = gux[1][t] + sum([fu[i][t]' * P[t+1] * fx[i][t] for i = 1:N]) ./ N
 
         K[t] = -1.0 * Quu[t] \ Qux[t]
         k[t] = -1.0 * Quu[t] \ Qu[t]
@@ -101,7 +109,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelsData, s_data::SolverDat
 	lagrangian_gradient!(s_data, p_data, m_data)
 
     # reset solver status
-    s_data.status = true
+    s_data.status = false
 
     # line search with rollout
     α = 1.0
@@ -134,7 +142,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelsData, s_data::SolverDat
 		println("J_prev: $(s_data.obj)")
 		println("J     : $(J)")
 		println("iter: $iter")
-		if true #J < s_data.obj #+ 0.001 * α * s_data.gradient' * (sum([m.z for m in models_data]) ./ N)
+		if J < s_data.obj #+ 0.001 * α * s_data.gradient' * (sum([m.z for m in models_data]) ./ N)
             # update nominal
 			# set nominal trajectories
 			# x_ref = [sum([m.x̄[t] for m in m_data]) ./ N for t = 1:T]

@@ -23,7 +23,7 @@ struct Acrobot{I, T} <: Model{I, T}
     b2
 end
 
-function M(model::Acrobot, x)
+function M(model::Acrobot, x, w)
     a = (model.J1 + model.J2 + model.m2 * model.l1 * model.l1
          + 2.0 * model.m2 * model.l1 * model.lc2 * cos(x[2]))
 
@@ -35,7 +35,7 @@ function M(model::Acrobot, x)
               b c]
 end
 
-function τ(model::Acrobot, x)
+function τ(model::Acrobot, x, w)
     a = (-1.0 * model.m1 * model.g * model.lc1 * sin(x[1])
          - model.m2 * model.g * (model.l1 * sin(x[1])
          + model.lc2 * sin(x[1] + x[2])))
@@ -46,7 +46,7 @@ function τ(model::Acrobot, x)
               b]
 end
 
-function C(model::Acrobot, x)
+function C(model::Acrobot, x, w)
     a = -2.0 * model.m2 * model.l1 * model.lc2 * sin(x[2]) * x[4]
     b = -1.0 * model.m2 * model.l1 * model.lc2 * sin(x[2]) * x[4]
     c = model.m2 * model.l1 * model.lc2 * sin(x[2]) * x[3]
@@ -56,7 +56,7 @@ function C(model::Acrobot, x)
               c d]
 end
 
-function B(model::Acrobot, x)
+function B(model::Acrobot, x, w)
     @SMatrix [0.0;
               1.0]
 end
@@ -64,8 +64,8 @@ end
 function f(model::Acrobot, x, u, w)
     q = view(x, 1:2)
     v = view(x, 3:4)
-    qdd = M(model, q) \ (-1.0 * C(model, x) * v
-            + τ(model, q) + B(model, q) * u[1:1] - [model.b1; model.b2] .* v)
+    qdd = M(model, q, w) \ (-1.0 * C(model, x, w) * v
+            + τ(model, q, w) + B(model, q, w) * u[1:1] - [model.b1; model.b2] .* v)
     @SVector [x[3],
               x[4],
               qdd[1],

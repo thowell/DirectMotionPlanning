@@ -24,7 +24,7 @@ m = model.m
 d = model.d
 
 # Models
-N = 1#2 * n + 1
+N = 1000#2 * n + 1
 
 # Time
 T = 101
@@ -39,14 +39,14 @@ xT = [π; 0.0]
 _ū = [1.0e-3 * rand(model.m) for t = 1:T-1]
 ū = [_ū for i = 1:N]
 
-W = Distributions.MvNormal(zeros(model.d), Diagonal([25.0e-3]))
+W = Distributions.MvNormal(zeros(model.d), Diagonal([50.0e-3]))
 wi = [vec(rand(W, 1)) for i = 1:N]
 w = [[zeros(model.d) for t = 1:T-1], [[wi[i] for t = 1:T-1] for i = 1:N-1]...]
 # w = [[vec(rand(W, 1)) for t = 1:T-1] for i = 1:N]
-w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
+# w = [[zeros(model.d) for t = 1:T-1] for i = 1:N]
 
 # Rollout
-x̄ = [rollout(model, x1, ū[1], w[i], h, T) for i = 1:N]
+x̄ = [rollout(model, x1, ū[1], w[1], h, T) for i = 1:N]
 
 # x_ref = [sum([x̄i[t] for x̄i in x̄]) ./ N for t = 1:T]
 # u_ref = [sum([ūi[t] for ūi in ū]) ./ N for t = 1:T-1]
@@ -121,9 +121,6 @@ function ddp_solve!(prob::ProblemData;
 		# 	m_data[i].w .= deepcopy(w[i])
 		# end
 
-        # forward pass
-        forward_pass!(p_data, m_data, s_data)
-
 		if i > 1
 			for i = 2:N
 				m_data[i].x̄ .= deepcopy(m_data[1].x̄)
@@ -131,6 +128,16 @@ function ddp_solve!(prob::ProblemData;
 				# m_data[i].w .= deepcopy(w[i])
 			end
 		end
+        # forward pass
+        forward_pass!(p_data, m_data, s_data)
+
+		# if i > 1
+		# 	for i = 2:N
+		# 		m_data[i].x̄ .= deepcopy(m_data[1].x̄)
+		# 		m_data[i].ū .= deepcopy(m_data[1].ū)
+		# 		# m_data[i].w .= deepcopy(w[i])
+		# 	end
+		# end
 		# # set nominal trajectories
 		# x_ref = [sum([m.x̄[t] for m in prob.m_data]) ./ N for t = 1:T]
 		# u_ref = [sum([m.ū[t] for m in prob.m_data]) ./ N for t = 1:T-1]
