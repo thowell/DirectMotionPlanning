@@ -11,7 +11,7 @@ function f(model::DoubleIntegratorContinuous, x, u, w)
     [x[2] + w[1]; (1.0 + w[3]) * u[1] + w[2]]
 end
 
-function fd(model::Model{Midpoint, FixedTime}, x, u, w, h, t)
+function fd(model::DoubleIntegratorContinuous{Midpoint, FixedTime}, x, u, w, h, t)
 	if t == 1
 		x1 = u[2:3]
     	return x1 + h * f(model, x1 + 0.5 * h * f(model, x1, u, w), u, w)
@@ -109,54 +109,3 @@ plot(hcat([[p_ref[t]; 0.0] for t = 1:T]...)',
     width = 2.0, color = :black, label = "")
 plot!(hcat(x...)', color = :magenta, label = "")
 # plot(hcat(u..., u[end])', linetype = :steppost)
-
-# Simulate policy
-using Random
-Random.seed!(1)
-include_dpo()
-include(joinpath(pwd(), "examples/direct_policy_optimization/simulate.jl"))
-
-# Model
-model_sim = model
-x1_sim = copy(x1)
-T_sim = 10 * T
-
-# Disturbance distributions
-W = Distributions.MvNormal(zeros(model_sim.d),
-	Diagonal([0.0, 0.0, 50.0]))
-w = rand(W, T_sim)
-
-W0 = Distributions.MvNormal(zeros(model_sim.d),
-	Diagonal([0.0, 0.0, 0.0]))
-w0 = rand(W0, 1)
-
-# Initial state
-z1_sim = vec(copy(x1_sim) + w0[1:2])
-
-# Time
-tf = h * (T - 1)
-t = range(0, stop = tf, length = T)
-t_sim = range(0, stop = tf, length = T_sim)
-dt_sim = tf / (T_sim - 1)
-
-# Policy
-policy = linear_feedback(model.n, model.m)
-# K, P = tvlqr(model, x̄, ū, h, [Q for t = 1:T], [R for t = 1:T-1])
-K = [-K for K in prob.p_data.K]
-
-# Simulate
-z_ddp, u_ddp, J_ddp, Jx_ddp, Ju_ddp = simulate(
-	model_sim,
-	linear_feedback(model.n, model.m), K,
-    x̄, ū,
-	[Q for t = 1:T], [R for t = 1:T-1],
-	T_sim, h,
-	z1_sim,
-	w)
-
-# Visualize
-idx = (1:1)
-plot(t, hcat(x̄...)[idx, :]',
-    width = 2.0, color = :black, label = "")
-plot!(t_sim, hcat(z_ddp...)[idx, :]',
-    width = 1.0, color = :magenta, label = "")

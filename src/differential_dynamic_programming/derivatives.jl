@@ -9,11 +9,11 @@ function dynamics_derivatives!(data::ModelData)
     for t = 1:T-1
         fx(z) = fd(model, z, ū[t], w[t], h, t)
         fu(z) = fd(model, x̄[t], z, w[t], h, t)
-        fw(z) = fd(model, x̄[t], ū[t], z, h, t)
+        # fw(z) = fd(model, x̄[t], ū[t], z, h, t)
 
-        data.dyn_deriv.fx[t] = ForwardDiff.jacobian(fx, x̄[t])
-        data.dyn_deriv.fu[t] = ForwardDiff.jacobian(fu, ū[t])
-        data.dyn_deriv.fw[t] = ForwardDiff.jacobian(fw, w[t])
+        data.dyn_deriv.fx[t] .= ForwardDiff.jacobian(fx, x̄[t])
+        data.dyn_deriv.fu[t] .= ForwardDiff.jacobian(fu, ū[t])
+        # data.dyn_deriv.fw[t] = ForwardDiff.jacobian(fw, w[t])
     end
 end
 
@@ -30,18 +30,18 @@ function objective_derivatives!(obj::StageCosts, data::ModelData)
         gu(z) = g(obj, x̄[t], z, t)
         gz(z) = g(obj, z[1:n], z[n .+ (1:m)], t)
 
-        data.obj_deriv.gx[t] = ForwardDiff.gradient(gx, x̄[t])
-        data.obj_deriv.gu[t] = ForwardDiff.gradient(gu, ū[t])
-        data.obj_deriv.gxx[t] = ForwardDiff.hessian(gx, x̄[t])
-        data.obj_deriv.guu[t] = ForwardDiff.hessian(gu, ū[t])
-        data.obj_deriv.gux[t] = ForwardDiff.hessian(gz,
+        data.obj_deriv.gx[t] .= ForwardDiff.gradient(gx, x̄[t])
+        data.obj_deriv.gu[t] .= ForwardDiff.gradient(gu, ū[t])
+        data.obj_deriv.gxx[t] .= ForwardDiff.hessian(gx, x̄[t])
+        data.obj_deriv.guu[t] .= ForwardDiff.hessian(gu, ū[t])
+        data.obj_deriv.gux[t] .= ForwardDiff.hessian(gz,
             [x̄[t]; ū[t]])[n .+ (1:m), 1:n]
     end
 
     gxT(z) = g(obj, z, nothing, T)
 
-    data.obj_deriv.gx[T] = ForwardDiff.gradient(gxT, x̄[T])
-    data.obj_deriv.gxx[T] = ForwardDiff.hessian(gxT, x̄[T])
+    data.obj_deriv.gx[T] .= ForwardDiff.gradient(gxT, x̄[T])
+    data.obj_deriv.gxx[T] .= ForwardDiff.hessian(gxT, x̄[T])
 end
 
 function constraints_derivatives!(cons::StageConstraints, data::ModelData)
@@ -84,15 +84,15 @@ function objective_derivatives!(obj::AugmentedLagrangianCosts, data::ModelData)
     constraints_derivatives!(obj.cons, data)
 
     for t = 1:T-1
-        gx[t] += cx[t]' * (λ[t] + ρ * a[t] .* c[t])
-        gu[t] += cu[t]' * (λ[t] + ρ * a[t] .* c[t])
-        gxx[t] += ρ * cx[t]' * Diagonal(a[t]) * cx[t]
-        guu[t] += ρ * cu[t]' * Diagonal(a[t]) * cu[t]
-        gux[t] += ρ * cu[t]' * Diagonal(a[t]) * cx[t]
+        gx[t] .+= cx[t]' * (λ[t] + ρ * a[t] .* c[t])
+        gu[t] .+= cu[t]' * (λ[t] + ρ * a[t] .* c[t])
+        gxx[t] .+= ρ * cx[t]' * Diagonal(a[t]) * cx[t]
+        guu[t] .+= ρ * cu[t]' * Diagonal(a[t]) * cu[t]
+        gux[t] .+= ρ * cu[t]' * Diagonal(a[t]) * cx[t]
     end
 
-    gx[T] += cx[T]' * (λ[T] + ρ * a[T] .* c[T])
-    gxx[T] += ρ * cx[T]' * Diagonal(a[T]) * cx[T]
+    gx[T] .+= cx[T]' * (λ[T] + ρ * a[T] .* c[T])
+    gxx[T] .+= ρ * cx[T]' * Diagonal(a[T]) * cx[T]
 end
 
 function derivatives!(m_data::ModelData)

@@ -16,8 +16,8 @@ function rollout!(p_data::PolicyData, m_data::ModelData; α = 1.0)
 
     # rollout
     for t = 1:T-1
-        u[t] = ū[t] + K[t] * (x[t] - x̄[t]) + α * k[t]
-        x[t+1] = fd(model, x[t], u[t], w[t], h, t)
+        u[t] .= ū[t] + K[t] * (x[t] - x̄[t]) + α * k[t]
+        x[t+1] .= fd(model, x[t], u[t], w[t], h, t)
     end
 end
 

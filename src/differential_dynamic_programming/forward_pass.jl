@@ -6,7 +6,7 @@ function forward_pass!(p_data::PolicyData, m_data::ModelData, s_data::SolverData
 
     # gradient of Lagrangian
     lagrangian_gradient!(s_data, p_data, m_data)
-    
+
     # line search with rollout
     α = 1.0
     iter = 1

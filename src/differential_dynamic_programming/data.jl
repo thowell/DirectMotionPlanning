@@ -13,9 +13,13 @@ function dynamics_derivatives_data(model::Model, T)
     m = model.m
 	d = model.d
 
-    fx = [SMatrix{n, n}(zeros(n, n)) for t = 1:T-1]
-    fu = [SMatrix{n, m}(zeros(n, m)) for t = 1:T-1]
-	fw = [SMatrix{n, d}(zeros(n, d)) for t = 1:T-1]
+    # fx = [SMatrix{n, n}(zeros(n, n)) for t = 1:T-1]
+    # fu = [SMatrix{n, m}(zeros(n, m)) for t = 1:T-1]
+	# fw = [SMatrix{n, d}(zeros(n, d)) for t = 1:T-1]
+
+	fx = [zeros(n, n) for t = 1:T-1]
+    fu = [zeros(n, m) for t = 1:T-1]
+	fw = [zeros(n, d) for t = 1:T-1]
 
     DynamicsDerivativesData(fx, fu, fw)
 end
@@ -32,11 +36,17 @@ function objective_derivatives_data(model::Model, T)
     n = model.n
     m = model.m
 
-    gx = [SVector{n}(ones(n)) for t = 1:T]
-    gu = [SVector{m}(ones(m)) for t = 1:T-1]
-    gxx = [SMatrix{n, n}(ones(n, n)) for t = 1:T]
-    guu = [SMatrix{m, m}(ones(m, m)) for t = 1:T-1]
-    gux = [SMatrix{m, n}(ones(m, n)) for t = 1:T-1]
+    # gx = [SVector{n}(ones(n)) for t = 1:T]
+    # gu = [SVector{m}(ones(m)) for t = 1:T-1]
+    # gxx = [SMatrix{n, n}(ones(n, n)) for t = 1:T]
+    # guu = [SMatrix{m, m}(ones(m, m)) for t = 1:T-1]
+    # gux = [SMatrix{m, n}(ones(m, n)) for t = 1:T-1]
+
+	gx = [ones(n) for t = 1:T]
+    gu = [ones(m) for t = 1:T-1]
+    gxx = [ones(n, n) for t = 1:T]
+    guu = [ones(m, m) for t = 1:T-1]
+    gux = [ones(m, n) for t = 1:T-1]
 
     ObjectiveDerivativesData(gx, gu, gxx, guu, gux)
 end
@@ -82,11 +92,17 @@ function model_data(model, obj, w, h, T)
     m = model.m
     num_var = n * T + m * (T - 1)
 
-    x = [SVector{n}(zeros(n)) for t = 1:T]
-    u = [SVector{m}(zeros(m)) for t = 1:T-1]
+    # x = [SVector{n}(zeros(n)) for t = 1:T]
+    # u = [SVector{m}(zeros(m)) for t = 1:T-1]
+	#
+    # x̄ = [SVector{n}(zeros(n)) for t = 1:T]
+    # ū = [SVector{m}(zeros(m)) for t = 1:T-1]
 
-    x̄ = [SVector{n}(zeros(n)) for t = 1:T]
-    ū = [SVector{m}(zeros(m)) for t = 1:T-1]
+	x = [zeros(n) for t = 1:T]
+    u = [zeros(m) for t = 1:T-1]
+
+    x̄ = [zeros(n) for t = 1:T]
+    ū = [zeros(m) for t = 1:T-1]
 
     dyn_deriv = dynamics_derivatives_data(model, T)
     obj_deriv = objective_derivatives_data(model, T)
@@ -97,6 +113,10 @@ function model_data(model, obj, w, h, T)
 end
 
 function Δz!(m_data::ModelData)
+	n = m_data.model.n
+	m = m_data.model.m
+	T = m_data.T
+
     for t = 1:T
         idx_x = (t - 1) * n .+ (1:n)
         m_data.z[idx_x] = m_data.x[t] - m_data.x̄[t]
@@ -140,17 +160,29 @@ function policy_data(model::Model, T)
     n = model.n
     m = model.m
 
-    K = [SMatrix{m, n}(zeros(m, n)) for t = 1:T-1]
-    k = [SVector{m}(zeros(m)) for t = 1:T-1]
+    # K = [SMatrix{m, n}(zeros(m, n)) for t = 1:T-1]
+    # k = [SVector{m}(zeros(m)) for t = 1:T-1]
+	#
+    # P = [SMatrix{n, n}(zeros(n, n)) for t = 1:T]
+    # p = [SVector{n}(zeros(n)) for t = 1:T]
+	#
+    # Qx = [SVector{n}(zeros(n)) for t = 1:T-1]
+    # Qu = [SVector{m}(zeros(m)) for t = 1:T-1]
+    # Qxx = [SMatrix{n, n}(zeros(n, n)) for t = 1:T-1]
+    # Quu = [SMatrix{m, m}(zeros(m, m)) for t = 1:T-1]
+    # Qux = [SMatrix{m, n}(zeros(m, n)) for t = 1:T-1]
 
-    P = [SMatrix{n, n}(zeros(n, n)) for t = 1:T]
-    p = [SVector{n}(zeros(n)) for t = 1:T]
+	K = [zeros(m, n) for t = 1:T-1]
+    k = [zeros(m) for t = 1:T-1]
 
-    Qx = [SVector{n}(zeros(n)) for t = 1:T-1]
-    Qu = [SVector{m}(zeros(m)) for t = 1:T-1]
-    Qxx = [SMatrix{n, n}(zeros(n, n)) for t = 1:T-1]
-    Quu = [SMatrix{m, m}(zeros(m, m)) for t = 1:T-1]
-    Qux = [SMatrix{m, n}(zeros(m, n)) for t = 1:T-1]
+    P = [zeros(n, n) for t = 1:T]
+    p = [zeros(n) for t = 1:T]
+
+    Qx = [zeros(n) for t = 1:T-1]
+    Qu = [zeros(m) for t = 1:T-1]
+    Qxx = [zeros(n, n) for t = 1:T-1]
+    Quu = [zeros(m, m) for t = 1:T-1]
+    Qux = [zeros(m, n) for t = 1:T-1]
 
     PolicyData(K, k, P, p, Qx, Qu, Qxx, Quu, Qux)
 end

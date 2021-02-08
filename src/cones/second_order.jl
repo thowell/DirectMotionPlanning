@@ -62,3 +62,22 @@ function Jκ_so(z)
         return D
     end
 end
+
+function cone_product(z, s)
+    if length(z) > 1
+        z0 = z[1]
+        z1 = z[2:end]
+
+        s0 = s[1]
+        s1 = s[2:end]
+        return [z' * s; z0 * s1 + s0 * z1]
+    else
+        return [z' * s]
+    end
+end
+
+function e_soc(n)
+    e = zeros(n)
+    e[1] = 1.0
+    return e
+end

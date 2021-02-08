@@ -18,14 +18,19 @@ function ddp_solve!(prob::ProblemData;
         # derivatives
         derivatives!(m_data)
 
+		println("derivatives")
+
         # backward pass
         backward_pass!(p_data, m_data)
 
+		println("backward pass")
 		# check gradient of Lagrangian convergence
 
 
         # forward pass
         forward_pass!(p_data, m_data, s_data)
+
+		println("forward pass")
 
         # check convergence
         grad_norm = norm(s_data.gradient, Inf)

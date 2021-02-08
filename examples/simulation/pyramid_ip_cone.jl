@@ -178,7 +178,7 @@ end
         solves 1-step feasibility problem
 """
 function _step(q1, q2, h;
-    tol = 1.0e-8, z0_scale = 0.001, step_type = :gmres, max_iter = 100)
+    tol = 1.0e-8, z0_scale = 0.001, step_type = :none, max_iter = 100)
     # 1-step optimization problem:
     #     find z
     #     s.t. r(z) = 0
@@ -192,7 +192,7 @@ function _step(q1, q2, h;
     ρ = 1.0 # barrier parameter
     flag = false
 
-    for k = 1:8
+    for k = 1:6
         function r(z)
             # system variables
 			# q3, n, ϕs, b = unpack(z)
@@ -458,10 +458,10 @@ end
 h = 0.05
 
 # initial conditions
-mrp = MRP(UnitQuaternion(RotY(pi / 2.0) * RotX(0.0)))
+mrp = MRP(UnitQuaternion(RotY(pi / 6.0) * RotX(pi / 4.0)))
 
-v1 = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-q1 = [0.0; 0.0; 1.5; mrp.x; mrp.y; mrp.z]
+v1 = [-7.5; -1.0; 0.0; 0.0; 0.0; 0.0]
+q1 = [0.0; 0.0; 1.0; mrp.x; mrp.y; mrp.z]
 
 v2 = v1 - gravity(model) * h
 q2 = q1 + 0.5 * (v1 + v2) * h
@@ -526,7 +526,7 @@ end
 visualize!(vis, model,
     q_sol,
     Δt = h)
-
+open(vis)
 settransform!(vis["/Cameras/default"],
     compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(pi))))
 
