@@ -237,25 +237,6 @@ function current_trajectory(prob::ProblemData)
 	return prob.m_data.x, prob.m_data.u
 end
 
-"""
-    Constraints Data
-"""
-struct ConstraintsData
-    c
-    cx
-    cu
-end
-
-function constraints_data(model::Model, p::Vector, T::Int;
-	n = [model.n for t = 1:T],
-	m = [model.m for t = 1:T-1])
-
-    c = [zeros(p[t]) for t = 1:T]
-    cx = [zeros(p[t], n[t]) for t = 1:T]
-    cu = [zeros(p[t], m[t]) for t = 1:T-1]
-    ConstraintsData(c, cx, cu)
-end
-
 function problem_data(model, obj::StageCosts, con_set::ConstraintSet,
 		x̄, ū, w, h, T;
 		n = [model.n for t = 1:T],

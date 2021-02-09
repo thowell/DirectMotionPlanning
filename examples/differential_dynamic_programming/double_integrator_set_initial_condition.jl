@@ -20,9 +20,9 @@ function fd(model::DoubleIntegratorContinuous{Midpoint, FixedTime}, x, u, w, h, 
 	end
 end
 
-model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 3, 3)
-n = model.n
-m = model.m
+model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 1, 3)
+n = [model.n for t = 1:T]
+m = [t == 1 ? model.m + model.n : model.m for t = 1:T]
 
 # Time
 T = 101
@@ -35,58 +35,57 @@ plot(z, p_ref)
 # Initial conditions, controls, disturbances
 x1 = [p_ref[1]; 0.0]
 x1_alt = [0.0; 0.0]
-ū = [rand(model.m) for t = 1:T-1]
+xT = [[p_ref[t]; 0.0] for t = 1:T]
+ū = [rand(m[t]) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
 x̄ = rollout(model, x1, ū, w, h, T)
 
 # Objective
-Q = Diagonal([100.0; 0.1])
-R = Diagonal(0.01 * ones(model.m))
-
-obj = StageCosts([QuadraticCost(Q, nothing,
-	t < T ? R : nothing, nothing) for t = 1:T], T)
+Q = [(t < T ? h : 1.0) * Diagonal([100.0; 0.1]) for t = 1:T]
+q = [-2.0 * Q[t] * xT[t] for t = 1:T]
+R = [h * Diagonal(0.01 * ones(m[t])) for t = 1:T-1]
+r = [zeros(m[t]) for t = 1:T-1]
+obj = StageCosts([QuadraticCost(Q[t], q[t],
+	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
 
 function g(obj::StageCosts, x, u, t)
 	T = obj.T
     if t < T
 		Q = obj.cost[t].Q
+		q = obj.cost[t].q
 	    R = obj.cost[t].R
-        return h * (x - [p_ref[t]; 0.0])' * Q * (x - [p_ref[t]; 0.0]) + u' * R * u
+		r = obj.cost[t].r
+        return x' * Q * x + q' * x + u' * R * u + r' * u
     elseif t == T
 		Q = obj.cost[T].Q
-        return (x - [p_ref[T]; 0.0])' * Q * (x - [p_ref[T]; 0.0])
+		q = obj.cost[T].q
+        return x' * Q * x + q' * x
     else
         return 0.0
     end
 end
 
-# g(obj, x̄[T], nothing, T)
-# objective(obj, x̄, ū)
+g(obj, x̄[1], ū[1], 1)
+g(obj, x̄[2], ū[2], 2)
+g(obj, x̄[T], nothing, T)
+objective(obj, x̄, ū)
 
 # Constraints
-p = [t < T ? n : 0 for t = 1:T]
-info_t = Dict()#:ul => [-5.0], :uu => [5.0], :inequality => (1:2 * m))
+p = [t == 1 ? n[1] : 0 for t = 1:T]
+info_t = Dict(:x1 => x1_alt)#:ul => [-5.0], :uu => [5.0], :inequality => (1:2 * m))
 info_T = Dict()#:xT => xT)
 con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
 
 function c!(c, cons::StageConstraints, x, u, t)
 	T = cons.T
-	p = cons.con[t].p
-
-	if t < T
-		if t == 1
-			c .= u[2:3] - x1_alt
-		else
-			c .= u[2:3]
-		end
-	else
-		nothing
+	if t == 1
+		c .= view(u, 2:3) - cons.con[t].info[:x1]
 	end
 end
 
-prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T)
+prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T, n = n, m = m)
 
 # Solve
 @time constrained_ddp_solve!(prob,
@@ -107,5 +106,5 @@ x̄[1] = ū[1][2:3]
 using Plots
 plot(hcat([[p_ref[t]; 0.0] for t = 1:T]...)',
     width = 2.0, color = :black, label = "")
-plot!(hcat(x...)', color = :magenta, label = "")
+plot!(hcat(x...)[:, 1:T]', color = :magenta, label = "")
 # plot(hcat(u..., u[end])', linetype = :steppost)

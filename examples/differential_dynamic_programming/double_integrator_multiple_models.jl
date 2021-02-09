@@ -12,14 +12,11 @@ function f(model::DoubleIntegratorContinuous, x, u, w)
 end
 
 model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 1, 1)
-n = model.n
-m = model.m
-d = model.d
 
 struct MultipleModel{I, T} <: Model{I, T}
-	n::Int
-	m::Int
-	d::Int
+	n::Vector{Int}
+	m::Vector{Int}
+	d::Vector{Int}
 
 	model::Model
 
@@ -27,48 +24,63 @@ struct MultipleModel{I, T} <: Model{I, T}
 	p::Int
 end
 
-function multiple_model(model, N; p = 0)
-	n = N * (model.n + p)
-	m = N * model.m + p
-	d = N * model.d
+function multiple_model(model, T, N; p = 0)
+	n = model.n
+	m = model.m
+	d = model.d
+
+	# n = [N * (n + (t == 1 ? 0 : p)) for t = 1:T]
+	n = [N * (n + p) for t = 1:T]
+	m = [N * m + (t == 1 ? p : 0) for t = 1:T-1]
+	d = [N * d for t = 1:T-1]
+
 	MultipleModel{typeof(model).parameters...}(n, m, d, model, N, p)
 end
 
-N = 1
+N = 2 * model.n + 1
 p_policy = model.n * model.n + model.n + model.m * model.n + model.m
-models = multiple_model(model, N, p = p_policy)
+models = multiple_model(model, T, N, p = p_policy)
 
 function fd(models::MultipleModel, x, u, w, h, t)
 	N = models.N
+
+	n = models.n[t]
+	m = models.m[t]
+	d = models.d[t]
+
+	ni = models.model.n
+	mi = models.model.m
+	di = models.model.d
+
 	p = models.p
-	n = models.model.n
-	n̄ = n + p
-	m = models.model.m
-	d = models.model.d
+
+	nip = ni + p
 
 	x⁺ = []
 
 	for i = 1:N
-		xi = view(x, (i - 1) * n̄ .+ (1:n))
-		ui = view(u, (i - 1) * m .+ (1:m))
-		wi = view(w, (i - 1) * d .+ (1:d))
+		xi = view(x, (i - 1) * nip .+ (1:ni))
+		ui = view(u, (i - 1) * mi .+ (1:mi))
+		wi = view(w, (i - 1) * di .+ (1:di))
 
 		if t == 1
-			θ = view(u, N * m .+ (1:p))
+			θ = view(u, N * mi .+ (1:p))
 		else
-			θ = view(x, (i - 1) * n̄ + n .+ (1:p))
+			θ = view(x, (i - 1) * nip + ni .+ (1:p))
 		end
 
-		K1 = reshape(view(θ, 1:n * n), n, n)
-		k1 = view(θ, n * n .+ (1:n))
-		K2 = reshape(view(θ, n * n + n .+ (1:m * n)), m, n)
-		k2 = view(θ, n * n + n + m * n .+ (1:m))
+		K1 = reshape(view(θ, 1:ni * ni), ni, ni)
+		k1 = view(θ, ni * ni .+ (1:ni))
+		K2 = reshape(view(θ, ni * ni + ni .+ (1:mi * ni)), mi, ni)
+		k2 = view(θ, ni * ni + ni + mi * ni .+ (1:mi))
 
 		z1 = tanh.(K1 * xi + k1)
-		z2 = K2 * z1 + k2
-		u_policy = ui + z2
+		# z2 = tanh.(K1 * z1 + k1)
+		# z3 = tanh.(K1 * z2 + k1)
+		zo = K2 * z1 + k2
+		u_ctrl = ui + zo
 
-		push!(x⁺, [fd(models.model, xi, u_policy, wi, h, t); θ])
+		push!(x⁺, [fd(models.model, xi, u_ctrl, wi, h, t); θ])
 	end
 
 	return vcat(x⁺...)
@@ -85,14 +97,14 @@ xT = [vcat([[pr; 0.0; zeros(models.p)] for i = 1:N]...) for pr in p_ref]
 
 # Initial conditions, controls, disturbances
 # x1 = [p_ref[1]; 0.0; p_ref[1]; 0.0]
-x1 = zeros(models.n)
+x1 = zeros(models.n[1])
 for i = 1:N
 	x1[(i - 1) * (model.n + models.p) + 1] = 1.0
 end
 x1
 
-ū = [1.0e-3 * randn(models.m) for t = 1:T-1]
-wi = [0.0]#, 0.5, 1.0]
+ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
+wi = [0.0, 0.5, 1.0, 0.25, 0.125]#, 0.5, 1.0]
 @assert length(wi) == N
 w = [vcat(wi...) for t = 1:T-1]
 
@@ -102,11 +114,11 @@ x̄ = rollout(models, x1, ū, w, h, T)
 # Objective
 Q = [(t < T ?
 	h * Diagonal(vcat([[1.0; 1.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))
-	: Diagonal(vcat([[100.0; 100.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))) for t = 1:T]
+	: Diagonal(vcat([[1000.0; 1000.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))) for t = 1:T]
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
-R = [h * Diagonal(1.0e-1 * ones(models.m)) for t = 1:T-1]
-r = [zeros(models.m) for t = 1:T-1]
+R = [h * Diagonal(1.0e-1 * ones(models.m[t])) for t = 1:T-1]
+r = [zeros(models.m[t]) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
 	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
@@ -131,9 +143,9 @@ end
 g(obj, x̄[T-1], ū[T-1], T-1)
 g(obj, x̄[T], nothing, T)
 objective(obj, x̄, ū)
-1.0
+
 # Constraints
-p_con = [t == T ? 0 : (t > 1 ? models.m : (models.m - models.p)) for t = 1:T]
+p_con = [t == T ? 0 : (t > 1 ? models.m[t] : (models.m[t] - models.p)) for t = 1:T]
 info_t = Dict()#:ul => [-5.0], :uu => [5.0], :inequality => (1:2 * m))
 info_T = Dict()#:xT => xT)
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
@@ -142,32 +154,29 @@ function c!(c, cons::StageConstraints, x, u, t)
 	T = cons.T
 
 	if t == 1
-		c .= view(u, 1:(models.m - models.p))
+		c .= view(u, 1:(models.m[t] - models.p))
 	elseif t < T
-			c .= u
+		c .= u
 	else
 		nothing
 	end
 end
 
-prob = problem_data(models, obj, con_set, copy(x̄), copy(ū), w, h, T)
+prob = problem_data(models, obj, con_set, copy(x̄), copy(ū), w, h, T,
+	n = models.n, m = models.m, d = models.d)
 
-dynamics_derivatives!(prob.m_data)
-prob.m_data.obj
-
-prob.m_data.obj.costs.cost[1].Q
-@time objective_derivatives!(prob.m_data.obj, prob.m_data)
-prob.m_data.model.m
-prob.m_data.model.n
+# @time dynamics_derivatives!(prob.m_data)
+# prob.m_data.obj
+#
+# @time objective_derivatives!(prob.m_data.obj, prob.m_data)
+# prob.m_data.model.m
+# prob.m_data.model.n
 
 # Solve
 @time constrained_ddp_solve!(prob,
-    max_iter = 1000, max_al_iter = 5,
+    max_iter = 1000, max_al_iter = 8,
 	ρ_init = 1.0, ρ_scale = 10.0,
-	con_tol = 1.0e-4)
-
-@time ddp_solve!(prob,
-    max_iter = 1000, verbose = true)
+	con_tol = 1.0e-5)
 
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
@@ -186,7 +195,7 @@ plot(hcat([xT[t] for t = 1:T]...)[x_idxs, :]',
     width = 2.0, color = :black, label = "")
 plot!(hcat(x...)[x_idxs, :]', color = :magenta, label = "")
 
-# plot(hcat(u..., u[end])[u_idxs, :]', linetype = :steppost)
+plot(hcat(u..., u[end])[u_idxs, :]', linetype = :steppost)
 
 # verify solution
 uθ = u[1][models.N * model.m .+ (1:models.p)]
