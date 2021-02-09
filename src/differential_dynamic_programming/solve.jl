@@ -4,7 +4,7 @@ function ddp_solve!(prob::ProblemData;
     verbose = true)
 
 	println()
-    verbose && println("Differential Dynamic Programming")
+    (verbose && prob.m_data.obj isa StageCosts) && printstyled("Differential Dynamic Programming\n", color = :red)
 
 	# data
 	p_data = prob.p_data
@@ -13,24 +13,19 @@ function ddp_solve!(prob::ProblemData;
 
     # compute objective
     s_data.obj = objective(m_data, mode = :nominal)
-
+	# println("obj")
     for i = 1:max_iter
         # derivatives
         derivatives!(m_data)
+		# println("derivatives")
 
-		println("derivatives")
-
-        # backward pass
+		# backward pass
         backward_pass!(p_data, m_data)
-
-		println("backward pass")
-		# check gradient of Lagrangian convergence
-
+		# println("backward pass")
 
         # forward pass
         forward_pass!(p_data, m_data, s_data)
-
-		println("forward pass")
+		# println("forward pass")
 
         # check convergence
         grad_norm = norm(s_data.gradient, Inf)
@@ -80,7 +75,7 @@ function constrained_ddp_solve!(prob::ProblemData;
     verbose = true)
 
 	println()
-	verbose && println("Differential Dynamic Programming")
+	verbose && printstyled("Differential Dynamic Programming\n", color = :red)
 
 	# initial penalty
 	prob.m_data.obj.ρ = ρ_init

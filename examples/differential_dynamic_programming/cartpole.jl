@@ -20,21 +20,28 @@ x̄ = rollout(model, x1, ū, w, h, T)
 # x̄ = linear_interpolation(x1, xT, T)
 
 # Objective
-Qt = Diagonal(1.0e-1 * ones(model.n))
-Rt = Diagonal(1.0e-3 * ones(model.m))
-QT = Diagonal(10.0 * ones(model.n))
-obj = StageCosts([(t < T ? QuadraticCost(Qt, nothing, Rt, nothing)
-    : QuadraticCost(QT, nothing, nothing, nothing)) for t = 1:T], T)
+Q = [(t < T ? Diagonal(1.0e-1 * ones(model.n))
+        : Diagonal(10.0 * ones(model.n))) for t = 1:T]
+q = [-2.0 * Q[t] * xT for t = 1:T]
 
-function g(obj::StageCosts, x, u, t) #TODO fix global: T, xT
-    T = obj.T
+R = [Diagonal(1.0e-3 * ones(model.m)) for t = 1:T-1]
+r = [zeros(model.m) for t = 1:T-1]
+
+obj = StageCosts([QuadraticCost(Q[t], q[t],
+	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
+
+function g(obj::StageCosts, x, u, t)
+	T = obj.T
     if t < T
-        Q = obj.cost[t].Q
-        R = obj.cost[t].R
-        return (x - xT)' * Q * (x - xT) + u' * R * u
+		Q = obj.cost[t].Q
+		q = obj.cost[t].q
+	    R = obj.cost[t].R
+		r = obj.cost[t].r
+        return x' * Q * x + q' * x + u' * R * u + r' * u
     elseif t == T
-        Q = obj.cost[T].Q
-        return (x - xT)' * Q * (x - xT)
+		Q = obj.cost[T].Q
+		q = obj.cost[T].q
+        return x' * Q * x + q' * x
     else
         return 0.0
     end

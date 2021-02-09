@@ -26,22 +26,34 @@ function objective_derivatives!(obj::StageCosts, data::ModelData)
     m = model.m
 
     for t = 1:T-1
-        gx(z) = g(obj, z, ū[t], t)
-        gu(z) = g(obj, x̄[t], z, t)
-        gz(z) = g(obj, z[1:n], z[n .+ (1:m)], t)
+		if obj.cost[t] isa QuadraticCost
+			data.obj_deriv.gx[t] .= 2.0 * obj.cost[t].Q * x̄[t] + obj.cost[t].q
+			data.obj_deriv.gu[t] .= 2.0 * obj.cost[t].R * ū[t] + obj.cost[t].r
+			data.obj_deriv.gxx[t] .= 2.0 * obj.cost[t].Q
+			data.obj_deriv.guu[t] .= 2.0 * obj.cost[t].R
+			data.obj_deriv.gux[t] .= 0.0
+		else
+	        gx(z) = g(obj, z, ū[t], t)
+	        gu(z) = g(obj, x̄[t], z, t)
+	        gz(z) = g(obj, z[1:n], z[n .+ (1:m)], t)
 
-        data.obj_deriv.gx[t] .= ForwardDiff.gradient(gx, x̄[t])
-        data.obj_deriv.gu[t] .= ForwardDiff.gradient(gu, ū[t])
-        data.obj_deriv.gxx[t] .= ForwardDiff.hessian(gx, x̄[t])
-        data.obj_deriv.guu[t] .= ForwardDiff.hessian(gu, ū[t])
-        data.obj_deriv.gux[t] .= ForwardDiff.hessian(gz,
-            [x̄[t]; ū[t]])[n .+ (1:m), 1:n]
+	        ForwardDiff.gradient!(data.obj_deriv.gx[t], gx, x̄[t])
+	        ForwardDiff.gradient!(data.obj_deriv.gu[t], gu, ū[t])
+			ForwardDiff.hessian!(data.obj_deriv.gxx[t], gx, x̄[t])
+	        ForwardDiff.hessian!(data.obj_deriv.guu[t], gu, ū[t])
+	        data.obj_deriv.gux[t] .= ForwardDiff.hessian(gz,
+	            [x̄[t]; ū[t]])[n .+ (1:m), 1:n]
+		end
     end
 
-    gxT(z) = g(obj, z, nothing, T)
-
-    data.obj_deriv.gx[T] .= ForwardDiff.gradient(gxT, x̄[T])
-    data.obj_deriv.gxx[T] .= ForwardDiff.hessian(gxT, x̄[T])
+	if obj.cost[T] isa QuadraticCost
+		data.obj_deriv.gx[T] .= 2.0 * obj.cost[T].Q * x̄[T] + obj.cost[T].q
+		data.obj_deriv.gxx[T] .= 2.0 * obj.cost[T].Q
+	else
+	    gxT(z) = g(obj, z, nothing, T)
+	    ForwardDiff.gradient!(data.obj_deriv.gx[T], gxT, x̄[T])
+	    ForwardDiff.hessian!(data.obj_deriv.gxx[T], gxT, x̄[T])
+	end
 end
 
 function constraints_derivatives!(cons::StageConstraints, data::ModelData)

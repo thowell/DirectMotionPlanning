@@ -26,3 +26,5 @@ struct QuadraticCost <: StageCost
     R
     r
 end
+
+QuadtraticCosts = Vector{QuadraticCost}

@@ -32,28 +32,30 @@ w = [zeros(model.d) for t = 1:T-1]
 x̄ = rollout(model, x1, ū, w, h, T)
 
 # Objective
-Q = Diagonal([100.0; 0.1])
-R = Diagonal(0.01 * ones(model.m))
+Q = [(t < T ? h : 1.0) * Diagonal([100.0; 0.1]) for t = 1:T]
+q = [-2.0 * Q[t] * [p_ref[t]; 0.0] for t = 1:T]
+R = [h * Diagonal(0.01 * ones(model.m)) for t = 1:T-1]
+r = [zeros(model.m) for t = 1:T-1]
 
-obj = StageCosts([QuadraticCost(Q, nothing,
-	t < T ? R : nothing, nothing) for t = 1:T], T)
+obj = StageCosts([QuadraticCost(Q[t], q[t],
+	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
 
 function g(obj::StageCosts, x, u, t)
 	T = obj.T
     if t < T
 		Q = obj.cost[t].Q
+		q = obj.cost[t].q
 	    R = obj.cost[t].R
-        return h * (x - [p_ref[t]; 0.0])' * Q * (x - [p_ref[t]; 0.0]) + u' * R * u
+		r = obj.cost[t].r
+        return x' * Q * x + q' * x + u' * R * u + r' * u
     elseif t == T
 		Q = obj.cost[T].Q
-        return (x - [p_ref[T]; 0.0])' * Q * (x - [p_ref[T]; 0.0])
+		q = obj.cost[T].q
+        return x' * Q * x + q' * x
     else
         return 0.0
     end
 end
-
-# g(obj, x̄[T], nothing, T)
-# objective(obj, x̄, ū)
 
 prob = problem_data(model, obj, x̄, ū, w, h, T)
 
@@ -63,7 +65,6 @@ prob = problem_data(model, obj, x̄, ū, w, h, T)
 
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
-
 
 # Visualize
 using Plots
