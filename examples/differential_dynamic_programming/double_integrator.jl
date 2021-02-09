@@ -57,7 +57,7 @@ function g(obj::StageCosts, x, u, t)
     end
 end
 
-prob = problem_data(model, obj, x̄, ū, w, h, T)
+prob = problem_data(model, obj, copy(x̄), copy(ū), w, h, T)
 
 # Solve
 @time ddp_solve!(prob,

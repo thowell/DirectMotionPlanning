@@ -4,7 +4,8 @@ function ddp_solve!(prob::ProblemData;
     verbose = true)
 
 	println()
-    (verbose && prob.m_data.obj isa StageCosts) && printstyled("Differential Dynamic Programming\n", color = :red)
+    (verbose && prob.m_data.obj isa StageCosts) && printstyled("Differential Dynamic Programming\n",
+		color = :red, bold = true)
 
 	# data
 	p_data = prob.p_data
@@ -47,18 +48,18 @@ function lagrangian_gradient!(s_data::SolverData, p_data::PolicyData, n, m, T)
     Qu = p_data.Qu
 
     for t = 1:T-1
-        idx_x = (t - 1) * n .+ (1:n)
+        idx_x = (t == 1 ? 0 : (t - 1) * n[t-1]) .+ (1:n[t])
         s_data.gradient[idx_x] = Qx[t] - p[t]
         # NOTE: gradient wrt xT is satisfied implicitly
 
-        idx_u = n * T + (t - 1) * m .+ (1:m)
+        idx_u = sum(n) + (t == 1 ? 0 : (t - 1) * m[t-1]) .+ (1:m[t])
         s_data.gradient[idx_u] = Qu[t]
     end
 end
 
 function lagrangian_gradient!(s_data::SolverData, p_data::PolicyData, m_data::ModelData)
 	lagrangian_gradient!(s_data, p_data,
-		m_data.model.n, m_data.model.m, m_data.T)
+		m_data.n, m_data.m, m_data.T)
 end
 
 """
@@ -75,7 +76,8 @@ function constrained_ddp_solve!(prob::ProblemData;
     verbose = true)
 
 	println()
-	verbose && printstyled("Differential Dynamic Programming\n", color = :red)
+	verbose && printstyled("Differential Dynamic Programming\n",
+		color = :red, bold = true)
 
 	# initial penalty
 	prob.m_data.obj.ρ = ρ_init

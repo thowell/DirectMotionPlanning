@@ -22,8 +22,8 @@ function objective_derivatives!(obj::StageCosts, data::ModelData)
     ū = data.ū
     T = data.T
     model = data.model
-    n = model.n
-    m = model.m
+    n = data.n
+    m = data.m
 
     for t = 1:T-1
 		if obj.cost[t] isa QuadraticCost
@@ -35,14 +35,14 @@ function objective_derivatives!(obj::StageCosts, data::ModelData)
 		else
 	        gx(z) = g(obj, z, ū[t], t)
 	        gu(z) = g(obj, x̄[t], z, t)
-	        gz(z) = g(obj, z[1:n], z[n .+ (1:m)], t)
+	        gz(z) = g(obj, z[1:n[t]], z[n[t] .+ (1:m[t])], t)
 
 	        ForwardDiff.gradient!(data.obj_deriv.gx[t], gx, x̄[t])
 	        ForwardDiff.gradient!(data.obj_deriv.gu[t], gu, ū[t])
 			ForwardDiff.hessian!(data.obj_deriv.gxx[t], gx, x̄[t])
 	        ForwardDiff.hessian!(data.obj_deriv.guu[t], gu, ū[t])
 	        data.obj_deriv.gux[t] .= ForwardDiff.hessian(gz,
-	            [x̄[t]; ū[t]])[n .+ (1:m), 1:n]
+	            [x̄[t]; ū[t]])[n[t] .+ (1:m[t]), 1:n[t]]
 		end
     end
 

@@ -8,18 +8,14 @@ struct DynamicsDerivativesData{X, U, W}
 	fw::Vector{W}
 end
 
-function dynamics_derivatives_data(model::Model, T)
-    n = model.n
-    m = model.m
-	d = model.d
+function dynamics_derivatives_data(model::Model, T;
+	n = [model.n for t = 1:T],
+	m = [model.m for t = 1:T-1],
+	d = [model.d for t = 1:T-1])
 
-    # fx = [SMatrix{n, n}(zeros(n, n)) for t = 1:T-1]
-    # fu = [SMatrix{n, m}(zeros(n, m)) for t = 1:T-1]
-	# fw = [SMatrix{n, d}(zeros(n, d)) for t = 1:T-1]
-
-	fx = [zeros(n, n) for t = 1:T-1]
-    fu = [zeros(n, m) for t = 1:T-1]
-	fw = [zeros(n, d) for t = 1:T-1]
+	fx = [zeros(n[t], n[t]) for t = 1:T-1]
+    fu = [zeros(n[t], m[t]) for t = 1:T-1]
+	fw = [zeros(n[t], d[t]) for t = 1:T-1]
 
     DynamicsDerivativesData(fx, fu, fw)
 end
@@ -32,21 +28,15 @@ struct ObjectiveDerivativesData{X, U, XX, UU, UX}
     gux::Vector{UX}
 end
 
-function objective_derivatives_data(model::Model, T)
-    n = model.n
-    m = model.m
+function objective_derivatives_data(model::Model, T;
+	n = [model.n for t = 1:T],
+	m = [model.m for t = 1:T-1])
 
-    # gx = [SVector{n}(ones(n)) for t = 1:T]
-    # gu = [SVector{m}(ones(m)) for t = 1:T-1]
-    # gxx = [SMatrix{n, n}(ones(n, n)) for t = 1:T]
-    # guu = [SMatrix{m, m}(ones(m, m)) for t = 1:T-1]
-    # gux = [SMatrix{m, n}(ones(m, n)) for t = 1:T-1]
-
-	gx = [ones(n) for t = 1:T]
-    gu = [ones(m) for t = 1:T-1]
-    gxx = [ones(n, n) for t = 1:T]
-    guu = [ones(m, m) for t = 1:T-1]
-    gux = [ones(m, n) for t = 1:T-1]
+	gx = [ones(n[t]) for t = 1:T]
+    gu = [ones(m[t]) for t = 1:T-1]
+    gxx = [ones(n[t], n[t]) for t = 1:T]
+    guu = [ones(m[t], m[t]) for t = 1:T-1]
+    gux = [ones(m[t], n[t]) for t = 1:T-1]
 
     ObjectiveDerivativesData(gx, gu, gxx, guu, gux)
 end
@@ -71,6 +61,9 @@ struct ModelData{X, U, D, S}
 
     # dynamics model
     model::Model
+	n::Vector{Int}
+	m::Vector{Int}
+	d::Vector{Int}
 
     # objective
     obj::Objective
@@ -87,43 +80,39 @@ end
 
 ModelsData = Vector{ModelData}
 
-function model_data(model, obj, w, h, T)
-    n = model.n
-    m = model.m
-    num_var = n * T + m * (T - 1)
+function model_data(model, obj, w, h, T;
+	n = [model.n for t = 1:T],
+	m = [model.m for t = 1:T-1],
+	d = [model.d for t = 1:T-1])
 
-    # x = [SVector{n}(zeros(n)) for t = 1:T]
-    # u = [SVector{m}(zeros(m)) for t = 1:T-1]
-	#
-    # x̄ = [SVector{n}(zeros(n)) for t = 1:T]
-    # ū = [SVector{m}(zeros(m)) for t = 1:T-1]
+    num_var = sum(n) + sum(m)
 
-	x = [zeros(n) for t = 1:T]
-    u = [zeros(m) for t = 1:T-1]
+	x = [zeros(n[t]) for t = 1:T]
+    u = [zeros(m[t]) for t = 1:T-1]
 
-    x̄ = [zeros(n) for t = 1:T]
-    ū = [zeros(m) for t = 1:T-1]
+    x̄ = [zeros(n[t]) for t = 1:T]
+    ū = [zeros(m[t]) for t = 1:T-1]
 
-    dyn_deriv = dynamics_derivatives_data(model, T)
-    obj_deriv = objective_derivatives_data(model, T)
+    dyn_deriv = dynamics_derivatives_data(model, T, n = n, m = m, d = d)
+    obj_deriv = objective_derivatives_data(model, T, n = n, m = m)
 
     z = zeros(num_var)
 
-    ModelData(x, u, w, h, T, x̄, ū, model, obj, dyn_deriv, obj_deriv, z)
+    ModelData(x, u, w, h, T, x̄, ū, model, n, m, d, obj, dyn_deriv, obj_deriv, z)
 end
 
 function Δz!(m_data::ModelData)
-	n = m_data.model.n
-	m = m_data.model.m
+	n = m_data.n
+	m = m_data.m
 	T = m_data.T
 
     for t = 1:T
-        idx_x = (t - 1) * n .+ (1:n)
+        idx_x = (t == 1 ? 0 : (t - 1) * n[t-1]) .+ (1:n[t])
         m_data.z[idx_x] = m_data.x[t] - m_data.x̄[t]
 
         t == T && continue
 
-        idx_u = n * T + (t - 1) * m .+ (1:m)
+        idx_u = sum(n) + (t == 1 ? 0 : (t - 1) * m[t-1]) .+ (1:m[t])
         m_data.z[idx_u] = m_data.u[t] - m_data.ū[t]
     end
 end
@@ -156,33 +145,21 @@ struct PolicyData{N, M, NN, MM, MN}
     Qux::Vector{MN}
 end
 
-function policy_data(model::Model, T)
-    n = model.n
-    m = model.m
+function policy_data(model::Model, T;
+	n = [model.n for t = 1:T],
+	m = [model.m for t = 1:T-1])
 
-    # K = [SMatrix{m, n}(zeros(m, n)) for t = 1:T-1]
-    # k = [SVector{m}(zeros(m)) for t = 1:T-1]
-	#
-    # P = [SMatrix{n, n}(zeros(n, n)) for t = 1:T]
-    # p = [SVector{n}(zeros(n)) for t = 1:T]
-	#
-    # Qx = [SVector{n}(zeros(n)) for t = 1:T-1]
-    # Qu = [SVector{m}(zeros(m)) for t = 1:T-1]
-    # Qxx = [SMatrix{n, n}(zeros(n, n)) for t = 1:T-1]
-    # Quu = [SMatrix{m, m}(zeros(m, m)) for t = 1:T-1]
-    # Qux = [SMatrix{m, n}(zeros(m, n)) for t = 1:T-1]
+	K = [zeros(m[t], n[t]) for t = 1:T-1]
+    k = [zeros(m[t]) for t = 1:T-1]
 
-	K = [zeros(m, n) for t = 1:T-1]
-    k = [zeros(m) for t = 1:T-1]
+    P = [zeros(n[t], n[t]) for t = 1:T]
+    p = [zeros(n[t]) for t = 1:T]
 
-    P = [zeros(n, n) for t = 1:T]
-    p = [zeros(n) for t = 1:T]
-
-    Qx = [zeros(n) for t = 1:T-1]
-    Qu = [zeros(m) for t = 1:T-1]
-    Qxx = [zeros(n, n) for t = 1:T-1]
-    Quu = [zeros(m, m) for t = 1:T-1]
-    Qux = [zeros(m, n) for t = 1:T-1]
+    Qx = [zeros(n[t]) for t = 1:T-1]
+    Qu = [zeros(m[t]) for t = 1:T-1]
+    Qxx = [zeros(n[t], n[t]) for t = 1:T-1]
+    Quu = [zeros(m[t], m[t]) for t = 1:T-1]
+    Qux = [zeros(m[t], n[t]) for t = 1:T-1]
 
     PolicyData(K, k, P, p, Qx, Qu, Qxx, Quu, Qux)
 end
@@ -196,10 +173,11 @@ mutable struct SolverData{T}
     status::Bool        # solver status
 end
 
-function solver_data(model::Model, T)
-    n = model.n
-    m = model.m
-    num_var = n * T + m * (T - 1)
+function solver_data(model::Model, T;
+	n = [model.n for t = 1:T],
+	m = [model.m for t = 1:T-1])
+
+    num_var = sum(n) + sum(m)
 
     obj = Inf
     gradient = zeros(num_var)
@@ -216,30 +194,37 @@ struct ProblemData
 	s_data
 end
 
-function problem_data(model::Model, obj::StageCosts, x̄, ū, w, h, T)
+function problem_data(model::Model, obj::StageCosts, x̄, ū, w, h, T;
+	n = [model.n for t = 1:T],
+	m = [model.m for t = 1:T-1],
+	d = [model.d for t = 1:T-1])
+
 	# allocate policy data
-    p_data = policy_data(model, T)
+    p_data = policy_data(model, T, n = n, m = m)
 
     # allocate model data
-    m_data = model_data(model, obj, w, h, T)
+    m_data = model_data(model, obj, w, h, T, n = n, m = m, d = d)
     m_data.x̄ .= x̄
     m_data.ū .= ū
 
     # allocate solver data
-    s_data = solver_data(model, T)
+    s_data = solver_data(model, T, n = n, m = m)
 
 	ProblemData(p_data, m_data, s_data)
 end
 
-function problem_data(m_data::ModelsData)
+function problem_data(m_data::ModelsData;
+	n = m_data[1].n,
+	m = m_data[1].m)
+
 	model = m_data[1].model
 	T = m_data[1].T
 
 	# allocate policy data
-    p_data = policy_data(model, T)
+    p_data = policy_data(model, T, n = n, m = m)
 
     # allocate solver data
-    s_data = solver_data(model, T)
+    s_data = solver_data(model, T, n = n, m = m)
 
 	ProblemData(p_data, m_data, s_data)
 end
@@ -261,38 +246,39 @@ struct ConstraintsData
     cu
 end
 
-function constraints_data(model::Model, p::Vector, T::Int)
-    n = model.n
-    m = model.m
-    # c = [SVector{p[t]}(zeros(p[t])) for t = 1:T]
-    # cx = [SMatrix{p[t], n}(zeros(p[t], n)) for t = 1:T]
-    # cu = [SMatrix{p[t], m}(zeros(p[t], m)) for t = 1:T-1]
+function constraints_data(model::Model, p::Vector, T::Int;
+	n = [model.n for t = 1:T],
+	m = [model.m for t = 1:T-1])
+
     c = [zeros(p[t]) for t = 1:T]
-    cx = [zeros(p[t], n) for t = 1:T]
-    cu = [zeros(p[t], m) for t = 1:T-1]
+    cx = [zeros(p[t], n[t]) for t = 1:T]
+    cu = [zeros(p[t], m[t]) for t = 1:T-1]
     ConstraintsData(c, cx, cu)
 end
 
 function problem_data(model, obj::StageCosts, con_set::ConstraintSet,
-		x̄, ū, w, h, T)
+		x̄, ū, w, h, T;
+		n = [model.n for t = 1:T],
+		m = [model.m for t = 1:T-1],
+		d = [model.d for t = 1:T-1])
 
 	# constraints
-	c_data = constraints_data(model, [c.p for c in con_set], T)
+	c_data = constraints_data(model, [c.p for c in con_set], T, n = n, m = m)
 	cons = StageConstraints(con_set, c_data, T)
 
 	# augmented Lagrangian
 	obj_al = augmented_lagrangian(obj, cons)
 
 	# allocate policy data
-    p_data = policy_data(model, T)
+    p_data = policy_data(model, T, n = n, m = m)
 
     # allocate model data
-    m_data = model_data(model, obj_al, w, h, T)
+    m_data = model_data(model, obj_al, w, h, T, n = n, m = m, d = d)
     m_data.x̄ .= x̄
     m_data.ū .= ū
 
     # allocate solver data
-    s_data = solver_data(model, T)
+    s_data = solver_data(model, T, n = n, m = m)
 
 	ProblemData(p_data, m_data, s_data)
 end
