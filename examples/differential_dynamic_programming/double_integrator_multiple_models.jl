@@ -37,8 +37,24 @@ function multiple_model(model, T, N; p = 0)
 	MultipleModel{typeof(model).parameters...}(n, m, d, model, N, p)
 end
 
-N = 2 * model.n + 1
+# Policy
 p_policy = model.n * model.n + model.n + model.m * model.n + model.m
+
+function policy(θ, x, n, m)
+	K1 = reshape(view(θ, 1:n * n), n, n)
+	k1 = view(θ, n * n .+ (1:n))
+	K2 = reshape(view(θ, n * n + n .+ (1:m * n)), m, n)
+	k2 = view(θ, n * n + n + m * n .+ (1:m))
+
+	z1 = tanh.(K1 * x + k1)
+	# z2 = tanh.(K1 * z1 + k1)
+	# z3 = tanh.(K1 * z2 + k1)
+	zo = K2 * z1 + k2
+
+	return zo
+end
+
+N = 2 * model.n + 1
 models = multiple_model(model, T, N, p = p_policy)
 
 function fd(models::MultipleModel, x, u, w, h, t)
@@ -69,16 +85,7 @@ function fd(models::MultipleModel, x, u, w, h, t)
 			θ = view(x, (i - 1) * nip + ni .+ (1:p))
 		end
 
-		K1 = reshape(view(θ, 1:ni * ni), ni, ni)
-		k1 = view(θ, ni * ni .+ (1:ni))
-		K2 = reshape(view(θ, ni * ni + ni .+ (1:mi * ni)), mi, ni)
-		k2 = view(θ, ni * ni + ni + mi * ni .+ (1:mi))
-
-		z1 = tanh.(K1 * xi + k1)
-		# z2 = tanh.(K1 * z1 + k1)
-		# z3 = tanh.(K1 * z2 + k1)
-		zo = K2 * z1 + k2
-		u_ctrl = ui + zo
+		u_ctrl = ui + policy(θ, xi, ni, mi)
 
 		push!(x⁺, [fd(models.model, xi, u_ctrl, wi, h, t); θ])
 	end
@@ -87,8 +94,8 @@ function fd(models::MultipleModel, x, u, w, h, t)
 end
 
 # Time
-T = 11
-h = 0.1
+T = 101
+h = 0.01
 
 z = range(0.0, stop = 3.0 * 2.0 * π, length = T)
 p_ref = zeros(T)#1.0 * cos.(1.0 * z)
@@ -194,8 +201,6 @@ u_idxs = vcat(u_idx...)
 plot(hcat([xT[t] for t = 1:T]...)[x_idxs, :]',
     width = 2.0, color = :black, label = "")
 plot!(hcat(x...)[x_idxs, :]', color = :magenta, label = "")
-
-plot(hcat(u..., u[end])[u_idxs, :]', linetype = :steppost)
 
 # verify solution
 uθ = u[1][models.N * model.m .+ (1:models.p)]
