@@ -5,13 +5,17 @@ Random.seed!(1)
 include_ddp()
 
 # Model
-include_model("double_integrator")
-
-function f(model::DoubleIntegratorContinuous, x, u, w)
-    [x[2]; (1.0 + w[1]) * u[1]]
+include_model("pendulum")
+function f(model::Pendulum, x, u, w)
+	mass = model.mass + w[1]
+    @SVector [x[2],
+              (u[1] / ((mass * model.lc * model.lc))
+                - model.g * sin(x[1]) / model.lc
+                - model.b * x[2] / (mass * model.lc * model.lc))]
 end
 
-model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 1, 1)
+n, m, d = 2, 1, 1
+model = Pendulum{Midpoint, FixedTime}(n, m, d, 1.0, 0.1, 0.5, 9.81)
 
 struct MultipleModel{I, T} <: Model{I, T}
 	n::Vector{Int}
@@ -47,9 +51,9 @@ function policy(θ, x, n, m)
 	k2 = view(θ, n * n + n + m * n .+ (1:m))
 
 	z1 = tanh.(K1 * x + k1)
-	z2 = tanh.(K1 * z1 + k1)
-	z3 = tanh.(K1 * z2 + k1)
-	zo = K2 * z3 + k2
+	# z2 = tanh.(K1 * z1 + k1)
+	# z3 = tanh.(K1 * z2 + k1)
+	zo = K2 * z1 + k2
 
 	return zo
 end
@@ -92,27 +96,17 @@ end
 
 # Time
 T = 101
-h = 0.01
+h = 0.025
 
 N = 2 * model.n + 1
 models = multiple_model(model, T, N, p = p_policy)
 
-
-z = range(0.0, stop = 3.0 * 2.0 * π, length = T)
-p_ref = zeros(T)#1.0 * cos.(1.0 * z)
-plot(z, p_ref)
-xT = [vcat([[pr; 0.0; zeros(models.p)] for i = 1:N]...) for pr in p_ref]
-
-# Initial conditions, controls, disturbances
-# x1 = [p_ref[1]; 0.0; p_ref[1]; 0.0]
 x1 = zeros(models.n[1])
-for i = 1:N
-	x1[(i - 1) * (model.n + models.p) + 1] = 1.0
-end
-x1
+_xT = [π, 0.0] # goal state
+xT = [vcat([[_xT; zeros(models.p)] for i = 1:N]...) for t = 1:T]
 
 ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
-wi = [0.0, 0.05, 0.1, 0.15, 0.2]#, 0.5, 1.0]
+wi = [0.15, -0.15, 0.3, -0.3, 0.0]#, 0.025, 0.05, 0.075, 0.1]#, 0.5, 1.0]
 @assert length(wi) == N
 w = [vcat(wi...) for t = 1:T-1]
 
@@ -121,12 +115,11 @@ x̄ = rollout(models, x1, ū, w, h, T)
 
 # Objective
 Q = [(t < T ?
-	h * Diagonal(vcat([[1.0; 1.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))
+	 Diagonal(vcat([[1.0; 1.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))
 	: Diagonal(vcat([[1000.0; 1000.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))) for t = 1:T]
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
-_R = 1.0e-1 * ones(models.m[2])
-R = [h * Diagonal(t == 1 ? [_R; 1.0e-1 * ones(models.p)] : _R) for t = 1:T-1]
+R = [Diagonal(1.0e-1 * ones(models.m[t])) for t = 1:T-1]
 r = [zeros(models.m[t]) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -149,14 +142,14 @@ function g(obj::StageCosts, x, u, t)
     end
 end
 
-# Constraints
-# p_con = [t == T ? N * model.n : (t > 1 ? models.m[t] : (models.m[t] - models.p)) for t = 1:T]
-p_con = [t == T ? 0 : (t > 1 ? models.m[t] : (models.m[t] - models.p)) for t = 1:T]
-info_t = Dict()
-x_idx = vcat([(i - 1) * (model.n + models.p) .+ (1:model.n) for i = 1:N]...)
+g(obj, x̄[T-1], ū[T-1], T-1)
+g(obj, x̄[T], nothing, T)
+objective(obj, x̄, ū)
 
-# Visualize
-info_T = Dict(:idx => x_idx)
+# Constraints
+p_con = [t == T ? 0 : (t > 1 ? models.m[t] : (models.m[t] - models.p)) for t = 1:T]
+info_t = Dict()#:ul => [-5.0], :uu => [5.0], :inequality => (1:2 * m))
+info_T = Dict()#:xT => xT)
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
 
 function c!(c, cons::StageConstraints, x, u, t)
@@ -188,6 +181,7 @@ x_idx = [(i - 1) * (model.n + models.p) .+ (1:model.n) for i = 1:N]
 u_idx = [(i - 1) * model.m .+ (1:model.m) for i = 1:N]
 
 # Visualize
+
 x_idxs = vcat(x_idx...)
 u_idxs = vcat(u_idx...)
 
@@ -221,13 +215,11 @@ end
 # Simulate policy
 include(joinpath(@__DIR__, "simulate.jl"))
 
-# Policy
-θ = u[1][models.N * model.m .+ (1:models.p)]
-
 # Model
 model_sim = model
-x1_sim = copy(x1[1:model.n])
+x1_sim = copy(x1)
 T_sim = 10 * T
+w_sim = [[0.0] for t = 1:T-1]
 
 # Time
 tf = h * (T - 1)
@@ -236,50 +228,25 @@ t_sim = range(0, stop = tf, length = T_sim)
 dt_sim = tf / (T_sim - 1)
 
 # Simulate
-x_sim = []
-u_sim = []
-J_sim = []
-Random.seed!(1)
-for k = 1:10
-	w_sim = [randn(1)[1] for t = 1:T-1]
-
-	x_nn, u_nn, J_nn, Jx_nn, Ju_nn = simulate_policy(
-		model_sim,
-		θ,
-	    [x[1:model.n] for x in x̄], [u[1:model.m] for u in ū],
-		[_Q[1:model.n, 1:model.n] for _Q in Q], [_R[1:model.m, 1:model.m] for _R in R],
-		T_sim, h,
-		copy(x1_sim),
-		w_sim)
-
-	push!(x_sim, x_nn)
-	push!(u_sim, u_nn)
-	push!(J_sim, J_nn)
-end
+x_ddp, u_ddp, J_ddp, Jx_ddp, Ju_ddp = simulate_policy(
+	model_sim,
+	uθ,
+    [x[1:model.n] for x in x̄], [u[1:model.m] for u in ū],
+	[_Q[1:model.n, 1:model.n] for _Q in Q], [_R[1:model.m, 1:model.m] for _R in R],
+	T_sim, h,
+	x1_sim,
+	w_sim)
 
 # Visualize
 idx = (1:2)
-plt = plot(t, hcat(x̄...)[idx, :]',
+plot(t, hcat(x̄...)[idx, :]',
+    width = 2.0, color = :black, label = "")
+plot!(t_sim, hcat(x_ddp...)[idx, :]',
+    width = 1.0, color = :magenta, label = "")
+
+plot(t, hcat(u..., u[end])',
 	width = 2.0, color = :black, label = "",
-	xlabel = "time (s)", ylabel = "state",
-	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)))")
-
-for xs in x_sim
-	plt = plot!(t_sim, hcat(xs...)[idx, :]',
-	    width = 1.0, color = :magenta, label = "")
-end
-display(plt)
-# plot(t, hcat(u..., u[end])',
-# 	width = 2.0, color = :black, label = "",
-# 	linetype = :steppost)
-
-plt = plot(
-	label = "",
-	xlabel = "time (s)", ylabel = "state",
-	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)))")
-for us in u_sim
-	plt = plot!(t_sim, hcat(us..., us[end])',
-		width = 1.0, color = :magenta, label = "",
-		linetype = :steppost)
-end
-display(plt)
+	linetype = :steppost)
+plot!(t_sim, hcat(u_ddp..., u_ddp[end])',
+	width = 1.0, color = :magenta, label = "",
+	linetype = :steppost)
