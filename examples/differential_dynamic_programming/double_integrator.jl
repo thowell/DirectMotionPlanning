@@ -115,10 +115,10 @@ dt_sim = tf / (T_sim - 1)
 K = [K for K in prob.p_data.K]
 plot(vcat(K...))
 K = [prob.p_data.K[t] for t = 1:T-1]
-# K, _ = tvlqr(model, x̄, ū, h, Q, R)
-# # K = [-k for k in K]
-# K = [-K[1] for t = 1:T-1]
-# plot(vcat(K...))
+K, _ = tvlqr(model, x̄, ū, h, Q, R)
+# K = [-k for k in K]
+K = [-K[1] for t = 1:T-1]
+plot(vcat(K...))
 
 # Simulate
 N_sim = 100
@@ -127,7 +127,7 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = 1.0 * randn(1)
+	wi_sim = 1.0e-1 * randn(1)
 	w_sim = [wi_sim for t = 1:T-1]
 	println("sim: $k - w = $(wi_sim[1])")
 
@@ -171,5 +171,5 @@ for us in u_sim
 		linetype = :steppost)
 end
 display(plt)
-u_sim
-plot(vcat(K...))
+# u_sim
+# plot(vcat(K...))

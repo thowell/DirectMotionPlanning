@@ -52,11 +52,10 @@ prob = problem_data(model, obj, copy(x̄), copy(ū), w, h, T)
 
 # Solve
 @time ddp_solve!(prob,
-    max_iter = 500, verbose = true)
+    max_iter = 1000, verbose = true)
 
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
-
 
 # Visualize
 using Plots

@@ -158,7 +158,9 @@ end
 # Constraints
 ms = models.N * models.model.m
 p_con = [t == T ? 0 : ms + 2 * ms for t = 1:T]
-info_t = Dict(:ul => [-5.0], :uu => [5.0], :inequality => (ms .+ (1:2 * ms)))
+ul = [-5.0]
+uu = [5.0]
+info_t = Dict(:ul => ul, :uu => uu, :inequality => (ms .+ (1:2 * ms)))
 info_T = Dict()
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
 
@@ -186,8 +188,8 @@ function c!(c, cons::StageConstraints, x, u, t)
 			ui = policy(θ, xi, n, m)
 
 			# bounds on policy => ul <= u_policy <= uu
-			c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - uu
-			c[ms + (i - 1) * 2 * m + m .+ (1:m)] = ul - ui
+			c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - cons.con[t].info[:uu]
+			c[ms + (i - 1) * 2 * m + m .+ (1:m)] = cons.con[t].info[:ul] - ui
 		end
 	end
 end
@@ -263,7 +265,7 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = 1.0 * rand(1)
+	wi_sim = 1.0e-1 * randn(1)
 	w_sim = [wi_sim for t = 1:T-1]
 
 	x_nn, u_nn, J_nn, Jx_nn, Ju_nn = simulate_policy(
