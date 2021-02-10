@@ -6,6 +6,8 @@ include_ddp()
 
 # Model
 include_model("cartpole")
+n, m, d = 4, 1, 4
+model = Cartpole{Midpoint, FixedTime}(n, m, d, 1.0, 0.2, 0.5, -9.81)
 
 struct MultipleModel{I, T} <: Model{I, T}
 	n::Vector{Int}
@@ -32,13 +34,20 @@ function multiple_model(model, T, N; p = 0)
 end
 
 # Policy
-p_policy = model.n * model.n + model.n + model.m * model.n + model.m
+p_policy = 1 * (model.n * model.n + model.n) + model.m * model.n + model.m
 
 function policy(θ, x, n, m)
 	K1 = reshape(view(θ, 1:n * n), n, n)
 	k1 = view(θ, n * n .+ (1:n))
-	K2 = reshape(view(θ, n * n + n .+ (1:m * n)), m, n)
-	k2 = view(θ, n * n + n + m * n .+ (1:m))
+
+	# K2 = reshape(view(θ, n * n + n .+ (1:n * n)), n, n)
+	# k2 = view(θ, n * n + n + n * n .+ (1:n))
+	#
+	# K3 = reshape(view(θ, 2 * (n * n + n) .+ (1:n * n)), n, n)
+	# k3 = view(θ, 2 * (n * n + n) + n * n .+ (1:n))
+
+	Ko = reshape(view(θ, 1 * (n * n + n) .+ (1:m * n)), m, n)
+	ko = view(θ, 1 * (n * n + n) + m * n .+ (1:m))
 
 	z1 = tanh.(K1 * x + k1)
 	z2 = tanh.(K1 * z1 + k1)
@@ -46,7 +55,7 @@ function policy(θ, x, n, m)
 	# z4 = tanh.(K1 * z3 + k1)
 	# z5 = tanh.(K1 * z4 + k1)
 
-	zo = K2 * z3 + k2
+	zo = Ko * z3 + ko
 
 	return zo
 end
@@ -88,17 +97,17 @@ function fd(models::MultipleModel, x, u, w, h, t)
 end
 
 # Time
-T = 31
-h = 0.1
-N = 1# * model.n + 1
+T = 101
+h = 0.025
+N = 1 # * model.n + 1
 models = multiple_model(model, T, N, p = p_policy)
 
-_x1 = [[0.0, 0.0, 0.0, 0.0] for i = 1:N]
+_x1 = [[0.0, π, 0.0, 0.0] for i = 1:N]
 # for i = 1:models.model.n
 # 	push!(_x1, [0.01 * i,  0.0, 0.0, 0.0])
 # 	push!(_x1, [-0.01 * i, 0.0, 0.0, 0.0])
 # end
-_xT = [0.0, π, 0.0, 0.0]
+_xT = [0.0, 0.0, 0.0, 0.0]
 xT = [vcat([[_xT; zeros(models.p)] for i = 1:N]...) for t = 1:T]
 
 # Initial conditions, controls, disturbances
@@ -108,22 +117,24 @@ for i = 1:N
 end
 
 # x1[model.n + models.p + 1]
+# @save joinpath(@__DIR__, "trajectories/cartpole.jld2") x̄_nom ū_nom
 
+# ū = [t == 1 ? [ū_nom[1]; 1.0e-1 * randn(models.p)] : ū_nom[t] for t = 1:T-1]
 ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
 wi = [zeros(models.model.d) for i = 1:N]
-
 w = [vcat(wi...) for t = 1:T-1]
 
 # Rollout
+# x̄ = [vcat([[x̄_nom[t]; ū[1][model.m * N .+ (1:models.p)]] for i = 1:N]...) for t = 1:T]
 x̄ = rollout(models, x1, ū, w, h, T)
 
 # Objective
 Q = [(t < T ?
 	h * Diagonal(vcat([[1.0e-1 * ones(models.model.n); 1.0e-5 * ones(models.p)] for i = 1:N]...))
-	: Diagonal(vcat([[10.0 * ones(models.model.n); 1.0e-5 * ones(models.p)] for i = 1:N]...))) for t = 1:T]
+	: Diagonal(vcat([[25.0 * ones(models.model.n); 1.0e-5 * ones(models.p)] for i = 1:N]...))) for t = 1:T]
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
-_R = 1.0e-3 * ones(models.m[2])
+_R = 1.0e-1 * ones(models.m[2])
 R = [h * Diagonal(t == 1 ? [_R; 1.0e-1 * ones(models.p)] : _R) for t = 1:T-1]
 r = [zeros(models.m[t]) for t = 1:T-1]
 
@@ -149,10 +160,10 @@ end
 
 # Constraints
 ms = models.N * models.model.m
-p_con = [t == T ? 0 : ms + 2 * ms for t = 1:T]
+p_con = [t == T ? 0 : ms + 0 * 2 * ms for t = 1:T]
 ul = [-100.0]
 uu = [100.0]
-info_t = Dict(:ul => ul, :uu => uu, :inequality => (ms .+ (1:2 * ms)))
+info_t = Dict(:ul => ul, :uu => uu)#, :inequality => (ms .+ (1:2 * ms)))
 info_T = Dict()
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
 
@@ -169,29 +180,30 @@ function c!(c, cons::StageConstraints, x, u, t)
 
 		c[1:ms] = view(u, 1:ms) # nominal control => 0
 
-		for i = 1:N
-			if t == 1
-				θ = view(u, ms .+ (1:p))
-			else
-				θ = view(x, (i - 1) * np + n .+ (1:p))
-			end
-
-			xi = view(x, (i - 1) * np .+ (1:n))
-			ui = policy(θ, xi, n, m)
-
-			# bounds on policy => ul <= u_policy <= uu
-			c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - cons.con[t].info[:uu]
-			c[ms + (i - 1) * 2 * m + m .+ (1:m)] = cons.con[t].info[:ul] - ui
-		end
+		# for i = 1:N
+		# 	if t == 1
+		# 		θ = view(u, ms .+ (1:p))
+		# 	else
+		# 		θ = view(x, (i - 1) * np + n .+ (1:p))
+		# 	end
+		#
+		# 	xi = view(x, (i - 1) * np .+ (1:n))
+		# 	ui = policy(θ, xi, n, m)
+		#
+		# 	# bounds on policy => ul <= u_policy <= uu
+		# 	c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - cons.con[t].info[:uu]
+		# 	c[ms + (i - 1) * 2 * m + m .+ (1:m)] = cons.con[t].info[:ul] - ui
+		# end
 	end
 end
 
 prob = problem_data(models, obj, con_set, copy(x̄), copy(ū), w, h, T,
 	n = models.n, m = models.m, d = models.d)
 prob.m_data.obj.cons.con[1].info
+objective(prob.m_data)
 # Solve
 @time constrained_ddp_solve!(prob,
-    max_iter = 1000, max_al_iter = 8,
+    max_iter = 2500, max_al_iter = 8,
 	ρ_init = 1.0, ρ_scale = 10.0,
 	con_tol = 1.0e-5)
 
@@ -280,8 +292,8 @@ end
 idx = (1:2)
 plt = plot(t, hcat(x̄...)[idx, :]',
 	width = 2.0, color = :black, label = "",
-	xlabel = "time (s)", ylabel = "state",
-	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
+	xlabel = "time (s)", ylabel = "configuration",
+	title = "cartpole (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 
 for xs in x_sim
 	plt = plot!(t_sim, hcat(xs...)[idx, :]',
@@ -292,7 +304,7 @@ display(plt)
 plt = plot(
 	label = "",
 	xlabel = "time (s)", ylabel = "control",
-	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
+	title = "cartpole (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 for us in u_sim
 	plt = plot!(t_sim, hcat(us..., us[end])',
 		width = 1.0, color = :magenta, label = "",

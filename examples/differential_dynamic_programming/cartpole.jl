@@ -2,16 +2,19 @@ include_ddp()
 
 # Model
 include_model("cartpole")
+n, m, d = 4, 1, 4
+model = Cartpole{Midpoint, FixedTime}(n, m, d, 1.0, 0.2, 0.5, -9.81) # flip world
+
 n = model.n
 m = model.m
 
 # Time
 T = 51
-h = 0.1
+h = 0.05
 
 # Initial conditions, controls, disturbances
-x1 = [0.0, 0.0, 0.0, 0.0]
-xT = [0.0, π, 0.0, 0.0] # goal state
+x1 = [0.0, π, 0.0, 0.0]
+xT = [0.0, 0.0, 0.0, 0.0] # goal state
 ū = [1.0e-1 * ones(model.m) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
@@ -21,7 +24,7 @@ x̄ = rollout(model, x1, ū, w, h, T)
 
 # Objective
 Q = [(t < T ? Diagonal(1.0e-1 * ones(model.n))
-        : Diagonal(10.0 * ones(model.n))) for t = 1:T]
+        : Diagonal(100.0 * ones(model.n))) for t = 1:T]
 q = [-2.0 * Q[t] * xT for t = 1:T]
 
 R = [Diagonal(1.0e-3 * ones(model.m)) for t = 1:T-1]
@@ -55,7 +58,7 @@ prob = problem_data(model, obj, copy(x̄), copy(ū), w, h, T)
     max_iter = 1000, verbose = true)
 
 x, u = current_trajectory(prob)
-x̄, ū = nominal_trajectory(prob)
+x̄_nom, ū_nom = nominal_trajectory(prob)
 
 # Visualize
 using Plots
@@ -68,5 +71,6 @@ plot(hcat(u..., u[end])',
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
-# open(vis)
 visualize!(vis, model, x, Δt = h)
+
+@save joinpath(@__DIR__, "trajectories/cartpole.jld2") x̄_nom ū_nom

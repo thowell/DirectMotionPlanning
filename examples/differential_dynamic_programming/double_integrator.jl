@@ -27,6 +27,7 @@ plot(z, p_ref)
 x1 = [1.0; 0.0]
 x_ref = [[p_ref[t]; 0.0] for t = 1:T]
 ū = [0.1 * rand(model.m) for t = 1:T-1]
+u_ref = [zeros(model.m) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
@@ -115,10 +116,10 @@ dt_sim = tf / (T_sim - 1)
 K = [K for K in prob.p_data.K]
 plot(vcat(K...))
 K = [prob.p_data.K[t] for t = 1:T-1]
-K, _ = tvlqr(model, x̄, ū, h, Q, R)
-# K = [-k for k in K]
-K = [-K[1] for t = 1:T-1]
-plot(vcat(K...))
+# K, _ = tvlqr(model, x̄, ū, h, Q, R)
+# # K = [-k for k in K]
+# K = [-K[1] for t = 1:T-1]
+# plot(vcat(K...))
 
 # Simulate
 N_sim = 100
@@ -135,6 +136,7 @@ for k = 1:N_sim
 		model_sim,
 		K,
 	    x̄, ū,
+		x_ref, u_ref,
 		Q, R,
 		T_sim, h,
 		x1_sim,

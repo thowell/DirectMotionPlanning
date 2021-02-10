@@ -29,8 +29,8 @@ function multiple_model(model, T, N; p = 0)
 	m = model.m
 	d = model.d
 
-	n = [N * (n + p) for t = 1:T]
-	m = [N * m + (t == 1 ? p : 0) for t = 1:T-1]
+	n = [N * n for t = 1:T]
+	m = [N * m + p for t = 1:T-1]
 	d = [N * d for t = 1:T-1]
 
 	MultipleModel{typeof(model).parameters...}(n, m, d, model, N, p)
@@ -74,19 +74,15 @@ function fd(models::MultipleModel, x, u, w, h, t)
 	x⁺ = []
 
 	for i = 1:N
-		xi = view(x, (i - 1) * nip .+ (1:ni))
+		xi = view(x, (i - 1) * ni .+ (1:ni))
 		ui = view(u, (i - 1) * mi .+ (1:mi))
 		wi = view(w, (i - 1) * di .+ (1:di))
 
-		if t == 1
-			θ = view(u, N * mi .+ (1:p))
-		else
-			θ = view(x, (i - 1) * nip + ni .+ (1:p))
-		end
+		θ = view(u, N * mi .+ (1:p))
 
 		u_ctrl = ui + policy(θ, xi, ni, mi)
 
-		push!(x⁺, [fd(models.model, xi, u_ctrl, wi, h, t); θ])
+		push!(x⁺, fd(models.model, xi, u_ctrl, wi, h, t))
 	end
 
 	return vcat(x⁺...)
@@ -103,15 +99,13 @@ models = multiple_model(model, T, N, p = p_policy)
 z = range(0.0, stop = 3.0 * 2.0 * π, length = T)
 p_ref = zeros(T)#1.0 * cos.(1.0 * z)
 plot(z, p_ref)
-x_ref = [[p_ref[t]; 0.0] for t = 1:T]
-u_ref = [zeros(model.m) for t = 1:T-1]
-xT = [vcat([[pr; 0.0; zeros(models.p)] for i = 1:N]...) for pr in p_ref]
+xT = [vcat([[pr; 0.0] for i = 1:N]...) for pr in p_ref]
 
 # Initial conditions, controls, disturbances
 # x1 = [p_ref[1]; 0.0; p_ref[1]; 0.0]
 x1 = zeros(models.n[1])
 for i = 1:N
-	x1[(i - 1) * (model.n + models.p) + 1] = 1.0
+	x1[(i - 1) * model.n + 1] = 1.0
 end
 x1
 
@@ -128,12 +122,12 @@ x̄ = rollout(models, x1, ū, w, h, T)
 
 # Objective
 Q = [(t < T ?
-	h * Diagonal(vcat([[1.0; 1.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))
-	: Diagonal(vcat([[1000.0; 1000.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))) for t = 1:T]
+	h * Diagonal(vcat([[1.0; 1.0] for i = 1:N]...))
+	: Diagonal(vcat([[1000.0; 1000.0] for i = 1:N]...))) for t = 1:T]
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
-_R = 1.0e-1 * ones(models.m[2])
-R = [h * Diagonal(t == 1 ? [_R; 1.0e-1 * ones(models.p)] : _R) for t = 1:T-1]
+_R = 1.0e-1 * ones(models.model.m * models.N)
+R = [h * Diagonal([_R; 1.0e-1 * ones(models.p)]) for t = 1:T-1]
 r = [zeros(models.m[t]) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -179,13 +173,9 @@ function c!(c, cons::StageConstraints, x, u, t)
 		c[1:ms] = view(u, 1:ms) # nominal control => 0
 
 		for i = 1:N
-			if t == 1
-				θ = view(u, ms .+ (1:p))
-			else
-				θ = view(x, (i - 1) * np + n .+ (1:p))
-			end
+			θ = view(u, ms .+ (1:p))
 
-			xi = view(x, (i - 1) * np .+ (1:n))
+			xi = view(x, (i - 1) * n .+ (1:n))
 			ui = policy(θ, xi, n, m)
 
 			# bounds on policy => ul <= u_policy <= uu
@@ -267,13 +257,13 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = 1.0e-1 * randn(1)
+	wi_sim = 1.0e-2 * randn(1)
 	w_sim = [wi_sim for t = 1:T-1]
 
 	x_nn, u_nn, J_nn, Jx_nn, Ju_nn = simulate_policy(
 		model_sim,
-		[θ for t = 1:T-1],
-		x_ref, u_ref,
+		θ,
+	    [x[1:model.n] for x in x̄], [u[1:model.m] for u in ū],
 		[_Q[1:model.n, 1:model.n] for _Q in Q], [_R[1:model.m, 1:model.m] for _R in R],
 		T_sim, h,
 		copy(x1_sim),
@@ -288,7 +278,7 @@ end
 
 # Visualize
 idx = (1:2)
-plt = plot(t, hcat(x_ref...)[idx, :]',
+plt = plot(t, hcat(x̄...)[idx, :]',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "state",
 	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
