@@ -60,10 +60,31 @@ function g(obj::StageCosts, x, u, t)
     end
 end
 
-prob = problem_data(model, obj, copy(x̄), copy(ū), w, h, T)
+# Constraints
+ul = [-5.0]
+uu = [5.0]
+p = [t < T ? 2 * m : 0 for t = 1:T]
+info_t = Dict(:ul => ul, :uu => uu, :inequality => (1:2 * m))
+info_T = Dict()
+con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
+
+function c!(c, cons::StageConstraints, x, u, t)
+	T = cons.T
+	p = cons.con[t].p
+
+	if t < T
+		ul = cons.con[t].info[:ul]
+		uu = cons.con[t].info[:uu]
+		c .= [ul - u; u - uu]
+	else
+		nothing
+	end
+end
+
+prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T)
 
 # Solve
-@time ddp_solve!(prob,
+@time constrained_ddp_solve!(prob,
     max_iter = 100, verbose = true)
 
 x, u = current_trajectory(prob)
@@ -92,14 +113,23 @@ dt_sim = tf / (T_sim - 1)
 
 # Policy
 K = [K for K in prob.p_data.K]
+plot(vcat(K...))
+K = [prob.p_data.K[t] for t = 1:T-1]
+# K, _ = tvlqr(model, x̄, ū, h, Q, R)
+# # K = [-k for k in K]
+# K = [-K[1] for t = 1:T-1]
+# plot(vcat(K...))
 
 # Simulate
+N_sim = 100
 x_sim = []
 u_sim = []
 J_sim = []
 Random.seed!(1)
-for k = 1:10
-	w_sim = [randn(1) for t = 1:T-1]
+for k = 1:N_sim
+	wi_sim = 1.0 * randn(1)
+	w_sim = [wi_sim for t = 1:T-1]
+	println("sim: $k - w = $(wi_sim[1])")
 
 	x_ddp, u_ddp, J_ddp, Jx_ddp, Ju_ddp = simulate_linear_feedback(
 		model_sim,
@@ -108,7 +138,9 @@ for k = 1:10
 		Q, R,
 		T_sim, h,
 		x1_sim,
-		w_sim)
+		w_sim,
+		ul = ul,
+		uu = uu)
 
 	push!(x_sim, x_ddp)
 	push!(u_sim, u_ddp)
@@ -120,7 +152,7 @@ idx = (1:2)
 plt = plot(t, hcat(x̄...)[idx, :]',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "state",
-	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)))")
+	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 
 for xs in x_sim
 	plt = plot!(t_sim, hcat(xs...)[idx, :]',
@@ -129,9 +161,9 @@ end
 display(plt)
 
 plt = plot(t, hcat(ū..., ū[end])',
-	width = 1.0, color = :magenta, label = "",
+	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "control",
-	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)))")
+	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 
 for us in u_sim
 	plt = plot!(t_sim, hcat(us..., us[end])',
@@ -139,3 +171,5 @@ for us in u_sim
 		linetype = :steppost)
 end
 display(plt)
+u_sim
+plot(vcat(K...))

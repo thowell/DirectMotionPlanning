@@ -49,6 +49,9 @@ function policy(θ, x, n, m)
 	z1 = tanh.(K1 * x + k1)
 	z2 = tanh.(K1 * z1 + k1)
 	z3 = tanh.(K1 * z2 + k1)
+	# z4 = tanh.(K1 * z3 + k1)
+	# z5 = tanh.(K1 * z4 + k1)
+
 	zo = K2 * z3 + k2
 
 	return zo
@@ -113,6 +116,9 @@ x1
 
 ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
 wi = [0.0, 0.05, 0.1, 0.15, 0.2]#, 0.5, 1.0]
+wi = [0.0, 0.1, -0.1, 0.05, -0.05]
+# wi = [0.0]#, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2]#, 0.5, 1.0]
+
 @assert length(wi) == N
 w = [vcat(wi...) for t = 1:T-1]
 
@@ -150,24 +156,39 @@ function g(obj::StageCosts, x, u, t)
 end
 
 # Constraints
-# p_con = [t == T ? N * model.n : (t > 1 ? models.m[t] : (models.m[t] - models.p)) for t = 1:T]
-p_con = [t == T ? 0 : (t > 1 ? models.m[t] : (models.m[t] - models.p)) for t = 1:T]
-info_t = Dict()
-x_idx = vcat([(i - 1) * (model.n + models.p) .+ (1:model.n) for i = 1:N]...)
-
-# Visualize
-info_T = Dict(:idx => x_idx)
+ms = models.N * models.model.m
+p_con = [t == T ? 0 : ms + 2 * ms for t = 1:T]
+info_t = Dict(:ul => [-5.0], :uu => [5.0], :inequality => (ms .+ (1:2 * ms)))
+info_T = Dict()
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
 
 function c!(c, cons::StageConstraints, x, u, t)
 	T = cons.T
 
-	if t == 1
-		c .= view(u, 1:(models.m[t] - models.p))
-	elseif t < T
-		c .= u
-	else
-		nothing
+	if t < T
+		N = models.N
+		n = models.model.n
+		m = models.model.m
+		p = models.p
+		np = n + p
+		ms = N * m
+
+		c[1:ms] = view(u, 1:ms) # nominal control => 0
+
+		for i = 1:N
+			if t == 1
+				θ = view(u, ms .+ (1:p))
+			else
+				θ = view(x, (i - 1) * np + n .+ (1:p))
+			end
+
+			xi = view(x, (i - 1) * np .+ (1:n))
+			ui = policy(θ, xi, n, m)
+
+			# bounds on policy => ul <= u_policy <= uu
+			c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - uu
+			c[ms + (i - 1) * 2 * m + m .+ (1:m)] = ul - ui
+		end
 	end
 end
 
@@ -236,12 +257,14 @@ t_sim = range(0, stop = tf, length = T_sim)
 dt_sim = tf / (T_sim - 1)
 
 # Simulate
+N_sim = 100
 x_sim = []
 u_sim = []
 J_sim = []
 Random.seed!(1)
-for k = 1:10
-	w_sim = [randn(1)[1] for t = 1:T-1]
+for k = 1:N_sim
+	wi_sim = 1.0 * rand(1)
+	w_sim = [wi_sim for t = 1:T-1]
 
 	x_nn, u_nn, J_nn, Jx_nn, Ju_nn = simulate_policy(
 		model_sim,
@@ -250,7 +273,9 @@ for k = 1:10
 		[_Q[1:model.n, 1:model.n] for _Q in Q], [_R[1:model.m, 1:model.m] for _R in R],
 		T_sim, h,
 		copy(x1_sim),
-		w_sim)
+		w_sim,
+		ul = ul,
+		uu = uu)
 
 	push!(x_sim, x_nn)
 	push!(u_sim, u_nn)
@@ -262,21 +287,18 @@ idx = (1:2)
 plt = plot(t, hcat(x̄...)[idx, :]',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "state",
-	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)))")
+	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 
 for xs in x_sim
 	plt = plot!(t_sim, hcat(xs...)[idx, :]',
 	    width = 1.0, color = :magenta, label = "")
 end
 display(plt)
-# plot(t, hcat(u..., u[end])',
-# 	width = 2.0, color = :black, label = "",
-# 	linetype = :steppost)
 
 plt = plot(
 	label = "",
-	xlabel = "time (s)", ylabel = "state",
-	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)))")
+	xlabel = "time (s)", ylabel = "control",
+	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 for us in u_sim
 	plt = plot!(t_sim, hcat(us..., us[end])',
 		width = 1.0, color = :magenta, label = "",
