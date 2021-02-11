@@ -99,10 +99,12 @@ models = multiple_model(model, T, N, p = p_policy)
 z = range(0.0, stop = 3.0 * 2.0 * π, length = T)
 p_ref = zeros(T)#1.0 * cos.(1.0 * z)
 plot(z, p_ref)
-xT = [vcat([[pr; 0.0] for i = 1:N]...) for pr in p_ref]
+x_ref = [[p_ref[t]; 0.0] for t = 1:T]
+xT = [vcat([x_ref[t] for i = 1:N]...) for t = 1:T]
+
+u_ref = [zeros(model.m) for t = 1:T-1]
 
 # Initial conditions, controls, disturbances
-# x1 = [p_ref[1]; 0.0; p_ref[1]; 0.0]
 x1 = zeros(models.n[1])
 for i = 1:N
 	x1[(i - 1) * model.n + 1] = 1.0
@@ -112,7 +114,7 @@ x1
 ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
 # wi = [0.0, 0.05, 0.1, 0.15, 0.2]#, 0.5, 1.0]
 wi = [0.0, 0.1, -0.1, 0.05, -0.05]
-# wi = [0.0]#, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2]#, 0.5, 1.0]
+# wi = [0.0, 0.0, 0.0, 0.0, 0.0]#, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2]#, 0.5, 1.0]
 
 @assert length(wi) == N
 w = [vcat(wi...) for t = 1:T-1]
@@ -127,7 +129,7 @@ Q = [(t < T ?
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
 _R = 1.0e-1 * ones(models.model.m * models.N)
-R = [h * Diagonal([_R; 1.0e-1 * ones(models.p)]) for t = 1:T-1]
+R = [h * Diagonal([_R; 2.5e-1 * ones(models.p)]) for t = 1:T-1]
 r = [zeros(models.m[t]) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -199,8 +201,8 @@ x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
 
 # individual trajectories
-x_idx = [(i - 1) * (model.n + models.p) .+ (1:model.n) for i = 1:N]
-u_idx = [(i - 1) * model.m .+ (1:model.m) for i = 1:N]
+x_idx = [(i - 1) * model.n .+ (1:model.n) for i = 1:N]
+u_idx = [(i - 1) * (model.m + models.p) .+ (1:model.m) for i = 1:N]
 
 # Visualize
 x_idxs = vcat(x_idx...)
@@ -215,21 +217,9 @@ plot!(hcat(x...)[x_idxs, :]', color = :magenta, label = "")
 uθ = u[1][models.N * model.m .+ (1:models.p)]
 xθ_idx = [(i - 1) * (model.n + models.p) + model.n .+ (1:models.p) for i = 1:N]
 
-policy_err = []
-for i = 1:N
-	for t = 2:T
-		push!(policy_err, norm(x̄[t][xθ_idx[i]] - uθ, Inf))
-	end
-end
-@show maximum(policy_err)
-
 slack_err = []
 for t = 1:T-1
-	if t > 1
-		push!(slack_err, norm(ū[t], Inf))
-	else
-		push!(slack_err, norm(ū[t][1:models.N * model.m], Inf))
-	end
+	push!(slack_err, norm(ū[t][1:models.N * model.m], Inf))
 end
 @show maximum(slack_err)
 
@@ -237,7 +227,7 @@ end
 include(joinpath(@__DIR__, "simulate.jl"))
 
 # Policy
-θ = u[1][models.N * model.m .+ (1:models.p)]
+θ = [u[t][models.N * model.m .+ (1:models.p)] for t = 1:T-1]
 
 # Model
 model_sim = model
@@ -257,7 +247,7 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = 1.0e-2 * randn(1)
+	wi_sim = 1.0e-1 * randn(1)
 	w_sim = [wi_sim for t = 1:T-1]
 
 	x_nn, u_nn, J_nn, Jx_nn, Ju_nn = simulate_policy(
@@ -278,7 +268,7 @@ end
 
 # Visualize
 idx = (1:2)
-plt = plot(t, hcat(x̄...)[idx, :]',
+plt = plot(t, hcat(x_ref...)[idx, :]',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "state",
 	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")

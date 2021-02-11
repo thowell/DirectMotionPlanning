@@ -63,8 +63,9 @@ end
 
 function simulate_policy(
         model,
-        θ,
-        x̄, ū,
+        θ, K,
+        x̄,
+        x_ref, u_ref,
         Q, R,
         T_sim, Δt,
         x1,
@@ -101,7 +102,7 @@ function simulate_policy(
         #     x_cubic[i] = interp_cubic(t)
         # end
 
-        u = policy(θ[k], x, model.n, model.m)
+        u = K[k] * (x - x̄[k]) + policy(θ[k], x, t, model.n, model.m)
 
         # clip controls
         u = max.(u, ul)
@@ -110,10 +111,10 @@ function simulate_policy(
         push!(x_sim, fd(model, x, u, w[k], dt_sim, tt))
         push!(u_sim, u)
 
-        J += (x_sim[end] - x̄[k])' * Q[k + 1] * (x_sim[end] - x̄[k])
-        J += (u_sim[end] - ū[k])' * R[k] * (u_sim[end] - ū[k])
-        Jx += (x_sim[end] - x̄[k])' * Q[k + 1] * (x_sim[end] - x̄[k])
-        Ju += (u_sim[end] - ū[k])' * R[k] * (u_sim[end] - ū[k])
+        J += (x_sim[end] - x_ref[k])' * Q[k + 1] * (x_sim[end] - x_ref[k])
+        J += (u_sim[end] - u_ref[k])' * R[k] * (u_sim[end] - u_ref[k])
+        Jx += (x_sim[end] - x_ref[k])' * Q[k + 1] * (x_sim[end] - x_ref[k])
+        Ju += (u_sim[end] - u_ref[k])' * R[k] * (u_sim[end] - u_ref[k])
     end
 
     return x_sim, u_sim, J / (T_sim - 1), Jx / (T_sim - 1), Ju / (T_sim - 1)

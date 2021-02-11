@@ -37,21 +37,29 @@ function multiple_model(model, T, N; p = 0)
 end
 
 # Policy
-p_policy = model.n * model.n + model.n + model.m * model.n + model.m
+l_policy = 3
+p_policy = l_policy * (model.n * (model.n + 1) + model.n) + model.m * model.n + model.m
 
 function policy(θ, x, t, n, m)
-	K1 = reshape(view(θ, 1:n * n), n, n)
-	k1 = view(θ, n * n .+ (1:n))
-	K2 = reshape(view(θ, n * n + n .+ (1:m * n)), m, n)
-	k2 = view(θ, n * n + n + m * n .+ (1:m))
+	K1 = reshape(view(θ, 1:n * (n + 1)), n, n + 1)
+	k1 = view(θ, n * (n + 1) .+ (1:n))
 
-	z1 = tanh.(K1 * x + k1)
-	z2 = tanh.(K1 * z1 + k1)
-	z3 = tanh.(K1 * z2 + k1)
+	K2 = reshape(view(θ, 1 * (n * (n + 1) + n) .+ (1:n * (n + 1))), n, n + 1)
+	k2 = view(θ, 1 * (n * (n + 1) + n) + n * (n + 1) .+ (1:n))
+
+	K3 = reshape(view(θ, 2 * (n * (n + 1) + n) .+ (1:n * (n + 1))), n, n + 1)
+	k3 = view(θ, 2 * (n * (n + 1) + n) + n * (n + 1) .+ (1:n))
+
+	Ko = reshape(view(θ, l_policy * (n * (n + 1) + n) .+ (1:m * n)), m, n)
+	ko = view(θ, l_policy * (n * (n + 1) + n) + m * n .+ (1:m))
+
+	z1 = tanh.(K1 * [x; t] + k1)
+	z2 = tanh.(K2 * [z1; t] + k2)
+	z3 = tanh.(K3 * [z2; t] + k3)
 	# z4 = tanh.(K1 * z3 + k1)
 	# z5 = tanh.(K1 * z4 + k1)
 
-	zo = K2 * z3 + k2
+	zo = Ko * z3 + ko
 
 	return zo
 end
@@ -84,7 +92,8 @@ function fd(models::MultipleModel, x, u, w, h, t)
 			θ = view(x, (i - 1) * nip + ni .+ (1:p))
 		end
 
-		u_ctrl = ui + policy(θ, xi, nothing, ni, mi)
+		tc = (t - 1) * h
+		u_ctrl = ui + policy(θ, xi, tc, ni, mi)
 
 		push!(x⁺, [fd(models.model, xi, u_ctrl, wi, h, t); θ])
 	end
@@ -118,7 +127,7 @@ x1
 ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
 # wi = [0.0, 0.05, 0.1, 0.15, 0.2]#, 0.5, 1.0]
 wi = [0.0, 0.1, -0.1, 0.05, -0.05]
-# wi = [0.0]#, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2]#, 0.5, 1.0]
+# wi = [0.0, -0.1, 0.1, -0.2, 0.2]#, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2]#, 0.5, 1.0]
 
 @assert length(wi) == N
 w = [vcat(wi...) for t = 1:T-1]
@@ -146,11 +155,11 @@ function g(obj::StageCosts, x, u, t)
 		q = obj.cost[t].q
 	    R = obj.cost[t].R
 		r = obj.cost[t].r
-        return (x' * Q * x + q' * x + u' * R * u + r' * u)
+        return x' * Q * x + q' * x + u' * R * u + r' * u
     elseif t == T
 		Q = obj.cost[T].Q
 		q = obj.cost[T].q
-        return (x' * Q * x + q' * x)
+        return x' * Q * x + q' * x
     else
         return 0.0
     end
@@ -186,7 +195,8 @@ function c!(c, cons::StageConstraints, x, u, t)
 			end
 
 			xi = view(x, (i - 1) * np .+ (1:n))
-			ui = policy(θ, xi, nothing, n, m)
+			tc = (t - 1) * h
+			ui = policy(θ, xi, tc, n, m)
 
 			# bounds on policy => ul <= u_policy <= uu
 			c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - cons.con[t].info[:uu]
@@ -206,21 +216,12 @@ objective(prob.m_data)
 	ρ_init = 1.0, ρ_scale = 10.0,
 	con_tol = 1.0e-5)
 
+# t = 2
+# sum(prob.p_data.K[t][1:model.m, 1:model.n])
+# sum(prob.p_data.K[t][1:model.m, (model.n + 1):end])
+
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
-x̄i = [x̄[t][1:model.n] for t = 1:T]
-Ki = [prob.p_data.K[t][1:model.m, 1:model.n] for t = 1:T-1]
-
-# plot(hcat(x̄i...)')
-# x̂i = [copy(x̄i[1])]
-# ûi = []
-# for t = 1:T-1
-# 	u = policy(θ, x̂i[t], t, model.n, model.m)
-# 	push!(ûi, u)
-# 	push!(x̂i, fd(model, x̂i[end], u, zeros(model.d), h, t))
-# end
-# plot(hcat(ûi...)')
-# plot(hcat(x̂i...)')
 
 # individual trajectories
 x_idx = [(i - 1) * (model.n + models.p) .+ (1:model.n) for i = 1:N]
@@ -273,23 +274,20 @@ tf = h * (T - 1)
 t = range(0, stop = tf, length = T)
 t_sim = range(0, stop = tf, length = T_sim)
 dt_sim = tf / (T_sim - 1)
-# Ki[1] *
-# x̄i[1]
+
 # Simulate
-N_sim = 1
+N_sim = 100
 x_sim = []
 u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
 	wi_sim = 0.0e-1 * randn(1)
-	# w_sim = [wi_sim for t = 1:T-1]
-	w_sim = [[0.1] for t = 1:T-1]
+	w_sim = [wi_sim for t = 1:T-1]
 
 	x_nn, u_nn, J_nn, Jx_nn, Ju_nn = simulate_policy(
 		model_sim,
-		[θ for t = 1:T-1], Ki,
-		x̄i,
+		[θ for t = 1:T-1],
 		x_ref, u_ref,
 		[_Q[1:model.n, 1:model.n] for _Q in Q], [_R[1:model.m, 1:model.m] for _R in R],
 		T_sim, h,
