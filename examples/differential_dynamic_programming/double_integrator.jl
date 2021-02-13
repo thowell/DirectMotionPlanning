@@ -26,7 +26,8 @@ plot(z, p_ref)
 # Initial conditions, controls, disturbances
 x1 = [1.0; 0.0]
 x_ref = [[p_ref[t]; 0.0] for t = 1:T]
-ū = [0.1 * rand(model.m) for t = 1:T-1]
+xT = [0.0; 0.0]
+ū = [1.0 * rand(model.m) for t = 1:T-1]
 u_ref = [zeros(model.m) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
@@ -35,10 +36,10 @@ x̄ = rollout(model, x1, ū, w, h, T)
 
 # Objective
 Q = [(t < T ?
-	 h * Diagonal([1.0; 1.0])
-		: Diagonal([1000.0; 1000.0])) for t = 1:T]
+	 Diagonal([1.0; 1.0])
+		: Diagonal([1.0; 1.0])) for t = 1:T]
 q = [-2.0 * Q[t] * x_ref[t] for t = 1:T]
-R = [h * Diagonal(1.0e-1 * ones(model.m)) for t = 1:T-1]
+R = [Diagonal(1.0e-3 * ones(model.m)) for t = 1:T-1]
 r = [zeros(model.m) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -62,11 +63,11 @@ function g(obj::StageCosts, x, u, t)
 end
 
 # Constraints
-ul = [-5.0]
-uu = [5.0]
-p = [t < T ? 2 * m : 0 for t = 1:T]
+ul = [-10.0]
+uu = [10.0]
+p = [t < T ? 2 * m : n for t = 1:T]
 info_t = Dict(:ul => ul, :uu => uu, :inequality => (1:2 * m))
-info_T = Dict()
+info_T = Dict(:xT => xT)
 con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
 
 function c!(c, cons::StageConstraints, x, u, t)
@@ -78,7 +79,7 @@ function c!(c, cons::StageConstraints, x, u, t)
 		uu = cons.con[t].info[:uu]
 		c .= [ul - u; u - uu]
 	else
-		nothing
+		c .= x - cons.con[T].info[:xT]
 	end
 end
 
@@ -102,9 +103,9 @@ plot(hcat(u..., u[end])', linetype = :steppost)
 include(joinpath(@__DIR__, "simulate.jl"))
 
 # Model
-model_sim = model
+model_sim = DoubleIntegratorContinuous{RK3, FixedTime}(model.n, model.m, model.d)
 x1_sim = copy(x1)
-T_sim = 1000 * T
+T_sim = 10 * T
 
 # Time
 tf = h * (T - 1)
@@ -122,13 +123,13 @@ K = [prob.p_data.K[t] for t = 1:T-1]
 # plot(vcat(K...))
 
 # Simulate
-N_sim = 1
+N_sim = 100
 x_sim = []
 u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = 0.0e-1 * randn(1)
+	wi_sim = min(0.1, max(-0.1, 1.0e-1 * randn(1)[1]))
 	w_sim = [wi_sim for t = 1:T-1]
 	println("sim: $k - w = $(wi_sim[1])")
 

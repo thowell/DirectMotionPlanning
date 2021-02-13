@@ -2,6 +2,10 @@ using Plots
 using Random
 Random.seed!(1)
 
+# soft rect
+soft_rect(z) = log(1.0 + exp(z))
+zz = range(-5.0, stop = 5.0, length = 100)
+plot(zz, soft_rect.(zz))
 include_ddp()
 
 # Model
@@ -29,7 +33,7 @@ function multiple_model(model, T, N; p = 0)
 	m = model.m
 	d = model.d
 
-	n = [N * (n + p) for t = 1:T]
+	n = [N * n + (t != 1 ? p : 0) for t = 1:T]
 	m = [N * m + (t == 1 ? p : 0) for t = 1:T-1]
 	d = [N * d for t = 1:T-1]
 
@@ -37,21 +41,27 @@ function multiple_model(model, T, N; p = 0)
 end
 
 # Policy
-p_policy = model.n * model.n + model.n + model.m * model.n + model.m
+dp = 2
+p_policy = (dp * model.n * model.n + dp * model.n) + (dp * model.n * dp * model.n + dp * model.n) + model.m * dp * model.n + model.m
 
 function policy(θ, x, t, n, m)
-	K1 = reshape(view(θ, 1:n * n), n, n)
-	k1 = view(θ, n * n .+ (1:n))
-	K2 = reshape(view(θ, n * n + n .+ (1:m * n)), m, n)
-	k2 = view(θ, n * n + n + m * n .+ (1:m))
+	K1 = reshape(view(θ, 1:(dp * n) * n), dp * n, n)
+	k1 = view(θ, (dp * n) * n .+ (1:(dp * n)))
 
-	z1 = tanh.(K1 * x + k1)
-	z2 = tanh.(K1 * z1 + k1)
-	z3 = tanh.(K1 * z2 + k1)
-	# z4 = tanh.(K1 * z3 + k1)
-	# z5 = tanh.(K1 * z4 + k1)
+	K2 = reshape(view(θ, 1:(dp * n) * dp * n), dp * n, dp * n)
+	k2 = view(θ, (dp * n) * n + dp * n + (dp * n * dp * n) .+ (1:(dp * n)))
 
-	zo = K2 * z3 + k2
+	Ko = reshape(view(θ, (dp * n) * n + dp * n + dp * n * dp * n + dp * n .+ (1:m * (dp * n))), m, dp * n)
+	ko = view(θ, (dp * n) * n + dp * n + dp * n * dp * n + dp * n + m * dp * n .+ (1:m))
+
+	# z1 = tanh.(K1 * x + k1)
+	z1 = soft_rect.(K1 * x + k1)
+	z2 = soft_rect.(K2 * z1 + k2)
+
+	# z2 = tanh.(K1 * z1 + k1)
+	# z3 = tanh.(K1 * z2 + k1)
+
+	zo = Ko * z2 + ko
 
 	return zo
 end
@@ -69,56 +79,52 @@ function fd(models::MultipleModel, x, u, w, h, t)
 
 	p = models.p
 
-	nip = ni + p
-
 	x⁺ = []
 
+	if t == 1
+		θ = view(u, N * mi .+ (1:p))
+	else
+		θ = view(x, N * ni .+ (1:p))
+	end
+
 	for i = 1:N
-		xi = view(x, (i - 1) * nip .+ (1:ni))
+		xi = view(x, (i - 1) * ni .+ (1:ni))
 		ui = view(u, (i - 1) * mi .+ (1:mi))
 		wi = view(w, (i - 1) * di .+ (1:di))
 
-		if t == 1
-			θ = view(u, N * mi .+ (1:p))
-		else
-			θ = view(x, (i - 1) * nip + ni .+ (1:p))
-		end
-
 		u_ctrl = ui + policy(θ, xi, nothing, ni, mi)
 
-		push!(x⁺, [fd(models.model, xi, u_ctrl, wi, h, t); θ])
+		push!(x⁺, fd(models.model, xi, u_ctrl, wi, h, t))
 	end
 
-	return vcat(x⁺...)
+	return vcat(x⁺..., θ)
 end
 
 # Time
 T = 101
 h = 0.01
 
-N = 2 * model.n + 1
+N = 1 # 2 * model.n + 1
 models = multiple_model(model, T, N, p = p_policy)
-
 
 z = range(0.0, stop = 3.0 * 2.0 * π, length = T)
 p_ref = zeros(T)#1.0 * cos.(1.0 * z)
 plot(z, p_ref)
 x_ref = [[p_ref[t]; 0.0] for t = 1:T]
 u_ref = [zeros(model.m) for t = 1:T-1]
-xT = [vcat([[pr; 0.0; zeros(models.p)] for i = 1:N]...) for pr in p_ref]
+_xT = [0.0; 0.0]
+xT = [vcat([_xT for i = 1:N]..., zeros(t == 1 ? 0 : models.p)) for (t, pr) in enumerate(p_ref)]
 
 # Initial conditions, controls, disturbances
 # x1 = [p_ref[1]; 0.0; p_ref[1]; 0.0]
 x1 = zeros(models.n[1])
 for i = 1:N
-	x1[(i - 1) * (model.n + models.p) + 1] = 1.0
+	x1[(i - 1) * (model.n) + 1] = 1.0
 end
-x1
 
 ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
 # wi = [0.0, 0.05, 0.1, 0.15, 0.2]#, 0.5, 1.0]
-wi = [0.0, 0.1, -0.1, 0.05, -0.05]
-# wi = [0.0]#, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2]#, 0.5, 1.0]
+wi = [0.0]#, 0.01, -0.01]#, -0.1, 0.1]#, 0.05]#, 0.05, -0.05]# 0.1, -0.1]#, -0.1, 0.1]#, 0.1, -0.1, 0.05, -0.05]
 
 @assert length(wi) == N
 w = [vcat(wi...) for t = 1:T-1]
@@ -128,12 +134,12 @@ x̄ = rollout(models, x1, ū, w, h, T)
 
 # Objective
 Q = [(t < T ?
-	h * Diagonal(vcat([[1.0; 1.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))
-	: Diagonal(vcat([[1000.0; 1000.0; 1.0e-5 * ones(models.p)] for i = 1:N]...))) for t = 1:T]
+	 Diagonal(vcat([[1.0; 1.0] for i = 1:N]..., 1.0e-5 * ones(t == 1 ? 0 : models.p)))
+	: Diagonal(vcat([[1.0; 1.0] for i = 1:N]..., 1.0e-5 * ones(t == 1 ? 0 : models.p)))) for t = 1:T]
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
 _R = 1.0e-1 * ones(models.m[2])
-R = [h * Diagonal(t == 1 ? [_R; 1.0e-1 * ones(models.p)] : _R) for t = 1:T-1]
+R = [Diagonal(t == 1 ? [_R; 1.0 * ones(models.p)] : _R) for t = 1:T-1]
 r = [zeros(models.m[t]) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -157,40 +163,48 @@ function g(obj::StageCosts, x, u, t)
 end
 
 # Constraints
+ns = models.N * models.model.n
 ms = models.N * models.model.m
-p_con = [t == T ? 0 : ms + 2 * ms for t = 1:T]
-ul = [-5.0]
-uu = [5.0]
+p_con = [t == T ? 2 * ns : (ms + 2 * ms) for t = 1:T]
+ul = [-10.0]
+uu = [10.0]
 info_t = Dict(:ul => ul, :uu => uu, :inequality => (ms .+ (1:2 * ms)))
-info_T = Dict()
+info_T = Dict(:xT => _xT, :inequality => (1:(2 * ns)))
+
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
 
 function c!(c, cons::StageConstraints, x, u, t)
 	T = cons.T
+	N = models.N
+	n = models.model.n
+	m = models.model.m
+	p = models.p
+	np = n + p
+	ns = N * n
+	ms = N * m
 
 	if t < T
-		N = models.N
-		n = models.model.n
-		m = models.model.m
-		p = models.p
-		np = n + p
-		ms = N * m
-
 		c[1:ms] = view(u, 1:ms) # nominal control => 0
 
-		for i = 1:N
-			if t == 1
-				θ = view(u, ms .+ (1:p))
-			else
-				θ = view(x, (i - 1) * np + n .+ (1:p))
-			end
+		if t == 1
+			θ = view(u, ms .+ (1:p))
+		else
+			θ = view(x, ns .+ (1:p))
+		end
 
-			xi = view(x, (i - 1) * np .+ (1:n))
+		for i = 1:N
+			xi = view(x, (i - 1) * n .+ (1:n))
 			ui = policy(θ, xi, nothing, n, m)
 
 			# bounds on policy => ul <= u_policy <= uu
 			c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - cons.con[t].info[:uu]
 			c[ms + (i - 1) * 2 * m + m .+ (1:m)] = cons.con[t].info[:ul] - ui
+		end
+	end
+	if t == T
+		for i = 1:N
+			c[(i - 1) * 2 * n .+ (1:n)] .= view(x, (i - 1) * n .+ (1:n)) - (cons.con[T].info[:xT] .+ 1.0e-3)
+			c[(i - 1) * 2 * n + n .+ (1:n)] .= (cons.con[T].info[:xT] .- 1.0e-3) - view(x, (i - 1) * n .+ (1:n))
 		end
 	end
 end
@@ -202,14 +216,14 @@ objective(prob.m_data)
 
 # Solve
 @time constrained_ddp_solve!(prob,
-    max_iter = 1000, max_al_iter = 8,
+    max_iter = 1000, max_al_iter = 10,
 	ρ_init = 1.0, ρ_scale = 10.0,
 	con_tol = 1.0e-5)
 
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
 x̄i = [x̄[t][1:model.n] for t = 1:T]
-Ki = [prob.p_data.K[t][1:model.m, 1:model.n] for t = 1:T-1]
+# Ki = [prob.p_data.K[t][1:model.m, 1:model.n] for t = 1:T-1]
 
 # plot(hcat(x̄i...)')
 # x̂i = [copy(x̄i[1])]
@@ -223,27 +237,25 @@ Ki = [prob.p_data.K[t][1:model.m, 1:model.n] for t = 1:T-1]
 # plot(hcat(x̂i...)')
 
 # individual trajectories
-x_idx = [(i - 1) * (model.n + models.p) .+ (1:model.n) for i = 1:N]
-u_idx = [(i - 1) * model.m .+ (1:model.m) for i = 1:N]
+x_idx = [(i - 1) * model.n .+ 1:model.n for i = 1:N]
+u_idx = [(i - 1) * model.m .+ 1:model.m for i = 1:N]
 
 # Visualize
 x_idxs = vcat(x_idx...)
 u_idxs = vcat(u_idx...)
 
 # state
-plot(hcat([xT[t] for t = 1:T]...)[x_idxs, :]',
+plot(hcat([xT[t][x_idxs] for t = 1:T]...)',
     width = 2.0, color = :black, label = "")
-plot!(hcat(x...)[x_idxs, :]', color = :magenta, label = "")
+plot!(hcat([x[t][x_idxs] for t = 1:T]...)', color = :magenta, label = "")
 
 # verify solution
 uθ = u[1][models.N * model.m .+ (1:models.p)]
-xθ_idx = [(i - 1) * (model.n + models.p) + model.n .+ (1:models.p) for i = 1:N]
+xθ = [x[t][models.N * model.n .+ (1:models.p)] for t = 2:T]
 
 policy_err = []
-for i = 1:N
-	for t = 2:T
-		push!(policy_err, norm(x̄[t][xθ_idx[i]] - uθ, Inf))
-	end
+for t = 2:T
+	push!(policy_err, norm(xθ[t-1] - uθ, Inf))
 end
 @show maximum(policy_err)
 
@@ -264,27 +276,28 @@ include(joinpath(@__DIR__, "simulate.jl"))
 θ = u[1][models.N * model.m .+ (1:models.p)]
 
 # Model
-model_sim = model
+
+model_sim = DoubleIntegratorContinuous{RK3, FixedTime}(model.n, model.m, model.d)
 x1_sim = copy(x1[1:model.n])
-T_sim = 1 * T
+T_sim = 100 * T
 
 # Time
 tf = h * (T - 1)
 t = range(0, stop = tf, length = T)
 t_sim = range(0, stop = tf, length = T_sim)
 dt_sim = tf / (T_sim - 1)
-# Ki[1] *
-# x̄i[1]
+
 # Simulate
-N_sim = 1
+N_sim = 100
 x_sim = []
 u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = 0.0e-1 * randn(1)
+	wi_sim = min(0.1, max(-0.1, 1.0e-1 * randn(1)[1]))
+	println("w: $wi_sim")
 	# w_sim = [wi_sim for t = 1:T-1]
-	w_sim = [[0.1] for t = 1:T-1]
+	w_sim = [wi_sim for t = 1:T-1]
 
 	x_nn, u_nn, J_nn, Jx_nn, Ju_nn = simulate_policy(
 		model_sim,

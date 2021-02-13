@@ -64,7 +64,6 @@ function step(q1, q2, u1, h;
         # differentiate r
         _r(w) = r(w, θ)
         _R = ForwardDiff.jacobian(_r, z)
-        μ
         return _R
     end
 

@@ -13,9 +13,9 @@ function dynamics_derivatives_data(model::Model, T;
 	m = [model.m for t = 1:T-1],
 	d = [model.d for t = 1:T-1])
 
-	fx = [zeros(n[t], n[t]) for t = 1:T-1]
-    fu = [zeros(n[t], m[t]) for t = 1:T-1]
-	fw = [zeros(n[t], d[t]) for t = 1:T-1]
+	fx = [zeros(n[t + 1], n[t]) for t = 1:T-1]
+    fu = [zeros(n[t + 1], m[t]) for t = 1:T-1]
+	fw = [zeros(n[t + 1], d[t]) for t = 1:T-1]
 
     DynamicsDerivativesData(fx, fu, fw)
 end

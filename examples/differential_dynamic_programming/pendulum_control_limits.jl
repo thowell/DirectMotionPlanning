@@ -2,12 +2,24 @@ include_ddp()
 
 # Model
 include_model("pendulum")
+function f(model::Pendulum, x, u, w)
+	mass = model.mass + w[1]
+    @SVector [x[2],
+              (u[1] / ((mass * model.lc * model.lc))
+                - model.g * sin(x[1]) / model.lc
+                - model.b * x[2] / (mass * model.lc * model.lc))]
+end
+
+n, m, d = 2, 1, 1
+model = Pendulum{Midpoint, FixedTime}(n, m, d, 1.0, 0.1, 0.5, 9.81)
+
 n = model.n
 m = model.m
 
 # Time
-T = 31
-h = 0.1
+T = 501
+h = 0.002
+t = range(0, stop = h * (T - 1), length = T)
 
 # Initial conditions, controls, disturbances
 x1 = [0.0, 0.0]
@@ -22,7 +34,7 @@ x̄ = rollout(model, x1, ū, w, h, T)
 
 # Objective
 Q = [(t < T ? Diagonal(1.0 * ones(model.n))
-        : Diagonal(1000.0 * ones(model.n))) for t = 1:T]
+        : Diagonal(1.0 * ones(model.n))) for t = 1:T]
 q = [-2.0 * Q[t] * xT for t = 1:T]
 
 R = [Diagonal(1.0e-1 * ones(model.m)) for t = 1:T-1]
@@ -50,7 +62,9 @@ end
 
 # Constraints
 p = [t < T ? 2 * m : n for t = 1:T]
-info_t = Dict(:ul => [-5.0], :uu => [5.0], :inequality => (1:2 * m))
+ul = [-10.0]
+uu = [10.0]
+info_t = Dict(:ul => ul, :uu => uu, :inequality => (1:2 * m))
 info_T = Dict(:xT => xT)
 con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
 
@@ -83,14 +97,92 @@ x̄, ū = nominal_trajectory(prob)
 
 # Visualize
 using Plots
-plot(π * ones(T),
+plot(t, π * ones(T),
     width = 2.0, color = :black, linestyle = :dash)
-plot!(hcat(x...)', width = 2.0, label = "")
+plot!(t, hcat(x...)', width = 2.0, label = "")
 
-plot(hcat([con_set[1].info[:ul] for t = 1:T]...)',
+plot(t, hcat([con_set[1].info[:ul] for t = 1:T]...)',
     width = 2.0, color = :black, label = "")
-plot!(hcat([con_set[1].info[:uu] for t = 1:T]...)',
+plot!(t, hcat([con_set[1].info[:uu] for t = 1:T]...)',
     width = 2.0, color = :black, label = "")
-plot!(hcat(u..., u[end])',
+plot!(t, hcat(u..., u[end])',
     width = 2.0, linetype = :steppost,
 	label = "", color = :orange)
+
+# Simulate policy
+include(joinpath(@__DIR__, "simulate.jl"))
+
+# Model
+model_sim = Pendulum{RK3, FixedTime}(n, m, d, 1.0, 0.1, 0.5, 9.81)
+x1_sim = copy(x1)
+T_sim = 10 * T
+
+# Time
+tf = h * (T - 1)
+t = range(0, stop = tf, length = T)
+t_sim = range(0, stop = tf, length = T_sim)
+dt_sim = tf / (T_sim - 1)
+
+# Policy
+K = [K for K in prob.p_data.K]
+plot(vcat(K...))
+K = [prob.p_data.K[t] for t = 1:T-1]
+# K, _ = tvlqr(model, x̄, ū, h, Q, R)
+# # K = [-k for k in K]
+# K = [-K[1] for t = 1:T-1]
+# plot(vcat(K...))
+
+# Simulate
+N_sim = 10
+x_sim = []
+u_sim = []
+J_sim = []
+Random.seed!(1)
+for k = 1:N_sim
+	wi_sim = min(1.01, max(-0.99, 1.0e-1 * randn(1)[1]))
+	w_sim = [wi_sim for t = 1:T-1]
+	println("sim: $k - w = $(wi_sim[1])")
+
+	x_ddp, u_ddp, J_ddp, Jx_ddp, Ju_ddp = simulate_linear_feedback(
+		model_sim,
+		K,
+	    x̄, ū,
+		x_ref, u_ref,
+		Q, R,
+		T_sim, h,
+		x1_sim,
+		w_sim,
+		ul = ul,
+		uu = uu)
+
+	push!(x_sim, x_ddp)
+	push!(u_sim, u_ddp)
+	push!(J_sim, J_ddp)
+end
+
+# Visualize
+idx = (1:2)
+plt = plot(t, hcat(x̄...)[idx, :]',
+	width = 2.0, color = :black, label = "",
+	xlabel = "time (s)", ylabel = "state",
+	title = "pendulum (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
+
+for xs in x_sim
+	plt = plot!(t_sim, hcat(xs...)[idx, :]',
+	    width = 1.0, color = :magenta, label = "")
+end
+display(plt)
+
+plt = plot(t, hcat(ū..., ū[end])',
+	width = 2.0, color = :black, label = "",
+	xlabel = "time (s)", ylabel = "control",
+	title = "pendulum (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
+
+for us in u_sim
+	plt = plot!(t_sim, hcat(us..., us[end])',
+		width = 1.0, color = :magenta, label = "",
+		linetype = :steppost)
+end
+display(plt)
+# u_sim
+# plot(vcat(K...))

@@ -67,7 +67,7 @@ x̄, ū = nominal_trajectory(prob)
 
 # Visualize
 using Plots
-plot(hcat(x...)', label = "")
+plot(t, hcat(x...)', label = "")
 plot(hcat(u..., u[end])', linetype = :steppost)
 
 # Simulate policy
