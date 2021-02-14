@@ -5,10 +5,6 @@ include("step.jl")
 include("simulate.jl")
 include("visualize.jl")
 
-# model
-model = Particle(2 * 3, 3, 0, 1.0, 9.81, 0.5, 3, 3)
-joinpath(@__DIR__,"model.jl")
-
 # horizon
 T = 26
 
@@ -17,11 +13,12 @@ h = 0.1
 t = range(0, stop = h * (T - 1), length = T)
 
 # initial conditions
-v1 = [0.0; 0.0; 0.0]
-q1 = [0.0; 0.0; 1.0]
+v1 = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+q1 = [0.0; 0.0; r; 0.0; 0.0; 0.0; r]
 
-v2 = v1 - gravity(model, q1) * h
-q2 = q1 + 0.5 * (v1 + v2) * h
+# v2 = v1 - gravity(model) * h
+# q2 = q1 + 0.5 * (v1 + v2) * h
+q2 = copy(q1)
 
 # # simulate
 q_sol, y_sol, b_sol, Δq1, Δq2, Δu1 = simulate(q1, q2, T, h)
@@ -41,18 +38,18 @@ q_sol, y_sol, b_sol, Δq1, Δq2, Δu1 = simulate(q1, q2, T, h)
 # 	compose(Translation(0.0, 0.0, 3.0),LinearMap(RotY(-pi/2.5))))
 
 ## trajectory optimization
-ul, uu = control_bounds(model, T, zeros(model.m), zeros(model.m))
-ul[1] = [-Inf; -Inf; 0.0]
-uu[1] = [Inf; Inf; 0.0]
+ul, uu = control_bounds(model, T)#, zeros(model.m), zeros(model.m))
 x1 = [q1; q2]
-xl, xu = state_bounds(model, T, x1 = x1)
-qT = [1.0; 2.0; 0.0]
+xl, xu = state_bounds(model, T,
+ 	# [model.qL; model.qL],
+	# [model.qU; model.qU],
+	x1 = x1)
 
 # Objective
 obj = quadratic_tracking_objective(
-        [t < T ? Diagonal(1.0e-2 * ones(model.n)) : 100.0 * Diagonal(ones(model.n)) for t = 1:T],
-        [Diagonal(1.0e-3 * ones(model.m)) for t = 1:T-1],
-        [[qT; qT] for t = 1:T],
+        [t < T ? Diagonal(1.0 * ones(model.n)) : 1.0 * Diagonal(ones(model.n)) for t = 1:T],
+        [Diagonal(1.0e-1 * ones(model.m)) for t = 1:T-1],
+        [x1 for t = 1:T],
         [zeros(model.m) for t = 1:T])
 
 # Constraints
@@ -72,8 +69,8 @@ prob = trajectory_optimization_problem(model,
 			   dynamics = false)
 
 # Trajectory initialization
-x0 = configuration_to_state(linear_interpolation(q1, qT, T)) #linear_interpolation(x1, x1, T) # linear interpolation on state
-u0 = [1.0e-1 * rand(model.m) for t = 1:T-1] # random controls
+x0 = configuration_to_state(linear_interpolation(q1, q1, T)) #linear_interpolation(x1, x1, T) # linear interpolation on state
+u0 = [1.0e-5 * rand(model.m) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 z0 = pack(x0, u0, prob)
@@ -97,21 +94,7 @@ vis = Visualizer()
 render(vis)
 
 visualize!(vis, model,
-    [[q̄[1] for i = 1:7] ..., q̄...],
+    q̄,
     Δt = h)
 
 @show q̄[end]
-
-settransform!(vis["/Cameras/default"],
-    compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(-pi))))
-
-settransform!(vis["/Cameras/default"],
-	compose(Translation(0.0, 0.0, 1.0),LinearMap(RotY(-pi/2.5))))
-
-setobject!(vis["particle_goal"],
-	Rect(Vec(0, 0, 0),Vec(0.2, 0.2, 0.2)),
-	MeshPhongMaterial(color = RGBA(0.0, 1.0, 1.0, 0.5)))
-
-settransform!(vis["particle_goal"], Translation(qT...))
-
-open(vis)

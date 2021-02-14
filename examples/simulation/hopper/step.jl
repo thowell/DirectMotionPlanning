@@ -13,17 +13,17 @@ function step(q1, q2, u1, h;
     #     sb[2:3] is the friction force
 
     # initialize
-    z = 1.0 * ones(11)
-    z[1:3] = copy(q2)
+    z = 1.0 * ones(15)
+    z[1:7] = copy(q2)
 
     # initialize soc variables
-    sb, _ = κ_so(z[6:8])
+    sb, _ = κ_so(z[10:12])
     sb[1] += 1.0
-    db, _ = κ_so(z[9:11])
+    db, _ = κ_so(z[13:15])
     db[1] += 1.0
 
-    z[6:8] = sb
-    z[9:11] = db
+    z[10:12] = sb
+    z[13:15] = db
 
     μ = 1.0 # barrier parameter
     flag = false
@@ -34,31 +34,31 @@ function step(q1, q2, u1, h;
 
     function r(z, θ)
         # system variables
-        q3 = view(z, 1:3)
-        n = z[4]
-        sϕ = z[5]
-        sb = view(z, 6:8)
-        db = view(z, 9:11)
+        q3 = view(z, 1:7)
+        n = z[8]
+        sϕ = z[9]
+        sb = view(z, 10:12)
+        db = view(z, 13:15)
 
-        q1 = view(θ, 1:3)
-        q2 = view(θ, 4:6)
-        u1 = view(θ, 7:9)
+        q1 = view(θ, 1:7)
+        q2 = view(θ, 8:14)
+        u1 = view(θ, 15:17)
 
         λ = [view(sb, 2:3); n] # contact forces
         ϕ = signed_distance(model, q3) # signed-distance function
         vT = (view(q3, 1:2) - view(q2, 1:2)) ./ h
 
+
         # action optimality conditions
         [dynamics(model, q1, q2, q3, u1, λ, h);
          sϕ - ϕ;
          n * sϕ - μ;
-
          # maximum dissipation optimality conditions
          vT - view(db, 2:3);
-         sb[1] - model.friction_coeff * n;
+         sb[1] - model.μ * n;
          cone_product(db, sb) - μ * e]
     end
-
+model.μ
     # Jacobian
     function Rz(z, θ)
         # differentiate r
@@ -77,11 +77,11 @@ function step(q1, q2, u1, h;
 
     function check_variables(z)
         # system variables
-        q3 = view(z, 1:3)
-        n = z[4]
-        sϕ = z[5]
-        sb = view(z, 6:8)
-        db = view(z, 9:11)
+        q3 = view(z, 1:7)
+        n = z[8]
+        sϕ = z[9]
+        sb = view(z, 10:12)
+        db = view(z, 13:15)
 
         if n <= 0.0
             return true
@@ -158,12 +158,12 @@ function step(q1, q2, u1, h;
     # Δz = -1.0 * (Rz(z, θ)' * Rz(z, θ) + 1.0e-6 * I) \ (Rz(z, θ)' * Rθ(z, θ)) # damped least-squares direction
     Δz = -1.0 * Rz(z, θ) \ Rθ(z, θ)
 
-    q3 = view(z, 1:3)
-    n = z[4]
-    b = view(z, 6:8)
-    Δq1 = view(Δz, 1:3, 1:3)
-    Δq2 = view(Δz, 1:3, 3 .+ (1:3))
-    Δu1 = view(Δz, 1:3, 6 .+ (1:3))
+    q3 = view(z, 1:7)
+    n = z[8]
+    b = view(z, 10:12)
+    Δq1 = view(Δz, 1:7, 1:7)
+    Δq2 = view(Δz, 1:7, 7 .+ (1:7))
+    Δu1 = view(Δz, 1:7, 14 .+ (1:3))
 
     return q3, n, b, Δq1, Δq2, Δu1, flag
 end

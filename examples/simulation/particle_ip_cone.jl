@@ -163,7 +163,7 @@ function _step(q1, q2, h;
     #     s are slack variables for convenience
 
     # initialize
-    z = 1.0e-1 * ones(13)
+    z = 1.0e-1 * ones(11)
     z[1:3] = copy(q2)
 
     # initialize soc variables
