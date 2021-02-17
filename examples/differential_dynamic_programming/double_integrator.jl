@@ -128,7 +128,7 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = min(0.5, max(-0.5, 5.0e-1 * randn(1)[1]))
+	wi_sim = 1.0 * min(0.1, max(-0.1, 1.0e-1 * randn(1)[1]))
 	w_sim = [wi_sim for t = 1:T-1]
 	println("sim: $k - w = $(wi_sim[1])")
 

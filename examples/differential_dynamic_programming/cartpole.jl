@@ -65,16 +65,19 @@ end
 
 prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T)
 
-objective(prob.m_data)
-
 # Solve
 @time constrained_ddp_solve!(prob,
     max_iter = 10000, max_al_iter = 10,
 	ρ_init = 1.0, ρ_scale = 10.0,
-	con_tol = 1.0e-5)
+	con_tol = 1.0e-5,
+	cache = false)
 
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
+
+dd = Dict(:a => [])
+push!(dd[:a], 1.0)
+dd
 
 # Visualize
 plot(π * ones(T),

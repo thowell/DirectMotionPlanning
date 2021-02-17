@@ -26,6 +26,7 @@ function objective_derivatives!(obj::StageCosts, data::ModelData)
     m = data.m
 
     for t = 1:T-1
+		# println("time step $t")
 		if obj.cost[t] isa QuadraticCost
 			data.obj_deriv.gx[t] .= 2.0 * obj.cost[t].Q * x̄[t] + obj.cost[t].q
 			data.obj_deriv.gu[t] .= 2.0 * obj.cost[t].R * ū[t] + obj.cost[t].r

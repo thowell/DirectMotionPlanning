@@ -174,7 +174,11 @@ mutable struct SolverData{T}
 
 	α::T                # step length
     status::Bool        # solver status
+
+	cache::Dict         #
 end
+
+cache = Dict(:obj => [], :gradient => [], :c_max => [], :α => [])
 
 function solver_data(model::Model, T;
 	n = [model.n for t = 1:T],
@@ -185,8 +189,16 @@ function solver_data(model::Model, T;
     obj = Inf
 	c_max = 0.0
     gradient = zeros(num_var)
+	cache = Dict(:obj => [], :gradient => [], :c_max => [], :α => [])
 
-    SolverData(obj, gradient, c_max, 1.0, false)
+    SolverData(obj, gradient, c_max, 1.0, false, cache)
+end
+
+function cache!(data::SolverData)
+	push!(data.cache[:obj], data.obj)
+	push!(data.cache[:gradient], data.gradient)
+	push!(data.cache[:c_max], data.c_max)
+	push!(data.cache[:α], data.α)
 end
 
 function objective!(s_data::SolverData, m_data::ModelData; mode = :nominal)

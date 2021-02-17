@@ -1,7 +1,8 @@
 function ddp_solve!(prob::ProblemData;
     max_iter = 10,
     grad_tol = 1.0e-5,
-    verbose = true)
+    verbose = true,
+	cache = false)
 
 	println()
     (verbose && prob.m_data.obj isa StageCosts) && printstyled("Differential Dynamic Programming\n",
@@ -28,6 +29,9 @@ function ddp_solve!(prob::ProblemData;
         # forward pass
         forward_pass!(p_data, m_data, s_data)
 		# println("forward pass")
+
+		# cache solver data
+		cache && cache!(s_data)
 
         # check convergence
         grad_norm = norm(s_data.gradient, Inf)
@@ -76,6 +80,7 @@ function constrained_ddp_solve!(prob::ProblemData;
 	con_norm_type = Inf,
 	ρ_init = 1.0,
 	ρ_scale = 10.0,
+	cache = false,
     verbose = true)
 
 	println()
@@ -92,6 +97,7 @@ function constrained_ddp_solve!(prob::ProblemData;
 		ddp_solve!(prob,
 		    max_iter = max_iter,
 		    grad_tol = grad_tol,
+			cache = cache,
 		    verbose = verbose)
 
 		# update trajectories
