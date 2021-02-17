@@ -130,7 +130,7 @@ for t = 1:T_sim
 		# convert(Float32,0.075)),
 		# MeshPhongMaterial(color=RGBA(0.0,255.0/255.0,255.0/255.0,1.0)))
 	settransform!(vis["traj_to$t"], Translation((z_cubic[1] - 0.5,z_cubic[2] -0.5,0.0)))
-	setvisible!(vis["traj_to$t"],true)
+	setvisible!(vis["traj_to$t"],false)
 end
 
 q_dpo = deepcopy(x)
@@ -146,7 +146,7 @@ for t = 1:T_sim
 		convert(Float32,0.065)),
 		MeshPhongMaterial(color=RGBA(255.0/255.0,127.0/255.0,0.0,1.0)))
 	settransform!(vis["traj_dpo$t"], Translation((z_cubic[1] - 0.5,z_cubic[2] - 0.5,0.0)))
-	setvisible!(vis["traj_dpo$t"],false)
+	setvisible!(vis["traj_dpo$t"],true)
 end
 
 for i = 1:2 * model.n
