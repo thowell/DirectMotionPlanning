@@ -52,6 +52,7 @@ end
 # dynamics
 function dynamics(model, q1, q2, q3, u, λ, h)
     nq = model.nq
+    nu = model.nu
     SVector{nq}(mass_matrix(model) * (2.0 * q2 - q1 - q3) / h
         - h * gravity(model, q2)
         + h * jacobian(model, q3)' * (u + λ))

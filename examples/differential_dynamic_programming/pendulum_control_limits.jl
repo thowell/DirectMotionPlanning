@@ -17,8 +17,8 @@ n = model.n
 m = model.m
 
 # Time
-T = 501
-h = 0.002
+T = 51
+h = 0.05
 t = range(0, stop = h * (T - 1), length = T)
 
 # Initial conditions, controls, disturbances
@@ -61,10 +61,10 @@ function g(obj::StageCosts, x, u, t)
 end
 
 # Constraints
-p = [t < T ? 2 * m : n for t = 1:T]
-ul = [-10.0]
-uu = [10.0]
-info_t = Dict(:ul => ul, :uu => uu, :inequality => (1:2 * m))
+p = [t < T ? 0 * 2 * m : n for t = 1:T]
+ul = [-Inf]
+uu = [Inf]
+info_t = Dict()#:ul => ul, :uu => uu, :inequality => (1:2 * m))
 info_T = Dict(:xT => xT)
 con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
 
@@ -73,9 +73,9 @@ function c!(c, cons::StageConstraints, x, u, t)
 	p = cons.con[t].p
 
 	if t < T
-		ul = cons.con[t].info[:ul]
-		uu = cons.con[t].info[:uu]
-		c .= [ul - u; u - uu]
+		# ul = cons.con[t].info[:ul]
+		# uu = cons.con[t].info[:uu]
+		# c .= [ul - u; u - uu]
 	elseif t == T
 		xT = cons.con[T].info[:xT]
 		c .= x - xT
@@ -101,11 +101,11 @@ plot(t, π * ones(T),
     width = 2.0, color = :black, linestyle = :dash)
 plot!(t, hcat(x...)', width = 2.0, label = "")
 
-plot(t, hcat([con_set[1].info[:ul] for t = 1:T]...)',
-    width = 2.0, color = :black, label = "")
-plot!(t, hcat([con_set[1].info[:uu] for t = 1:T]...)',
-    width = 2.0, color = :black, label = "")
-plot!(t, hcat(u..., u[end])',
+# plot(t, hcat([con_set[1].info[:ul] for t = 1:T]...)',
+#     width = 2.0, color = :black, label = "")
+# plot!(t, hcat([con_set[1].info[:uu] for t = 1:T]...)',
+#     width = 2.0, color = :black, label = "")
+plot(t, hcat(u..., u[end])',
     width = 2.0, linetype = :steppost,
 	label = "", color = :orange)
 
@@ -133,13 +133,13 @@ K = [prob.p_data.K[t] for t = 1:T-1]
 # plot(vcat(K...))
 
 # Simulate
-N_sim = 10
+N_sim = 100
 x_sim = []
 u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = min(1.01, max(-0.99, 1.0e-1 * randn(1)[1]))
+	wi_sim = min(0.9, max(-0.9, 1.0 * randn(1)[1]))
 	w_sim = [wi_sim for t = 1:T-1]
 	println("sim: $k - w = $(wi_sim[1])")
 

@@ -2,26 +2,19 @@ using Plots
 using Random
 Random.seed!(1)
 
+# soft rect
+soft_rect(z) = log(1.0 + exp(z))
+zz = range(-5.0, stop = 5.0, length = 100)
+plot(zz, soft_rect.(zz))
+
+# ddp
 include_ddp()
 
 # Model
 include_model("pendulum")
 
-function f(model::Pendulum, x, u, w)
-	mass = model.mass + w[1]
-    @SVector [x[2],
-              (u[1] / ((mass * model.lc * model.lc))
-                - model.g * sin(x[1]) / model.lc
-                - model.b * x[2] / (mass * model.lc * model.lc))]
-end
-
 n, m, d = 2, 1, 1
-model = Pendulum{Midpoint, FixedTime}(n, m, d, 1.0, 0.1, 0.5, 9.81)
-
-# soft rect
-soft_rect(z) = log(1.0 + exp(z))
-zz = range(-5.0, stop = 5.0, length = 100)
-plot(zz, soft_rect.(zz))
+model = Pendulum{RK4, FixedTime}(n, m, d, 1.0, 0.1, 0.5, 9.81)
 
 struct MultipleModel{I, T} <: Model{I, T}
 	n::Vector{Int}
@@ -47,7 +40,7 @@ function multiple_model(model, T, N; p = 0)
 end
 
 # Policy
-dp = 1
+dp = 2
 p_policy = (dp * model.n * model.n + dp * model.n) + (dp * model.n * dp * model.n + dp * model.n) + model.m * dp * model.n + model.m
 
 function policy(θ, x, t, n, m)
@@ -70,6 +63,18 @@ function policy(θ, x, t, n, m)
 	zo = Ko * z2 + ko
 
 	return zo
+end
+
+function f(model::Pendulum, x, u, w)
+	mass = model.mass + w[1]
+    @SVector [x[2],
+              ((u[1] + policy(view(u, 1 .+ (1:p_policy)), x, nothing, model.n, model.m)[1]) / ((mass * model.lc * model.lc))
+                - model.g * sin(x[1]) / model.lc
+                - model.b * x[2] / (mass * model.lc * model.lc))]
+	# @SVector [x[2],
+    #           ((u[1]) / ((mass * model.lc * model.lc))
+    #             - model.g * sin(x[1]) / model.lc
+    #             - model.b * x[2] / (mass * model.lc * model.lc))]
 end
 
 function fd(models::MultipleModel, x, u, w, h, t)
@@ -95,43 +100,35 @@ function fd(models::MultipleModel, x, u, w, h, t)
 
 	for i = 1:N
 		xi = view(x, (i - 1) * ni .+ (1:ni))
-		ui = view(u, (i - 1) * mi .+ (1:mi))
+		ui = [u[(i - 1) * mi .+ (1:mi)]; θ]
 		wi = view(w, (i - 1) * di .+ (1:di))
-
-		u_ctrl = ui + policy(θ, xi, nothing, ni, mi)
-
-		push!(x⁺, fd(models.model, xi, u_ctrl, wi, h, t))
+		push!(x⁺, fd(models.model, xi, ui, wi, h, t))
 	end
 
 	return vcat(x⁺..., θ)
 end
 
 # Time
-T = 501
-h = 0.002
+T = 51
+h = 0.05
 tf = h * (T - 1)
-
-N = 1 # 2 * model.n + 1
+N = 2 # 2 * model.n + 1
 models = multiple_model(model, T, N, p = p_policy)
 
-# z = range(0.0, stop = 3.0 * 2.0 * π, length = T)
-p_ref = π * ones(T)#1.0 * cos.(1.0 * z)
-
-x_ref = [[p_ref[t]; 0.0] for t = 1:T]
+x_ref = [[π; 0.0] for t = 1:T]
 u_ref = [zeros(model.m) for t = 1:T-1]
 _xT = [π; 0.0]
-xT = [vcat([_xT for i = 1:N]..., zeros(t == 1 ? 0 : models.p)) for (t, pr) in enumerate(p_ref)]
+xT = [vcat([_xT for i = 1:N]..., zeros(t == 1 ? 0 : models.p)) for t = 1:T]
 
 # Initial conditions, controls, disturbances
-# x1 = [p_ref[1]; 0.0; p_ref[1]; 0.0]
 x1 = zeros(models.n[1])
-# for i = 1:N
-# 	x1[(i - 1) * (model.n) + 1] = 1.0
-# end
-
-ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
+_x1 = [[0.0, 0.0], [0.0; 0.0], [0.0; 0.0]]
+for i = 1:N
+	x1[(i - 1) * model.n .+ (1:n)] = _x1[i]
+end
+ū = [1.0e-3 * randn(models.m[t]) for t = 1:T-1]
 # wi = [0.0, 0.05, 0.1, 0.15, 0.2]#, 0.5, 1.0]
-wi = [0.0]#, 0.01, -0.01]#, -0.1, 0.1]#, 0.05]#, 0.05, -0.05]# 0.1, -0.1]#, -0.1, 0.1]#, 0.1, -0.1, 0.05, -0.05]
+wi = [0.25, -0.25]#, 0.25, -0.25]#, 0.0]#, 0.0, 0.0]#, 0.0, 0.0]#, 0.0, -0.0]#, 0.01, -0.01]#, -0.1, 0.1]#, 0.05]#, 0.05, -0.05]# 0.1, -0.1]#, -0.1, 0.1]#, 0.1, -0.1, 0.05, -0.05]
 
 @assert length(wi) == N
 w = [vcat(wi...) for t = 1:T-1]
@@ -146,7 +143,7 @@ Q = [(t < T ?
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
 _R = 1.0e-1 * ones(models.m[2])
-R = [Diagonal(t == 1 ? [_R; 1.0 * ones(models.p)] : _R) for t = 1:T-1]
+R = [Diagonal(t == 1 ? [_R; 100.0 * ones(models.p)] : _R) for t = 1:T-1]
 r = [zeros(models.m[t]) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -172,11 +169,11 @@ end
 # Constraints
 ns = models.N * models.model.n
 ms = models.N * models.model.m
-p_con = [t == T ? 2 * ns : (ms + 2 * ms) for t = 1:T]
-ul = [-100.0]
-uu = [100.0]
-info_t = Dict(:ul => ul, :uu => uu, :inequality => (ms .+ (1:2 * ms)))
-info_T = Dict(:xT => _xT, :inequality => (1:(2 * ns)))
+p_con = [t == T ? 0 * model.n + 1 * ns : (ms + 0 * 2 * ms) for t = 1:T]
+ul = [-Inf]
+uu = [Inf]
+info_t = Dict()#:ul => ul, :uu => uu, :inequality => (ms .+ (1:2 * ms)))
+info_T = Dict(:xT => _xT)#, :inequality => (1:(2 * ns)))
 
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
 
@@ -193,25 +190,25 @@ function c!(c, cons::StageConstraints, x, u, t)
 	if t < T
 		c[1:ms] = view(u, 1:ms) # nominal control => 0
 
-		if t == 1
-			θ = view(u, ms .+ (1:p))
-		else
-			θ = view(x, ns .+ (1:p))
-		end
-
-		for i = 1:N
-			xi = view(x, (i - 1) * n .+ (1:n))
-			ui = policy(θ, xi, nothing, n, m)
-
-			# bounds on policy => ul <= u_policy <= uu
-			c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - cons.con[t].info[:uu]
-			c[ms + (i - 1) * 2 * m + m .+ (1:m)] = cons.con[t].info[:ul] - ui
-		end
+		# if t == 1
+		# 	θ = view(u, ms .+ (1:p))
+		# else
+		# 	θ = view(x, ns .+ (1:p))
+		# end
+		#
+		# for i = 1:N
+		# 	xi = view(x, (i - 1) * n .+ (1:n))
+		# 	ui = policy(θ, xi, nothing, n, m)
+		#
+		# 	# bounds on policy => ul <= u_policy <= uu
+		# 	c[ms + (i - 1) * 2 * m .+ (1:m)] = ui - cons.con[t].info[:uu]
+		# 	c[ms + (i - 1) * 2 * m + m .+ (1:m)] = cons.con[t].info[:ul] - ui
+		# end
 	end
 	if t == T
 		for i = 1:N
-			c[(i - 1) * 2 * n .+ (1:n)] .= view(x, (i - 1) * n .+ (1:n)) - (cons.con[T].info[:xT] .+ 1.0e-3)
-			c[(i - 1) * 2 * n + n .+ (1:n)] .= (cons.con[T].info[:xT] .- 1.0e-3) - view(x, (i - 1) * n .+ (1:n))
+			c[(i - 1) * 1 * n .+ (1:n)] .= view(x, (i - 1) * n .+ (1:n)) - (cons.con[T].info[:xT] .+ 0.0e-3)
+			# c[(i - 1) * 2 * n + n .+ (1:n)] .= (cons.con[T].info[:xT] .- 0.0e-3) - view(x, (i - 1) * n .+ (1:n))
 		end
 	end
 end
@@ -244,8 +241,8 @@ x̄i = [x̄[t][1:model.n] for t = 1:T]
 # plot(hcat(x̂i...)')
 
 # individual trajectories
-x_idx = [(i - 1) * model.n .+ 1:model.n for i = 1:N]
-u_idx = [(i - 1) * model.m .+ 1:model.m for i = 1:N]
+x_idx = [(i - 1) * model.n .+ (1:model.n) for i = 1:N]
+u_idx = [(i - 1) * model.m .+ (1:model.m) for i = 1:N]
 
 # Visualize
 x_idxs = vcat(x_idx...)
@@ -282,14 +279,8 @@ include(joinpath(@__DIR__, "simulate.jl"))
 # Policy
 θ = u[1][models.N * model.m .+ (1:models.p)]
 
-# x_sim = [x1]
-# for t = 1:T-1
-# 	u = policy(model_sim, x_sim[end], t, model.n, model.m)
-# 	x⁺ = fd(model_sim, x_sim[end], u, zeros(model.d), t, h)
-# end
 # Model
-
-model_sim = Pendulum{RK3, FixedTime}(n, m, d, 1.0, 0.1, 0.5, 9.81)
+model_sim = Pendulum{RK4, FixedTime}(n, m, d, 1.0, 0.1, 0.5, 9.81)
 x1_sim = copy(x1[1:model.n])
 T_sim = 10 * T
 
@@ -306,15 +297,14 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = min(0.1, max(-0.1, 1.0e-1 * randn(1)[1]))
+	wi_sim = 1 * min(0.5, max(-0.5, 5.0e-1 * randn(1)[1]))
 	println("w: $wi_sim")
 	# w_sim = [wi_sim for t = 1:T-1]
 	w_sim = [wi_sim for t = 1:T-1]
 
 	x_nn, u_nn, J_nn, Jx_nn, Ju_nn = simulate_policy(
 		model_sim,
-		[θ for t = 1:T-1], Ki,
-		x̄i,
+		θ,
 		x_ref, u_ref,
 		[_Q[1:model.n, 1:model.n] for _Q in Q], [_R[1:model.m, 1:model.m] for _R in R],
 		T_sim, h,

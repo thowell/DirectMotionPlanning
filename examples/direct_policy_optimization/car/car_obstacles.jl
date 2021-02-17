@@ -70,7 +70,7 @@ u0 = [0.001 * ones(model.m) for t = 1:T-1]
 z0 = pack(x0, u0, prob)
 
 # Solve nominal problem
-if true
+if false
     @time z̄, info = solve(prob, copy(z0))
     @save joinpath(@__DIR__, "sol_to.jld2") z̄
 else

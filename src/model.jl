@@ -121,3 +121,5 @@ function no_slip_model(model)
 
 	return typeof(model)(params...)
 end
+
+state_output(model, x) = x

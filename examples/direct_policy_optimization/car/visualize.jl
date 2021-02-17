@@ -25,7 +25,6 @@ plt = plot!(Px, Py, aspect_ratio = :equal, xlabel = "x", ylabel = "y",
     width = 4.0, label = "TO", color = :cyan, legend = :topleft)
 
 # DPO
-prob_dpo.prob.idx.sample[1]
 x, u = unpack(z, prob_dpo.prob.prob.nom)
 
 
@@ -91,12 +90,15 @@ display(plt)
 # Animation
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
-render(vis)
+# render(vis)
 open(vis)
 default_background!(vis)
+settransform!(vis["/Cameras/default"],
+	compose(Translation(0.0, 0.0, -1.0),LinearMap(RotY(-pi/2.5))))
+shift = [-0.5; -0.5; 0.0]
 
 for i = 1:4
-    cyl = Cylinder(Point3f0(circles[i][1],circles[i][2],0),Point3f0(circles[i][1],circles[i][2],0.1),convert(Float32,0.035))
+    cyl = Cylinder(Point3f0(circles[i][1] - 0.5,circles[i][2] - 0.5,0), Point3f0(circles[i][1] - 0.5,circles[i][2] -0.5,0.1),convert(Float32,0.035))
     setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
 end
 
@@ -127,8 +129,8 @@ for t = 1:T_sim
 		# HyperSphere(Point3f0(0),
 		# convert(Float32,0.075)),
 		# MeshPhongMaterial(color=RGBA(0.0,255.0/255.0,255.0/255.0,1.0)))
-	settransform!(vis["traj_to$t"], Translation((z_cubic[1],z_cubic[2],0.0)))
-	setvisible!(vis["traj_to$t"],false)
+	settransform!(vis["traj_to$t"], Translation((z_cubic[1] - 0.5,z_cubic[2] -0.5,0.0)))
+	setvisible!(vis["traj_to$t"],true)
 end
 
 q_dpo = deepcopy(x)
@@ -143,12 +145,12 @@ for t = 1:T_sim
 		Point3f0(0.0, 0.0, 0.001),
 		convert(Float32,0.065)),
 		MeshPhongMaterial(color=RGBA(255.0/255.0,127.0/255.0,0.0,1.0)))
-	settransform!(vis["traj_dpo$t"], Translation((z_cubic[1],z_cubic[2],0.0)))
-	setvisible!(vis["traj_dpo$t"],true)
+	settransform!(vis["traj_dpo$t"], Translation((z_cubic[1] - 0.5,z_cubic[2] - 0.5,0.0)))
+	setvisible!(vis["traj_dpo$t"],false)
 end
 
 for i = 1:2 * model.n
-	q_dpo = deepcopy(x_sample[i])
+	# q_dpo = deepcopy(x_sample[i])
 	A_state = hcat(q_dpo...)
 	z_cubic = zero(q_dpo[1])
 	for t = 1:T_sim
@@ -160,36 +162,58 @@ for i = 1:2 * model.n
 			Point3f0(0.0, 0.0, 0.000),
 			convert(Float32,0.065)),
 			MeshPhongMaterial(color=RGBA(255.0/255.0,0.0,255.0,1.0)))
-		settransform!(vis["traj_sample$t$i"], Translation((z_cubic[1],z_cubic[2],0.0)))
-		setvisible!(vis["traj_sample$t$i"],true)
+		settransform!(vis["traj_sample$t$i"], Translation((z_cubic[1] - 0.5,z_cubic[2] - 0.5,0.0)))
+		setvisible!(vis["traj_sample$t$i"],false)
 	end
 end
 
-q = x
-obj_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/cybertruck/cybertruck.obj")
-mtl_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/cybertruck/cybertruck.mtl")
 
-ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=0.05)
+
+q = [[x[1] for i = 1:25]..., x..., [x[T] for i = 1:25]...]
+q = [[x̄[1] for i = 1:25]..., x̄..., [x̄[T] for i = 1:25]...]
+
+obj_path = joinpath(pwd(),"/home/taylor/Research/motion_planning/models/cybertruck/cybertruck.obj")
+mtl_path = joinpath(pwd(),"/home/taylor/Research/motion_planning/models/cybertruck/cybertruck.mtl")
+m = ModifiedMeshFileObject(obj_path, mtl_path, scale = 0.05)
+setobject!(vis["car"], m)
+settransform!(vis["car"], compose(Translation([q[t][1];q[t][2];0.0] + shift),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+
+anim = MeshCat.Animation(convert(Int, floor(1.0 / h)))
+
+for t = 1:length(q)
+	MeshCat.atframe(anim,t) do
+		settransform!(vis["car"],
+			compose(Translation(q[t][1] - 0.5, q[t][2] - 0.5, 0.0),
+				LinearMap(RotZ(q[t][3] + pi) * RotX(pi / 2.0))))
+	end
+end
+MeshCat.setanimation!(vis, anim)
+
+
+ctm = ModifiedMeshFileObject(obj_path, mtl_path, scale=0.05)
 t = 1
 setobject!(vis["ct1"],ctm)
-settransform!(vis["ct1"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+settransform!(vis["ct1"], compose(Translation([q[t][1];q[t][2];0.0] + shift),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
 setvisible!(vis["ct1"],true)
 t = 1
 setobject!(vis["ct2"],ctm)
-settransform!(vis["ct2"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+settransform!(vis["ct2"], compose(Translation([q[t][1];q[t][2];0.0] + shift),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
 setvisible!(vis["ct2"],true)
 t = 20#17#20
 setobject!(vis["ct3"],ctm)
-settransform!(vis["ct3"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+settransform!(vis["ct3"], compose(Translation([q[t][1];q[t][2];0.0] + shift),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
 setvisible!(vis["ct3"],true)
 
 t = 34#36#34
 setobject!(vis["ct4"],ctm)
-settransform!(vis["ct4"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+settransform!(vis["ct4"], compose(Translation([q[t][1];q[t][2];0.0] + shift),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
 setvisible!(vis["ct4"],true)
 t = T
 setobject!(vis["ct5"],ctm)
-settransform!(vis["ct5"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+settransform!(vis["ct5"], compose(Translation([q[t][1];q[t][2];0.0] + shift),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
 setvisible!(vis["ct5"],true)
+
+settransform!(vis["/Cameras/default"],
+	compose(Translation(0.0, 0.0, 1.0),LinearMap(RotY(-pi/2.5))))
 
 open(vis)

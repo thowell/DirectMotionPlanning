@@ -63,3 +63,7 @@ function default_background!(vis)
     setprop!(vis["/Background"], "bottom_color", RGBA(1.0, 1.0, 1.0, 1.0))
     setvisible!(vis["/Axes"], false)
 end
+
+function pad_trajectory(x, shift, T_shift)
+	[[x[1] + shift for i = 1:T_shift]..., [_x + shift for _x in x]..., [x[end] + shift for i = 1:T_shift]...]
+end

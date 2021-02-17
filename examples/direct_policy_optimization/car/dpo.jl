@@ -64,19 +64,19 @@ K, P = tvlqr(model, x̄, ū, h, Q, R)
 z0 = pack(z̄, K, prob_dpo)
 
 # Solve
-# if false
-# 	include_snopt()
-# 	z, info = solve(prob_dpo, copy(z0),
-# 		nlp = :SNOPT7,
-# 		tol = 1.0e-3, c_tol = 1.0e-3,
-# 		time_limit = 60 * 1)
-# 	@save joinpath(@__DIR__, "sol_dpo.jld2") z
-# else
-# 	println("Loading solution...")
-# 	@load joinpath(@__DIR__, "sol_dpo.jld2") z
-# end
+if false
+	include_snopt()
+	z, info = solve(prob_dpo, copy(z0),
+		nlp = :SNOPT7,
+		tol = 1.0e-3, c_tol = 1.0e-3,
+		time_limit = 60 * 1)
+	@save joinpath(@__DIR__, "sol_dpo.jld2") z
+else
+	println("Loading solution...")
+	@load joinpath(@__DIR__, "sol_dpo.jld2") z
+end
 # include_snopt()
-z, info = solve(prob_dpo, copy(z0),
-	nlp = :SNOPT7,
-	tol = 1.0e-3, c_tol = 1.0e-3,
-	time_limit = 60 * 5)
+# z, info = solve(prob_dpo, copy(z0),
+# 	nlp = :SNOPT7,
+# 	tol = 1.0e-3, c_tol = 1.0e-3,
+# 	time_limit = 60 * 5)

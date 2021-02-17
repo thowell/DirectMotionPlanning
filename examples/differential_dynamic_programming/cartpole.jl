@@ -4,8 +4,8 @@ include_ddp()
 include_model("cartpole")
 
 # Time
-T = 51
-h = 0.1
+T = 101
+h = 0.025
 
 # Initial conditions, controls, disturbances
 x1 = [0.0, 0.0, 0.0, 0.0]
@@ -14,15 +14,15 @@ ū = [1.0e-1 * ones(model.m) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
-x̄ = rollout(model, x1, ū_nom, w, h, T)
+x̄ = rollout(model, x1, ū, w, h, T)
 # x̄ = linear_interpolation(x1, xT, T)
 
 # Objective
-Q = [(t < T ? Diagonal([1.0; 1.0e-3; 1.0e-3; 1.0e-3])
-        : Diagonal(1000.0 * ones(model.n))) for t = 1:T]
+Q = [(t < T ? Diagonal(h * [1.0; 1.0; 1.0; 1.0])
+        : Diagonal(1.0 * ones(model.n))) for t = 1:T]
 q = [-2.0 * Q[t] * xT for t = 1:T]
 
-R = [Diagonal(1.0e-1 * ones(model.m)) for t = 1:T-1]
+R = [h * Diagonal(1.0e-1 * ones(model.m)) for t = 1:T-1]
 r = [zeros(model.m) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -45,30 +45,48 @@ function g(obj::StageCosts, x, u, t)
     end
 end
 
-# Problem
-prob = problem_data(model, obj, copy(x̄), copy(ū), w, h, T)
+# Constraints
+p_con = [t == T ? model.n : 0 for t = 1:T]
+
+info_t = Dict()
+info_T = Dict(:xT => xT)
+
+con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
+
+function c!(c, cons::StageConstraints, x, u, t)
+	T = cons.T
+	n = model.n
+
+	if t == T
+		c[1:n] .= x - cons.con[T].info[:xT]
+	end
+end
+
+prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T)
+
+objective(prob.m_data)
 
 # Solve
-@time ddp_solve!(prob,
-    max_iter = 1000, verbose = true)
+@time constrained_ddp_solve!(prob,
+    max_iter = 10000, max_al_iter = 10,
+	ρ_init = 1.0, ρ_scale = 10.0,
+	con_tol = 1.0e-5)
 
 x, u = current_trajectory(prob)
-x̄_nom, ū_nom = nominal_trajectory(prob)
+x̄, ū = nominal_trajectory(prob)
 
 # Visualize
 using Plots
 plot(π * ones(T),
     width = 2.0, color = :black, linestyle = :dash)
-plot!(hcat(x̄_nom...)', width = 2.0, label = "")
-plot(hcat(ū_nom..., ū_nom[end])',
+plot!(hcat(x̄...)', width = 2.0, label = "")
+plot(hcat(ū..., ū[end])',
     width = 2.0, linetype = :steppost)
 
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
 visualize!(vis, model, x, Δt = h)
-
-@save joinpath(@__DIR__, "trajectories/cartpole.jld2") x̄_nom ū_nom
 
 # Simulate policy
 
@@ -99,20 +117,19 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	# wi_sim = 0.1 * randn(model.d)
-	# w_sim = [wi_sim for t = 1:T-1]
-	w_sim = [1.0 * randn(model.d) for t = 1:T-1]
+	wi_sim = rand(range(-5.0, stop = 5.0, length = 1000))
+
 	println("sim: $k")#- w = $(wi_sim[1])")
 
 	x_ddp, u_ddp, J_ddp, Jx_ddp, Ju_ddp = simulate_linear_feedback(
 		model_sim,
 		K,
-	    x̄_nom, ū_nom,
+	    x̄, ū,
 		[xT for t = 1:T], [zeros(model.m) for t = 1:T-1],
 		Q, R,
 		T_sim, h,
-		x1_sim,
-		w_sim)
+		[wi_sim; 0.0; 0.0; 0.0],
+		[zeros(model.d) for t = 1:T-1])
 
 	push!(x_sim, x_ddp)
 	push!(u_sim, u_ddp)
@@ -121,7 +138,7 @@ end
 
 # Visualize
 idx = (1:2)
-plt = plot(t, hcat(x̄_nom...)[idx, :]',
+plt = plot(t, hcat(x̄...)[idx, :]',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "state",
 	title = "cartpole (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
@@ -132,7 +149,7 @@ for xs in x_sim
 end
 display(plt)
 
-plt = plot(t, hcat(ū_nom..., ū_nom[end])',
+plt = plot(t, hcat(ū..., ū[end])',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "control",
 	title = "cartpole (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")

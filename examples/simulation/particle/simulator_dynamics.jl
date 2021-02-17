@@ -1,19 +1,21 @@
-struct DynamicsConstraints <: Constraints
+struct SimulatorConstraints <: Constraints
     n::Int
     ineq
     w
+    slack
 end
 
-function dynamics_constraints(model, T;
-    w = [zeros(model.d) for t = 1:T-1])
+function simulator_constraints(model, T;
+    w = [zeros(model.d) for t = 1:T-1],
+    slack = false)
 
     n = model.n * (T - 1)
     ineq = (1:0)
 
-    return DynamicsConstraints(n, ineq, w)
+    return SimulatorConstraints(n, ineq, w, slack)
 end
 
-function constraints!(c, Z, con::DynamicsConstraints, model, idx, h, T)
+function constraints!(c, Z, con::SimulatorConstraints, model, idx, h, T)
     n = model.n
     nq = model.nq
 
@@ -30,14 +32,15 @@ function constraints!(c, Z, con::DynamicsConstraints, model, idx, h, T)
         q2_next = view(x⁺, 1:nq)
         q3 = view(x⁺, nq .+ (1:nq))
 
-        c[(t-1) * n .+ (1:nq)] = q3 - step(q1, q2, u, h, tol = 1.0e-5)[1]
+        @show q_sim = (con.slack ? step_slack(q1, q2, u, h, tol = 1.0e-5)[1] : step(q1, q2, u, h, tol = 1.0e-5)[1])
+        c[(t-1) * n .+ (1:nq)] = q3 - q_sim
         c[(t-1) * n + nq .+ (1:nq)] = q2_next - q2
     end
 
     return nothing
 end
 
-function constraints_jacobian!(∇c, Z, con::DynamicsConstraints, model, idx, h, T)
+function constraints_jacobian!(∇c, Z, con::SimulatorConstraints, model, idx, h, T)
     n = model.n
     m = model.m
     nq = model.nq
@@ -57,7 +60,7 @@ function constraints_jacobian!(∇c, Z, con::DynamicsConstraints, model, idx, h,
         q2 = view(x, nq .+ (1:nq))
         q2_next = view(x⁺, 1:nq)
         q3 = view(x⁺, nq .+ (1:nq))
-        _, _, _, Δq1, Δq2, Δu1, _ = step(q1, q2, u, h, tol = 1.0e-5)
+        _, _, _, Δq1, Δq2, Δu1, _ = (con.slack ? step_slack(q1, q2, u, h, tol = 1.0e-5) : step(q1, q2, u, h, tol = 1.0e-5))
 
         #c[(t-1) * n .+ (1:nq)] = q3 - step(q1, q2, u, h)[1]
         r_idx = (t-1) * n .+ (1:nq)
@@ -99,7 +102,7 @@ function constraints_jacobian!(∇c, Z, con::DynamicsConstraints, model, idx, h,
     return nothing
 end
 
-function constraints_sparsity(con::DynamicsConstraints, model, idx, T;
+function constraints_sparsity(con::SimulatorConstraints, model, idx, T;
     shift_row = 0, shift_col = 0)
     n = model.n
     nq = model.nq

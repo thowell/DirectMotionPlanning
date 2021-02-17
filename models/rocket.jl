@@ -127,44 +127,111 @@ function state_output(model::RocketSlosh, x)
 	x[collect([1, 2, 3, 5, 6, 7])]
 end
 
-function visualize!(vis, model::Rocket, x;
-       Δt = 0.1, r_rocket = 0.1, r_pad = 0.25)
+function visualize_rocket!(vis, model::Rocket, x, x1, xT;
+       Δt = 0.1, version = :slosh_nom, T_off = length(x))
+
+	T = length(x)
 
 	default_background!(vis)
 
+	body = Cylinder(Point3f0(0.0, 0.0, -1.0 * model.l1),
+		Point3f0(0.0, 0.0, 3.0 * model.l1),
+		convert(Float32, 0.225))
+
+	setobject!(vis["rocket"]["body"], body,
+		MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
+
 	obj_rocket = joinpath(pwd(), "models/rocket/space_x_booster.obj")
 	mtl_rocket = joinpath(pwd(), "models/rocket/space_x_booster.mtl")
+	ctm = ModifiedMeshFileObject(obj_rocket,mtl_rocket,scale=1.0)
+	setobject!(vis["rocket"]["falcon9"], ctm)
 
-	rkt_offset = [4.0, -6.35, 0.2]
-	ctm = ModifiedMeshFileObject(obj_rocket, mtl_rocket, scale = 1.0)
-	setobject!(vis["rocket"], ctm)
-	settransform!(vis["rocket"], compose(Translation((x[T][1:3] + rkt_offset)...),
-		LinearMap(RotZ(-pi) * RotX(pi / 2.0))))
+	settransform!(vis["rocket"]["falcon9"],
+		compose(Translation(([-xT[1] + 4.0; -4.0; xT[2] - 1.0])...),
+		LinearMap(RotY(1.0 * xT[3]) * RotZ(pi) * RotX(pi / 2.0))))
+
+	settransform!(vis["rocket"],
+		compose(Translation(-1.0 * x1[1], 0.0, x1[2]),
+		LinearMap(RotY(x1[3]))))
+
+
+	setvisible!(vis["rocket"]["falcon9"], true)
+	obj_platform = joinpath(pwd(), "models/rocket/space_x_platform.obj")
+	mtl_platform = joinpath(pwd(), "models/rocket/space_x_platform.mtl")
+
+	obj_platform = joinpath(pwd(), "models/rocket/space_x_platform.obj")
+	mtl_platform = joinpath(pwd(), "models/rocket/space_x_platform.mtl")
+	ctm_platform = ModifiedMeshFileObject(obj_platform,mtl_platform,scale=1.0)
+	setobject!(vis["platform"],ctm_platform)
+	settransform!(vis["platform"], compose(Translation(0.0,2.5,-0.85),LinearMap(RotZ(pi)*RotX(pi/2))))
+
+	anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
+
+    for t = 1:T
+        MeshCat.atframe(anim,t) do
+			if t >= T_off
+				setvisible!(vis["rocket"]["body"], false)
+			else
+				setvisible!(vis["rocket"]["body"], true)
+			end
+			settransform!(vis["rocket"],
+				compose(Translation(-1.0 * x[t][1], 0.0, x[t][2]),
+				LinearMap(RotY(x[t][3]))))
+        end
+    end
+
+	settransform!(vis["/Cameras/default"], compose(Translation(0.0, 20.0, -1.0),
+		LinearMap(RotZ(pi / 2.0))))
+	setvisible!(vis["/Grid"], false)
+
+    MeshCat.setanimation!(vis, anim)
+end
+
+function visualize_rocket_ghost!(vis, model::Rocket, x)
+
+	default_background!(vis)
+
+	body = Cylinder(Point3f0(0.0, 0.0, -1.0 * model.l1),
+		Point3f0(0.0, 0.0, 3.0 * model.l1),
+		convert(Float32, 0.225))
+	rkt_offset = [3.9,-6.35,0.2]
+	y_shift = 2.35
+	obj_rocket = joinpath(pwd(), "models/rocket/space_x_booster.obj")
+	mtl_rocket = joinpath(pwd(), "models/rocket/space_x_booster.mtl")
+	ctm = ModifiedMeshFileObject(obj_rocket,mtl_rocket,scale=1.0)
+
+	for (t, _x) in enumerate(x)
+		println("t= $t")
+		setobject!(vis["rocket_$t"]["body"], body,
+			MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
+		setvisible!(vis["rocket_$t"]["body"], t == length(x) ? false : true)
+
+
+		setobject!(vis["rocket_$t"]["falcon9"], ctm)
+		settransform!(vis["rocket_$t"]["falcon9"],
+			compose(Translation(([-x[end][1]- 0.1225; y_shift; x[end][2]-1.15] + rkt_offset)...),
+			LinearMap(RotY(1.0 * x[end][3]) * RotZ(pi) * RotX(pi / 2.0))))
+		setvisible!(vis["rocket_$t"]["falcon9"], true)
+
+		settransform!(vis["rocket_$t"],
+			compose(Translation(-1.0 * _x[1], 0.0, _x[2]),
+			LinearMap(RotY(_x[3]))))
+	end
 
 	obj_platform = joinpath(pwd(), "models/rocket/space_x_platform.obj")
 	mtl_platform = joinpath(pwd(), "models/rocket/space_x_platform.mtl")
 
-	ctm_platform = ModifiedMeshFileObject(obj_platform, mtl_platform, scale = 1.0)
-	setobject!(vis["platform"], ctm_platform)
-	settransform!(vis["platform"], compose(Translation(0.0, 0.0, 0.0),
-		LinearMap(RotZ(pi) * RotX(pi / 2.0))))
+	obj_platform = joinpath(pwd(), "models/rocket/space_x_platform.obj")
+	mtl_platform = joinpath(pwd(), "models/rocket/space_x_platform.mtl")
+	ctm_platform = ModifiedMeshFileObject(obj_platform,mtl_platform,scale=1.0)
 
-   	anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
+	setobject!(vis["platform"],ctm_platform)
+	settransform!(vis["platform"], compose(Translation(0.0,2.5,-0.85),LinearMap(RotZ(pi)*RotX(pi/2))))
 
-    for t = 1:length(x)
-        MeshCat.atframe(anim,t) do
-			settransform!(vis["rocket"],
-				compose(Translation(x[t][1] + rkt_offset[1],
-					0.0 + rkt_offset[2],
-					x[t][2] + rkt_offset[3]),
-				LinearMap(RotY(-1.0 * x[t][3]) * RotZ(pi) * RotX(pi / 2.0))))
-        end
-    end
+	setvisible!(vis["/Grid"], false)
 
-    settransform!(vis["/Cameras/default"], compose(Translation(0.0, 25.0, -1.0),
-		LinearMap(RotZ(-pi / 2.0))))
-
-    MeshCat.setanimation!(vis, anim)
+	settransform!(vis["/Cameras/default"], compose(Translation(0.0, 20.0, -1.0),
+		LinearMap(RotZ(pi / 2.0))))
 end
 
 function visualize_simple!(vis, model::Rocket, x;

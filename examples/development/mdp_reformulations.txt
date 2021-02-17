@@ -1,0 +1,8 @@
+Reformulate problems as deterministic MDPs
+
+free final time
+free initial condition
+first-order hold
+infeasible start
+parameter optimization
+gait / limit cycle (?)

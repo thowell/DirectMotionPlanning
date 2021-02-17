@@ -27,10 +27,10 @@ prob_mean = trajectory_optimization(
 				EmptyObjective(),
 				T,
 				dynamics = false,
-				ul = control_bounds(model, T,
+				ul = control_bounds(model_sl, T,
 					[Inf * ones(2); 0.0],
 					[Inf * ones(2); 0.0])[1],
-				uu = control_bounds(model, T,
+				uu = control_bounds(model_sl, T,
 					[Inf * ones(2); 0.0],
 					[Inf * ones(2); 0.0])[2])
 

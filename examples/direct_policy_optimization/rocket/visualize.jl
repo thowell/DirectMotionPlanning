@@ -141,184 +141,34 @@ PGF.save(dir, a, include_preamble=false)
 # plot!(t_nom_sample, hcat(X_nom_sample...)[1:6,:]',color=:orange,label=["y" "z" "ϕ"])
 
 
-# Ghost plot
+# Animation plot
 vis = Visualizer()
-render(vis)
-default_background!(vis)
-
-
-# interpolate traj
-T_sim = 10 * T
-times = [(t - 1) * ū[1][end] for t = 1:T-1]
-tf = ū[1][end] * (T-1)
-t_sim = range(0, stop = tf, length = T_sim)
-t_ctrl = range(0, stop = tf, length = T)
-dt_sim = tf / (T_sim - 1)
-A_state = hcat([[-1.0 * x̄[t][1]; -0.05; x̄[t][2]] for t = 1:T]...)
-
-z_interp = []
-for t = 1:T_sim
-	z_cubic = zeros(3)
-	for i = 1:3
-		interp_cubic = CubicSplineInterpolation(t_ctrl, A_state[i,:])
-		z_cubic[i] = interp_cubic(t_sim[t])
-	end
-	println(t_sim[t])
-	push!(z_interp, z_cubic)
-end
-pts_nom = collect(eachcol(hcat(z_interp...)))
-material_nom = LineBasicMaterial(color = colorant"cyan", linewidth = 7.5)
-setobject!(vis["com_traj_nom"], Object(PointCloud(pts_nom), material_nom, "Line"))
-
-T_sim = 5 * T
-times = [(t - 1) * u[1][end] for t = 1:T-1]
-tf = u[1][end] * (T-1)
-t_sim = range(0, stop = tf, length = T_sim)
-t_ctrl = range(0, stop = tf, length = T)
-dt_sim = tf / (T_sim - 1)
-A_state = hcat([[-1.0 * x[t][1]; 0.0; x[t][2]] for t = 1:T]...)
-z_interp = []
-for t = 1:T_sim
-	z_cubic = zeros(3)
-	for i = 1:3
-		interp_cubic = CubicSplineInterpolation(t_ctrl, A_state[i,:])
-		z_cubic[i] = interp_cubic(t_sim[t])
-	end
-	push!(z_interp, z_cubic)
-end
-pts_nom = collect(eachcol(hcat(z_interp...)))
-material_dpo = LineBasicMaterial(color = colorant"orange", linewidth = 7.5)
-setobject!(vis["com_traj_dpo"], Object(PointCloud(pts_dpo), material_dpo, "Line"))
-
-# settransform!(vis["/Cameras/default"], compose(Translation(0.0, 15.0, -1.0),
-# 	LinearMap(RotZ(pi / 2.0))))
-
-# body = Cylinder(Point3f0(0.0, 0.0, -1.0 * model_sl.l1),
-# 	Point3f0(0.0, 0.0, 3.0 * model_sl.l1),
-# 	convert(Float32, 0.25))
-# pad = Cylinder(Point3f0(0.0, 0.0, -0.1),
-# 	Point3f0(0.0, 0.0, 0.1),
-# 	convert(Float32, 0.5))
-# setobject!(vis["pad"], pad,
-# 	MeshPhongMaterial(color = RGBA(220.0 / 255.0, 220.0 / 255.0, 220.0 / 255.0, 1.0)))
-# setvisible!(vis["pad"], false)
-
-u_norm = [u[t][1:2] ./ 20.0 for t = 1:T-1]
-
-t = 1
-# setobject!(vis["rocket1"], body,
-# 	MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
-# settransform!(vis["rocket1"],
-# 	compose(Translation(-1.0 * x[t][1], 0.0, x[t][2]),
-# 	LinearMap(RotY(x[t][3]))))
-setobject!(vis["thrust1"],
-	Cylinder(Point3f0(0.0, 0.0, 0.0),
-	Point3f0(0.0, 0.0, norm(u_norm[t])),
-	convert(Float32, 0.15)),
-	MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
-p = k_thruster(model_sl, x[t])
-settransform!(vis["thrust1"], cable_transform([-1.0 * p[1]; 0.0; p[2]],
- 	[-1.0 * p[1] + u_norm[t][1]; 0.0; p[2] - u_norm[t][2]]))
-t = 7
-# setobject!(vis["rocket2"], body,
-# 	MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
-# settransform!(vis["rocket2"],
-# 	compose(Translation(-1.0 * x[t][1], 0.0, x[t][2]),
-# 	LinearMap(RotY(x[t][3]))))
-setobject!(vis["thrust2"],
-	Cylinder(Point3f0(0.0, 0.0, 0.0),
-	Point3f0(0.0, 0.0, norm(u_norm[t])),
-	convert(Float32, 0.15)),
-	MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
-p = k_thruster(model_sl, x[t])
-settransform!(vis["thrust2"], cable_transform([-1.0 * p[1]; 0.0; p[2]],
- 	[-1.0 * p[1] + u_norm[t][1]; 0.0; p[2] - u_norm[t][2]]))
-t = 15
-# setobject!(vis["rocket3"], body,
-# 	MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
-# settransform!(vis["rocket3"],
-# 	compose(Translation(-1.0 * x[t][1], 0.0, x[t][2]),
-# 	LinearMap(RotY(x[t][3]))))
-setobject!(vis["thrust3"],
-	Cylinder(Point3f0(0.0, 0.0, 0.0),
-	Point3f0(0.0, 0.0, norm(u_norm[t])),
-	convert(Float32, 0.15)),
-	MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
-p = k_thruster(model_sl, x[t])
-settransform!(vis["thrust3"], cable_transform([-1.0 * p[1]; 0.0; p[2]],
- 	[-1.0 * p[1] + u_norm[t][1]; 0.0; p[2] - u_norm[t][2]]))
-t = 25
-# setobject!(vis["rocket4"], body,
-# 	MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
-# settransform!(vis["rocket4"],
-# 	compose(Translation(-1.0 * x[t][1], 0.0, x[t][2]),
-# 	LinearMap(RotY(x[t][3]))))
-setobject!(vis["thrust4"],
-	Cylinder(Point3f0(0.0, 0.0, 0.0),
-	Point3f0(0.0, 0.0, norm(u_norm[t])),
-	convert(Float32, 0.15)),
-	MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
-p = k_thruster(model_sl, x[t])
-settransform!(vis["thrust4"], cable_transform([-1.0 * p[1]; 0.0; p[2]],
- 	[-1.0 * p[1] + u_norm[t][1]; 0.0; p[2] - u_norm[t][2]]))
-t = T
-# setobject!(vis["rocket5"], body,
-# 	MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
-# settransform!(vis["rocket5"],
-# 	compose(Translation(-1.0 * x[t][1], 0.0, x[t][2]),
-# 	LinearMap(RotY(x[t][3]))))
-##
-# vis = Visualizer()
 # render(vis)
-# default_background!(vis)
-
-settransform!(vis["/Cameras/default"], compose(Translation(0.0, 20.0, -1.0),
-	LinearMap(RotZ(pi / 2.0))))
-
-y_shift = 2.35
-obj_rocket = joinpath(pwd(), "models/rocket/space_x_booster.obj")
-mtl_rocket = joinpath(pwd(), "models/rocket/space_x_booster.mtl")
-q = deepcopy(x)
-rkt_offset = [3.9,-6.35,0.2]
-ctm = ModifiedMeshFileObject(obj_rocket,mtl_rocket,scale=1.0)
-t = 1
-setobject!(vis["_rocket1"],ctm)
-settransform!(vis["_rocket1"],
-	compose(Translation(([-q[t][1]-0.5;y_shift;q[t][2] + 2.05] + rkt_offset)...),
-	LinearMap(RotY(1.0*q[t][3])*RotZ(pi)*RotX(pi/2.0))))
-setvisible!(vis["_rocket1"],true)
-
-t = 7
-setobject!(vis["_rocket2"],ctm)
-settransform!(vis["_rocket2"],
-	compose(Translation(([-q[t][1]+ 0.2;y_shift;q[t][2]-0.6] + rkt_offset)...),
-		LinearMap(RotY(1.0*q[t][3])*RotZ(pi)*RotX(pi/2.0))))
-setvisible!(vis["_rocket2"],true)
-t = 15
-setobject!(vis["_rocket3"],ctm)
-settransform!(vis["_rocket3"],
-	compose(Translation(([-q[t][1]+0.2;y_shift;q[t][2]-0.35] + rkt_offset)...),
-	LinearMap(RotY(1.0*q[t][3])*RotZ(pi)*RotX(pi/2.0))))
-setvisible!(vis["_rocket3"],true)
-
-t = 29
-setobject!(vis["_rocket4"],ctm)
-settransform!(vis["_rocket4"],
-	compose(Translation(([-q[t][1]-1.0;y_shift;q[t][2]+0.4] + rkt_offset)...),
-	LinearMap(RotY(1.0*q[t][3]+ 0.1)*RotZ(pi)*RotX(pi/2.0))))
-setvisible!(vis["_rocket4"],true)
-
-t = T
-setobject!(vis["_rocket5"],ctm)
-settransform!(vis["_rocket5"],
-	compose(Translation(([-q[t][1]+0.1;y_shift;q[t][2]-0.7] + rkt_offset)...),
-	LinearMap(RotY(1.0*q[t][3])*RotZ(pi)*RotX(pi/2.0))))
-setvisible!(vis["_rocket5"],true)
-
-obj_platform = joinpath(pwd(), "models/rocket/space_x_platform.obj")
-mtl_platform = joinpath(pwd(), "models/rocket/space_x_platform.mtl")
-ctm_platform = ModifiedMeshFileObject(obj_platform,mtl_platform,scale=1.0)
-setobject!(vis["platform"],ctm_platform)
-settransform!(vis["platform"], compose(Translation(0.0,2.5,-0.85),LinearMap(RotZ(pi)*RotX(pi/2))))
-
 open(vis)
+
+pts_nom = collect(eachcol(hcat([[-p[1]; -1.0; p[2]] for p in x]...)))
+material_nom = LineBasicMaterial(color = colorant"orange", linewidth = 10.0)
+setobject!(vis["dpo_traj"], Object(PointCloud(pts_nom), material_nom, "Line"))
+setvisible!(vis["dpo_traj"],true)
+
+pts_nom = collect(eachcol(hcat([[-p[1]; 0.01; p[2]] for p in z_dpo]...)))
+material_nom = LineBasicMaterial(color = colorant"grey", linewidth = 2.5)
+setobject!(vis["dpo_sim"], Object(PointCloud(pts_nom), material_nom, "Line"))
+setvisible!(vis["dpo_sim"],true)
+# visualize_rocket!(vis, model_slosh, pad_trajectory(z_dpo, zeros(model_slosh.n), 100) , x1, xT,
+# 	Δt = dt_sim_dpo, T_off = length(z_dpo) + 100)
+
+pts_nom = collect(eachcol(hcat([[-p[1]; -1.1; p[2]] for p in x̄]...)))
+material_nom = LineBasicMaterial(color = colorant"cyan", linewidth = 10.0)
+setobject!(vis["to_traj"], Object(PointCloud(pts_nom), material_nom, "Line"))
+setvisible!(vis["to_traj"],true)
+
+pts_nom = collect(eachcol(hcat([[-p[1]; 0.01; p[2]] for p in z_lqr]...)))
+material_nom = LineBasicMaterial(color = colorant"grey", linewidth = 2.5)
+setobject!(vis["to_sim"], Object(PointCloud(pts_nom), material_nom, "Line"))
+setvisible!(vis["to_sim"],true)
+# visualize_rocket!(vis, model_slosh, pad_trajectory(z_lqr, zeros(model_slosh.n), 100) , x1, xT,
+# 	Δt = dt_sim_nom, T_off = length(z_lqr) + 100)
+
+x_ghost = [x[1], x[7], x[15], x[25], x[T]]
+visualize_rocket_ghost!(vis, model_slosh, x_ghost)

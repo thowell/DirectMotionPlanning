@@ -246,63 +246,85 @@ PGF.save(joinpath(dir,"quad_prop_u2.tikz"), a2, include_preamble=false)
 PGF.save(joinpath(dir,"quad_prop_u3.tikz"), a3, include_preamble=false)
 PGF.save(joinpath(dir,"quad_prop_u4.tikz"), a4, include_preamble=false)
 
+function pad_trajectory(x, shift, T_shift)
+	[[x[1] + shift for i = 1:T_shift]..., [_x + shift for _x in x]..., [x[end] + shift for i = 1:T_shift]...]
+end
 
 # # visualize
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
-render(vis)
-visualize!(vis,model,x̄,Δt=ū[1][end])
-visualize!(vis,model,x,Δt=u[1][end])
+# render(vis)
+open(vis)
+shift = zero(x[1])
+shift[1] = -1.5
+shift[2] = -1.5
+_shift = shift[1:3]
+settransform!(vis["/Cameras/default"],
+	compose(Translation(0.0, 0.0, 3.0),LinearMap(RotY(0.0*-pi/2.5))))
+# visualize!(vis,model,[x̄[t] + shift for t = 1:T],Δt=ū[1][end])
+# visualize!(vis,model,[x[t] + shift for t = 1:T],Δt=u[1][end])
 
-pts_nom = collect(eachcol(hcat([z[1:3] for z in x̄]...)))
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift for z in x̄]...)))
 material_nom = LineBasicMaterial(color = colorant"cyan", linewidth = 10.0)
 setobject!(vis["com_traj_nom"], Object(PointCloud(pts_nom), material_nom, "Line"))
 setvisible!(vis["com_traj_nom"],false)
 
-pts_nom = collect(eachcol(hcat([z[1:3] for z in z_lqr1]...)))
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift for z in z_lqr1]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_lqr1"], Object(PointCloud(pts_nom), material_nom, "Line"))
 setvisible!(vis["com_traj_lqr1"],false)
+visualize!(vis,model,pad_trajectory(z_lqr1, shift, 100),Δt=dt_sim_nom)
 
-pts_nom = collect(eachcol(hcat([z[1:3] for z in z_lqr2]...)))
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift for z in z_lqr2]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_lqr2"], Object(PointCloud(pts_nom), material_nom, "Line"))
 setvisible!(vis["com_traj_lqr2"],false)
+visualize!(vis,model,pad_trajectory(z_lqr2, shift, 100),Δt=dt_sim_nom)
 
-pts_nom = collect(eachcol(hcat([z[1:3] for z in z_lqr3]...)))
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift for z in z_lqr3]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_lqr3"], Object(PointCloud(pts_nom), material_nom, "Line"))
 setvisible!(vis["com_traj_lqr3"],false)
+visualize!(vis,model,pad_trajectory(z_lqr3, shift, 100),Δt=dt_sim_nom)
 
-pts_nom = collect(eachcol(hcat([z[1:3] for z in z_lqr4]...)))
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift for z in z_lqr4]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_lqr4"], Object(PointCloud(pts_nom), material_nom, "Line"))
 setvisible!(vis["com_traj_lqr4"],false)
+visualize!(vis,model,pad_trajectory(z_lqr4, shift, 100),Δt=dt_sim_nom)
 
-pts_nom = collect(eachcol(hcat([z[1:3] for z in x]...)))
+
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift for z in x]...)))
 material_nom = LineBasicMaterial(color = colorant"orange", linewidth = 10.0)
 setobject!(vis["com_traj_dpo"], Object(PointCloud(pts_nom), material_nom, "Line"))
 setvisible!(vis["com_traj_dpo"],true)
 
-pts_nom = collect(eachcol(hcat([z[1:3] .+ 1.0e-3 for z in z_dpo1]...)))
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift .+ 1.0e-3 for z in z_dpo1]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_dpo1"], Object(PointCloud(pts_nom), material_nom, "Line"))
-setvisible!(vis["com_traj_dpo1"],true)
+setvisible!(vis["com_traj_dpo1"],false)
+visualize!(vis,model,pad_trajectory(z_dpo1, shift, 100),Δt=dt_sim_dpo)
 
-pts_nom = collect(eachcol(hcat([z[1:3] .+ 1.0e-3 for z in z_dpo2]...)))
+
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift .+ 1.0e-3 for z in z_dpo2]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_dpo2"], Object(PointCloud(pts_nom), material_nom, "Line"))
-setvisible!(vis["com_traj_dpo2"],true)
+setvisible!(vis["com_traj_dpo2"],false)
+visualize!(vis,model,pad_trajectory(z_dpo2, shift, 100),Δt=dt_sim_dpo)
 
-pts_nom = collect(eachcol(hcat([z[1:3] .+ 1.0e-3 for z in z_dpo3]...)))
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift .+ 1.0e-3 for z in z_dpo3]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_dpo3"], Object(PointCloud(pts_nom), material_nom, "Line"))
-setvisible!(vis["com_traj_dpo3"],true)
+setvisible!(vis["com_traj_dpo3"],false)
+visualize!(vis,model,pad_trajectory(z_dpo3, shift, 100),Δt=dt_sim_dpo)
 
-pts_nom = collect(eachcol(hcat([z[1:3] .+ 1.0e-3 for z in z_dpo4]...)))
+
+pts_nom = collect(eachcol(hcat([z[1:3] + _shift .+ 1.0e-3 for z in z_dpo4]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_dpo4"], Object(PointCloud(pts_nom), material_nom, "Line"))
 setvisible!(vis["com_traj_dpo4"],true)
+visualize!(vis,model,pad_trajectory(z_dpo4, shift, 100),Δt=dt_sim_dpo)
+
 
 # for (k,z) in enumerate([z_tvlqr1,z_tvlqr2,z_tvlqr3,z_tvlqr4])
 # 	i = k

@@ -15,28 +15,62 @@ model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 1, 1)
 n = model.n
 m = model.m
 
+struct FOHModel{I, T} <: Model{I, T}
+	n::Vector{Int}
+	m::Vector{Int}
+	d::Vector{Int}
+
+	model::Model
+end
+
+function foh_model(model::Model, T)
+	n = [t == 1 ? model.n : model.n + model.m for t = 1:T]
+	m = [t == 1 ? 2 * model.m : model.m for t = 1:T-1]
+	d = [model.d for t = 1:T-1]
+
+	FOHModel{typeof(model).parameters...}(n, m, d, model)
+end
+
+function fd(models::FOHModel, x, u, w, h, t)
+	if t == 1
+		return [fd(models.model,
+					view(x, 1:model.n),
+					view(u, 1:model.m),
+					w, h, t);
+				 view(u, 1:model.m) + h * view(u, model.m .+ (1:model.m))]
+	else
+		return [fd(models.model,
+					view(x, 1:model.n),
+					view(x, model.n .+ (1:model.m)),
+					w, h, t);
+				 view(x, model.n .+ (1:model.m)) + h * view(u, 1:model.m)]
+	end
+end
+
 # Time
 T = 11
 h = 0.1
 
+# FOH model
+model_foh = foh_model(model, T)
+
 # Initial conditions, controls, disturbances
 x1 = [1.0; 0.0]
-x_ref = [[0.0; 0.0] for t = 1:T]
-xT = [0.0; 0.0]
-ū = [1.0 * rand(model.m) for t = 1:T-1]
-u_ref = [zeros(model.m) for t = 1:T-1]
+x_ref = [t == 1 ? zeros(model.n) : zeros(model.n + model.m) for t = 1:T]
+xT = zeros(model.n + model.m)
+ū = [t == 1 ? 1.0 * rand(2 * model.m) : 1.0 * rand(model.m) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
-x̄ = rollout(model, x1, ū, w, h, T)
+x̄ = rollout(model_foh, x1, ū, w, h, T)
 
 # Objective
-Q = [(t < T ?
-	 Diagonal([1.0; 1.0])
+Q = [(t > 1 ?
+	 Diagonal([1.0; 1.0; 1.0e-3])
 		: Diagonal([1.0; 1.0])) for t = 1:T]
 q = [-2.0 * Q[t] * x_ref[t] for t = 1:T]
-R = [Diagonal(1.0e-1 * ones(model.m)) for t = 1:T-1]
-r = [zeros(model.m) for t = 1:T-1]
+R = [t == 1 ? Diagonal(1.0e-3 * ones(2 * model.m)) : Diagonal(1.0e-3 * ones(model.m)) for t = 1:T-1]
+r = [t == 1 ? zeros(2 * model.m) : zeros(model.m) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
 	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
@@ -59,11 +93,11 @@ function g(obj::StageCosts, x, u, t)
 end
 
 # Constraints
-ul = [-Inf]
-uu = [Inf]
-p = [t < T ? 0 * m : n for t = 1:T]
+# ul = [-10.0]
+# uu = [10.0]
+p = [t < T ? 0 : model.n for t = 1:T]
 info_t = Dict()#:ul => ul, :uu => uu, :inequality => (1:2 * m))
-info_T = Dict(:xT => xT)
+info_T = Dict(:xT => xT[1:model.n])
 con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
 
 function c!(c, cons::StageConstraints, x, u, t)
@@ -74,30 +108,32 @@ function c!(c, cons::StageConstraints, x, u, t)
 		# ul = cons.con[t].info[:ul]
 		# uu = cons.con[t].info[:uu]
 		# c .= [ul - u; u - uu]
-		nothing
 	else
-		c .= x - cons.con[T].info[:xT]
+		c .= view(x, 1:model.n) - cons.con[T].info[:xT]
 	end
 end
 
-prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T)
+prob = problem_data(model_foh, obj, con_set, copy(x̄), copy(ū), w, h, T,
+	n = model_foh.n, m = model_foh.m, d = model_foh.d)
 
 # Solve
 @time constrained_ddp_solve!(prob,
-	max_iter = 1000, max_al_iter = 10,
-	ρ_init = 1.0, ρ_scale = 10.0,
-	con_tol = 1.0e-5)
+    max_iter = 100, verbose = true)
 
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
+hcat([x[1:model.n] for t = 1:T]...)
 
 # Visualize
 using Plots
-plot(hcat([[0.0; 0.0] for t = 1:T]...)',
+plot(hcat([xT[1:model.n] for t = 1:T]...)',
     width = 2.0, color = :black, label = "")
-plot!(hcat(x...)', color = :magenta, label = "")
-plot(hcat(u..., u[end])', linetype = :steppost)
+plot!(hcat([x[t][1:model.n] for t = 1:T]...)', color = :magenta, label = "")
 
+u_foh = [u[1][1:model.m], [x[t][model.n .+ (1:model.m)] for t = 2:T]...]
+plot(hcat(u_foh...)', linetype = :steppost)
+
+plot(hcat(u..., u[end])', linetype = :steppost)
 # Simulate policy
 include(joinpath(@__DIR__, "simulate.jl"))
 
@@ -113,12 +149,12 @@ t_sim = range(0, stop = tf, length = T_sim)
 dt_sim = tf / (T_sim - 1)
 
 # Policy
-K = [K for K in prob.p_data.K]
-plot(vcat(K...))
-K = [prob.p_data.K[t] for t = 1:T-1]
+# K = [K for K in prob.p_data.K]
+# plot(vcat(K...))
+# # K = [prob.p_data.K[t] for t = 1:T-1]
 # K, _ = tvlqr(model, x̄, ū, h, Q, R)
 # # K = [-k for k in K]
-# K = [-K[1] for t = 1:T-1]
+# K = [-K[t] for t = 1:T-1]
 # plot(vcat(K...))
 
 # Simulate
@@ -128,7 +164,7 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = min(0.5, max(-0.5, 5.0e-1 * randn(1)[1]))
+	wi_sim = min(0.1, max(-0.1, 1.0e-1 * randn(1)[1]))
 	w_sim = [wi_sim for t = 1:T-1]
 	println("sim: $k - w = $(wi_sim[1])")
 
@@ -165,7 +201,6 @@ display(plt)
 plt = plot(t, hcat(ū..., ū[end])',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "control",
-	linetype = :steppost,
 	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 
 for us in u_sim

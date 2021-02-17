@@ -82,7 +82,7 @@ second-order friction cone
 ## installation
 From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 ```julia
-pkg> add https://github.com/thowell/motion_planning.jl
+pkg> add https://github.com/thowell/motion_planning
 ```
 
 ## TODO
@@ -93,14 +93,14 @@ pkg> add https://github.com/thowell/motion_planning.jl
 - [ ] check for SNOPT installation
 - [ ] parallelize objective + constraint evaluations
 - [ ] tests
-- [ ] visualization dependencies
+- [X] visualization dependencies
 	- [X] select default background
 	- [X] set default views
 - [X] nonlinear objective (stage wise)
 - [X] constraints (stage wise)
 - [X] discrete dynamics parameterization
-- [ ] embed animations in README
-- [ ] dispatch over model type for free final time
+- [X] embed animations in README
+- [X] dispatch over model type for free final time
 - [ ] analytical velocity objective gradient
 - [ ] large-scale augmented Lagrangian solver
 - [ ] contact simulator

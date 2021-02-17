@@ -20,18 +20,18 @@ h = 0.025
 # Initial conditions, controls, disturbances
 x1 = [0.0, 0.0]
 xT = [π, 0.0] # goal state
-ū = [1.0e-1 * rand(model.m) for t = 1:T-1]
+ū = [1.0 * rand(model.m) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
 x̄ = rollout(model, x1, ū, w, h, T)
 
 # Objective
-Q = [(t < T ? Diagonal(1.0 * ones(model.n))
-        : Diagonal(1000.0 * ones(model.n))) for t = 1:T]
+Q = [(t < T ? Diagonal(1.0e-1 * ones(model.n))
+        : Diagonal(1.0 * ones(model.n))) for t = 1:T]
 q = [-2.0 * Q[t] * xT for t = 1:T]
 
-R = [Diagonal(1.0e-1 * ones(model.m)) for t = 1:T-1]
+R = [Diagonal(1.0e-2 * ones(model.m)) for t = 1:T-1]
 r = [zeros(model.m) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
