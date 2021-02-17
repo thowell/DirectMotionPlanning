@@ -170,6 +170,9 @@ end
 mutable struct SolverData{T}
     obj::T              # objective value
     gradient::Vector{T} # Lagrangian gradient
+	c_max::T            # maximum constraint violation
+
+	α::T                # step length
     status::Bool        # solver status
 end
 
@@ -180,9 +183,26 @@ function solver_data(model::Model, T;
     num_var = sum(n) + sum(m)
 
     obj = Inf
+	c_max = 0.0
     gradient = zeros(num_var)
 
-    SolverData(obj, gradient, false)
+    SolverData(obj, gradient, c_max, 1.0, false)
+end
+
+function objective!(s_data::SolverData, m_data::ModelData; mode = :nominal)
+	if mode == :nominal
+		s_data.obj = objective(m_data.obj, m_data.x̄, m_data.ū)
+	elseif mode == :current
+		s_data.obj = objective(m_data.obj, m_data.x, m_data.u)
+	end
+
+	if m_data.obj isa AugmentedLagrangianCosts
+		s_data.c_max = constraint_violation(m_data.obj.cons,
+			m_data.x, m_data.u,
+			norm_type = Inf)
+	end
+
+	return s_data.obj
 end
 
 """

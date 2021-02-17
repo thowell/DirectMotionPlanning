@@ -6,6 +6,7 @@ Random.seed!(1)
 soft_rect(z) = log(1.0 + exp(z))
 zz = range(-5.0, stop = 5.0, length = 100)
 plot(zz, soft_rect.(zz))
+plot(zz, 5.0 * tanh.(zz))
 
 # ddp
 include_ddp()
@@ -41,7 +42,7 @@ function multiple_model(model, T, N; p = 0)
 end
 
 # Policy
-dp = 3
+dp = 5
 p_policy = (dp * model.n * model.n + dp * model.n) + (dp * model.n * dp * model.n + dp * model.n) + model.m * dp * model.n + model.m
 
 function policy(θ, x, t, n, m)
@@ -124,7 +125,7 @@ end
 
 ū = [1.0 * randn(models.m[t]) for t = 1:T-1]
 # wi = [0.0, 0.05, 0.1, 0.15, 0.2]#, 0.5, 1.0]
-wi = [0.0, 0.1, -0.1]#, -0.0]#, 0.01, -0.01]#, -0.1, 0.1]#, 0.05]#, 0.05, -0.05]# 0.1, -0.1]#, -0.1, 0.1]#, 0.1, -0.1, 0.05, -0.05]
+wi = [0.0, 0.0, 0.0]#, -0.0]#, 0.01, -0.01]#, -0.1, 0.1]#, 0.05]#, 0.05, -0.05]# 0.1, -0.1]#, -0.1, 0.1]#, 0.1, -0.1, 0.05, -0.05]
 
 @assert length(wi) == N
 w = [vcat(wi...) for t = 1:T-1]

@@ -1,3 +1,4 @@
+using Random, Plots
 include_ddp()
 
 # Model
@@ -76,7 +77,6 @@ x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
 
 # Visualize
-using Plots
 plot(π * ones(T),
     width = 2.0, color = :black, linestyle = :dash)
 plot!(hcat(x̄...)', width = 2.0, label = "")
@@ -89,11 +89,12 @@ render(vis)
 visualize!(vis, model, x, Δt = h)
 
 # Simulate policy
+include(joinpath(@__DIR__, "simulate.jl"))
 
 # Model
 model_sim = model
 x1_sim = copy(x1)
-T_sim = 1 * T
+T_sim = 10 * T
 
 # Time
 tf = h * (T - 1)
@@ -104,10 +105,10 @@ dt_sim = tf / (T_sim - 1)
 # Policy
 K = [K for K in prob.p_data.K]
 # plot(vcat(K...))
-K = [prob.p_data.K[t] for t = 1:T-1]
-# K, _ = tvlqr(model, x̄, ū, h, Q, R)
-# # K = [-k for k in K]
-# K = [-K[1] for t = 1:T-1]
+# K = [prob.p_data.K[t] for t = 1:T-1]
+K, _ = tvlqr(model, x̄, ū, h, Q, R)
+# # # K = [-k for k in K]
+K = [-K[t] for t = 1:T-1]
 # plot(vcat(K...))
 
 # Simulate
@@ -117,7 +118,7 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = rand(range(-5.0, stop = 5.0, length = 1000))
+	wi_sim = rand(range(-1.0, stop = 1.0, length = 1000))
 
 	println("sim: $k")#- w = $(wi_sim[1])")
 
@@ -141,7 +142,7 @@ idx = (1:2)
 plt = plot(t, hcat(x̄...)[idx, :]',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "state",
-	title = "cartpole (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
+	title = "LQR cartpole (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 
 for xs in x_sim
 	plt = plot!(t_sim, hcat(xs...)[idx, :]',

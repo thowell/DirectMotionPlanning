@@ -13,7 +13,8 @@ function ddp_solve!(prob::ProblemData;
 	s_data = prob.s_data
 
     # compute objective
-    s_data.obj = objective(m_data, mode = :nominal)
+    # s_data.obj = objective(m_data, mode = :nominal)
+	objective!(s_data, m_data, mode = :nominal)
 	# println("obj")
     for i = 1:max_iter
         # derivatives
@@ -32,7 +33,9 @@ function ddp_solve!(prob::ProblemData;
         grad_norm = norm(s_data.gradient, Inf)
         verbose && println("     iter: $i
              cost: $(s_data.obj)
-			 grad_norm: $(grad_norm)")
+			 grad_norm: $(grad_norm)
+			 c_max: $(s_data.c_max)
+			 α: $(s_data.α)")
 		grad_norm < grad_tol && break
         !s_data.status && break
     end
@@ -92,14 +95,14 @@ function constrained_ddp_solve!(prob::ProblemData;
 		    verbose = verbose)
 
 		# update trajectories
-		objective(prob.m_data, mode = :nominal)
+		objective!(prob.s_data, prob.m_data, mode = :nominal)
 
 		# constraint violation
-		c_max = constraint_violation(prob.m_data.obj.cons,
-			prob.m_data.x̄, prob.m_data.ū,
-			norm_type = con_norm_type)
-		verbose && println("    c_max: $c_max\n")
-		c_max <= con_tol && break
+		# c_max = constraint_violation(prob.m_data.obj.cons,
+		# 	prob.m_data.x̄, prob.m_data.ū,
+		# 	norm_type = con_norm_type)
+		# verbose && println("    c_max: $(prob.s_data.c_max)\n")
+		prob.s_data.c_max <= con_tol && break
 
 		# dual ascent
 		augmented_lagrangian_update!(prob.m_data.obj, s = ρ_scale)

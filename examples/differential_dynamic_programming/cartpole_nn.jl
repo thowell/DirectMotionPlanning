@@ -224,17 +224,18 @@ prob = problem_data(models, obj, con_set, copy(x̄), copy(ū), w, h, T,
 objective(prob.m_data)
 
 # Solve
-@time constrained_ddp_solve!(prob,
-    max_iter = 10000, max_al_iter = 10,
-	ρ_init = 1.0, ρ_scale = 10.0,
-	con_tol = 1.0e-5)
+# @time constrained_ddp_solve!(prob,
+#     max_iter = 10000, max_al_iter = 10,
+# 	ρ_init = 1.0, ρ_scale = 10.0,
+# 	con_tol = 1.0e-5)
 
-x, u = current_trajectory(prob)
-x̄, ū = nominal_trajectory(prob)
-x̄i = [x̄[t][1:model.n] for t = 1:T]
+# x, u = current_trajectory(prob)
+# x̄, ū = nominal_trajectory(prob)
+# x̄i = [x̄[t][1:model.n] for t = 1:T]
 # Ki = [prob.p_data.K[t][1:model.m, 1:model.n] for t = 1:T-1]
 
-@save joinpath(@__DIR__, "trajectories/cartpole_nn.jld2") x̄ ū
+# @save joinpath(@__DIR__, "trajectories/cartpole_nn.jld2") x̄ ū
+@load joinpath(@__DIR__, "trajectories/cartpole_nn.jld2") x̄ ū
 
 # plot(hcat(x̄i...)')
 # x̂i = [copy(x̄i[1])]
@@ -258,11 +259,11 @@ u_idxs = vcat(u_idx...)
 # state
 plot(hcat([xT[t][x_idxs] for t = 1:T]...)',
     width = 2.0, color = :black, label = "")
-plot!(hcat([x[t][x_idxs] for t = 1:T]...)', color = :magenta, label = "")
+plot!(hcat([x̄[t][x_idxs] for t = 1:T]...)', color = :magenta, label = "")
 #
 # verify solution
-uθ = u[1][models.N * model.m .+ (1:models.p)]
-xθ = [x[t][models.N * model.n .+ (1:models.p)] for t = 2:T]
+uθ = ū[1][models.N * model.m .+ (1:models.p)]
+xθ = [x̄[t][models.N * model.n .+ (1:models.p)] for t = 2:T]
 
 policy_err = []
 for t = 2:T
@@ -284,7 +285,7 @@ end
 include(joinpath(@__DIR__, "simulate.jl"))
 
 # Policy
-θ = u[1][models.N * model.m .+ (1:models.p)]
+θ = ū[1][models.N * model.m .+ (1:models.p)]
 
 # Model
 model_sim = Cartpole{RK3, FixedTime}(n, m, d, 1.0, 0.2, 0.5, 9.81)
@@ -299,7 +300,7 @@ t_sim = range(0, stop = tf, length = T_sim)
 dt_sim = tf / (T_sim - 1)
 rand(range(0, stop = 10, length = 10))
 # Simulate
-N_sim = 100
+N_sim = 10
 x_sim = []
 u_sim = []
 J_sim = []
@@ -331,7 +332,7 @@ idx = (1:4)
 plt = plot(t, hcat(x_ref...)[idx, :]',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "state",
-	title = "cartpole (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
+	title = "NN cartpole (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 x1_sim[3]
 for xs in x_sim
 	plt = plot!(t_sim, hcat(xs...)[idx, :]',
