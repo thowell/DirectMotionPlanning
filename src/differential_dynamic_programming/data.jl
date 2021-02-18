@@ -128,7 +128,7 @@ end
 """
     Policy Data
 """
-struct PolicyData{N, M, NN, MM, MN}
+struct PolicyData{N, M, NN, MM, MN, NNN, MNN}
     # policy
     K::Vector{MN}
     k::Vector{M}
@@ -143,6 +143,11 @@ struct PolicyData{N, M, NN, MM, MN}
     Qxx::Vector{NN}
     Quu::Vector{MM}
     Qux::Vector{MN}
+
+	xx̂_tmp::Vector{NNN}
+	ux̂_tmp::Vector{MNN}
+	uu_tmp::Vector{MM}
+	ux_tmp::Vector{MN}
 end
 
 function policy_data(model::Model, T;
@@ -161,7 +166,12 @@ function policy_data(model::Model, T;
     Quu = [zeros(m[t], m[t]) for t = 1:T-1]
     Qux = [zeros(m[t], n[t]) for t = 1:T-1]
 
-    PolicyData(K, k, P, p, Qx, Qu, Qxx, Quu, Qux)
+	xx̂_tmp = [zeros(n[t], n[t + 1]) for t = 1:T-1]
+	ux̂_tmp = [zeros(m[t], n[t + 1]) for t = 1:T-1]
+	uu_tmp = [zeros(m[t], m[t]) for t = 1:T-1]
+	ux_tmp = [zeros(m[t], n[t]) for t = 1:T-1]
+
+    PolicyData(K, k, P, p, Qx, Qu, Qxx, Quu, Qux, xx̂_tmp, ux̂_tmp, uu_tmp, ux_tmp)
 end
 
 """
