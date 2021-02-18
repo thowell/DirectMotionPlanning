@@ -72,7 +72,7 @@ function simulate_policy(
         ul = -Inf * ones(length(ū[1])),
         uu = Inf * ones(length(ū[1])))
 
-    T = length(x̄)
+    T = length(x_ref)
     times = [(t - 1) * Δt for t = 1:T-1]
     tf = Δt * (T-1)
     t_sim = range(0, stop = tf, length = T_sim)
@@ -91,8 +91,12 @@ function simulate_policy(
 
     for tt = 1:T_sim-1
         t = t_sim[tt]
-        k = searchsortedlast(times, t)
+        k = searchsortedlast(times, t + 1.0e-16)
         x = x_sim[end]
+
+        # println("t $t")
+        # println("k $k")
+        # println("")
 
         # x_cubic = Array(zero(x̄[1]))
         #
@@ -104,9 +108,8 @@ function simulate_policy(
         # # clip controls
         # u = max.(u, ul)
         # u = min.(u, uu)
-
-        push!(x_sim, fd(model, x, [zeros(model.m); θ], w[k], dt_sim, tt))
-        push!(u_sim, policy(θ, x, nothing, model.n, model.m))
+        push!(x_sim, fd(model, x, [zeros(model.m); θ[k]], w[k], dt_sim, tt))
+        push!(u_sim, policy(θ[k], x, nothing, model.n, model.m))
 
         J += (x_sim[end] - x_ref[k])' * Q[k + 1] * (x_sim[end] - x_ref[k])
         J += (u_sim[end] - u_ref[k])' * R[k] * (u_sim[end] - u_ref[k])

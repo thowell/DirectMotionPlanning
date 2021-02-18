@@ -80,6 +80,7 @@ function constrained_ddp_solve!(prob::ProblemData;
 	con_norm_type = Inf,
 	ρ_init = 1.0,
 	ρ_scale = 10.0,
+	ρ_max = 1.0e8,
 	cache = false,
     verbose = true)
 
@@ -111,6 +112,7 @@ function constrained_ddp_solve!(prob::ProblemData;
 		prob.s_data.c_max <= con_tol && break
 
 		# dual ascent
-		augmented_lagrangian_update!(prob.m_data.obj, s = ρ_scale)
+		augmented_lagrangian_update!(prob.m_data.obj,
+			s = ρ_scale, max_penalty = ρ_max)
 	end
 end

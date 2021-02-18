@@ -2,12 +2,6 @@ using Plots
 using Random
 Random.seed!(1)
 
-# soft rect
-soft_rect(z) = log(1.0 + exp(z))
-zz = range(-5.0, stop = 5.0, length = 100)
-plot(zz, soft_rect.(zz))
-plot(zz, 5.0 * tanh.(zz))
-
 # ddp
 include_ddp()
 
@@ -34,69 +28,27 @@ function multiple_model(model, T, N; p = 0)
 	m = model.m
 	d = model.d
 
-	n = [N * n + (t != 1 ? p + N * m : 0) for t = 1:T]
-	m = [N * m + (t == 1 ? p : 0) for t = 1:T-1]
+	n = [N * n + (t != 1 ? N * m : 0) for t = 1:T]
+	m = [N * m + (t == 1 ? p : p) for t = 1:T-1]
 	d = [N * d for t = 1:T-1]
 
 	MultipleModel{typeof(model).parameters...}(n, m, d, model, N, p)
 end
 
 # Policy
-dp = 1
-p_policy = dp * model.n * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + model.m * dp * model.n + model.m
 
-# p_policy = dp * model.n * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + model.m * dp * model.n + model.m
+p_policy = model.m * model.n + model.m
 # p_policy = dp * model.n * model.n + dp * model.n + model.m * dp * model.n + model.m
 # p_policy = model.m * model.n + model.m
 
 function policy(θ, x, t, n, m)
-	# 3 layer
-	p_policy = dp * model.n * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + model.m * dp * model.n + model.m
 
-	K1 = reshape(view(θ, 1:(dp * n) * n), dp * n, n)
-	k1 = view(θ, (dp * n) * n .+ (1:(dp * n)))
+	K = reshape(view(θ, 1:(m * n)), m, n)
+	k = view(θ, m * n .+ (1:m))
 
-	K2 = reshape(view(θ, dp * n * n + dp * n .+ (1:(dp * n * dp * n))), dp * n, dp * n)
-	k2 = view(θ, dp * n * n + dp * n + dp * n * dp * n .+ (1:(dp * n)))
+	u = K * x + k
 
-	K3 = reshape(view(θ, dp * n * n + dp * n + dp * n * dp * n + dp * n .+ (1:(dp * n * dp * n))), dp * n, dp * n)
-	k3 = view(θ, dp * n * n + dp * n + dp * n * dp * n + dp * n + dp * n * dp * n .+ (1:(dp * n)))
-
-	Ko = reshape(view(θ, dp * n * n + dp * n + dp * n * dp * n + dp * n + dp * n * dp * n + dp * n .+ (1:(m * dp * n))), m, dp * n)
-	ko = view(θ, dp * n * n + dp * n + dp * n * dp * n + dp * n + dp * n * dp * n + dp * n + m * dp * n .+ (1:m))
-
-	z1 = soft_rect.(K1 * x + k1)
-	z2 = soft_rect.(K2 * z1 + k2)
-	z3 = soft_rect.(K3 * z2 + k3)
-	# z1 = tanh.(K1 * x + k1)
-	# z2 = tanh.(K2 * z1 + k2)
-	# z3 = tanh.(K3 * z2 + k3)
-
-	zo = Ko * z3 + ko
-
-	## 1 layer
-	# p_policy = dp * model.n * model.n + dp * model.n + model.m * dp * model.n + model.m
-	#
-	# K1 = reshape(view(θ, 1:(dp * n) * n), dp * n, n)
-	# k1 = view(θ, (dp * n) * n .+ (1:(dp * n)))
-	#
-	# z1 = soft_rect.(K1 * x + k1)
-	# Ko = reshape(view(θ, dp * n * n + dp * n .+ (1:m * (dp * n))), m, dp * n)
-	# ko = view(θ, dp * n * n + dp * n + m * dp * n .+ (1:m))
-	#
-	# zo = Ko * z1 + ko
-
-	## affine
-	# p_policy = model.m * model.n + model.m
-	#
-	# Ko = reshape(view(θ, 1:m * n), m, n)
-	# ko = view(θ, m * n .+ (1:m))
-	#
-	# zo = Ko * x + ko
-
-
-
-	return zo
+	return u
 end
 
 function f(model::Pendulum, x, u, w)
@@ -123,11 +75,7 @@ function fd(models::MultipleModel, x, u, w, h, t)
 	x⁺ = []
 	u_policy = []
 
-	if t == 1
-		θ = view(u, N * mi .+ (1:p))
-	else
-		θ = view(x, N * ni + N * mi .+ (1:p))
-	end
+	θ = view(u, N * mi .+ (1:p))
 
 	for i = 1:N
 		xi = view(x, (i - 1) * ni .+ (1:ni))
@@ -137,12 +85,12 @@ function fd(models::MultipleModel, x, u, w, h, t)
 		push!(u_policy, policy(θ, xi, t, ni, mi))
 	end
 
-	return vcat(x⁺..., u_policy..., θ)
+	return vcat(x⁺..., u_policy...)
 end
 
 # Time
-T = 101
-h = 0.025
+T = 51
+h = 0.1
 tf = h * (T - 1)
 N = 5
 models = multiple_model(model, T, N, p = p_policy)
@@ -150,7 +98,7 @@ models = multiple_model(model, T, N, p = p_policy)
 x_ref = [[π; 0.0] for t = 1:T]
 u_ref = [zeros(model.m) for t = 1:T-1]
 _xT = [π; 0.0]
-xT = [vcat([_xT for i = 1:N]..., zeros(t == 1 ? 0 : N * model.m), zeros(t == 1 ? 0 : models.p)) for t = 1:T]
+xT = [vcat([_xT for i = 1:N]..., zeros(t == 1 ? 0 : N * model.m)) for t = 1:T]
 
 # Initial conditions, controls, disturbances
 x1 = zeros(models.n[1])
@@ -159,7 +107,7 @@ x1 = zeros(models.n[1])
 # 	x1[(i - 1) * (model.n) + 1] = 0.0 + x1_add[i]
 # end
 
-ū = [1.0e-1 * randn(models.m[t]) for t = 1:T-1]
+ū = [1.0 * randn(models.m[t]) for t = 1:T-1]
 wi = [0.0, 0.1, -0.1, 0.2, -0.2]#, 0.0, 0.0, 0.0, 0.0]
 
 @assert length(wi) == N
@@ -172,11 +120,11 @@ x̄ = rollout(models, x1, ū, w, h, T)
 _R = 1.0e-1 * ones(N * model.m)
 
 Q = [(t < T ?
-	 Diagonal(vcat([[1.0; 1.0] for i = 1:N]..., (t == 1 ? zeros(0) : _R)..., 1.0e-6 * ones(t == 1 ? 0 : models.p)))
-	: Diagonal(vcat([[1.0; 1.0] for i = 1:N]..., (t == 1 ? zeros(0) : _R)..., 1.0e-6 * ones(t == 1 ? 0 : models.p)))) for t = 1:T]
+	 Diagonal(vcat([[1.0; 1.0] for i = 1:N]..., (t == 1 ? zeros(0) : _R)...))
+	: Diagonal(vcat([[1.0; 1.0] for i = 1:N]..., (t == 1 ? zeros(0) : _R)...))) for t = 1:T]
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
-R = [Diagonal(t == 1 ? [_R; 100.0 * ones(models.p)] : _R) for t = 1:T-1]
+R = [Diagonal([_R; 1.0 * ones(models.p)]) for t = 1:T-1]
 r = [zeros(models.m[t]) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -221,7 +169,7 @@ function c!(c, cons::StageConstraints, x, u, t)
 	ms = N * m
 
 	if t < T
-		c[1:ms] = view(u, 1:ms)
+		# c[1:ms] = view(u, 1:ms)
 	end
 
 	if t == T
@@ -236,9 +184,9 @@ prob = problem_data(models, obj, con_set, copy(x̄), copy(ū), w, h, T,
 
 # Solve
 @time constrained_ddp_solve!(prob,
-    max_iter = 1000, max_al_iter = 10,
-	ρ_init = 1.0, ρ_scale = 10.0,
-	con_tol = 1.0e-3)
+    max_iter = 1000, max_al_iter = 20,
+	ρ_init = 1.0, ρ_scale = 10.0, ρ_max = Inf,
+	con_tol = 1.0e-5)
 
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
@@ -262,19 +210,19 @@ plot(hcat([x[t][u_idxs] for t = 2:T]..., x[T][u_idxs], )',
     width = 2.0, color = :black, label = "", linetype = :steppost)
 
 # verify solution
-uθ = u[1][models.N * model.m .+ (1:models.p)]
-xθ = [x[t][models.N * model.n + models.N * model.m .+ (1:models.p)] for t = 2:T]
+θ = [ū[t][models.N * model.m .+ (1:models.p)] for t = 1:T-1]
 
-policy_err = []
-for t = 2:T
-	push!(policy_err, norm(xθ[t-1] - uθ, Inf))
-end
-@show maximum(policy_err)
+# x_sim = [x1]
+# u_sim = []
+# for t = 1:T-1
+# 	push!(u_sim, policy(θ[t], x_sim[end], nothing, model.n, model.m))
+# 	push!(x_sim, fd(model, x_sim[end], [zeros(model.m); θ[t]], zeros(model.d), h, t))
+# end
 
 slack_err = []
 for t = 1:T-1
 	if t > 1
-		push!(slack_err, norm(ū[t], Inf))
+		push!(slack_err, norm(ū[t][1:models.N * model.m], Inf))
 	else
 		push!(slack_err, norm(ū[t][1:models.N * model.m], Inf))
 	end
@@ -284,13 +232,10 @@ end
 # Simulate policy
 include(joinpath(@__DIR__, "simulate.jl"))
 
-# Policy
-θ = [u[1][models.N * model.m .+ (1:models.p)] for t = 1:T-1]
-
 # Model
 model_sim = Pendulum{RK3, FixedTime}(2, 1, 1, 1.0, 0.1, 0.5, 9.81)
 x1_sim = copy(x1[1:model.n])
-T_sim = 1 * T
+T_sim = 10 * T
 
 # Time
 tf = h * (T - 1)
@@ -299,13 +244,13 @@ t_sim = range(0, stop = tf, length = T_sim)
 dt_sim = tf / (T_sim - 1)
 
 # Simulate
-N_sim = 1
+N_sim = 10
 x_sim = []
 u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = 0.0 #rand(range(-2.0, stop = 2.0, length = 1000))
+	wi_sim = 0.0 * rand(range(-2.0, stop = 2.0, length = 1000))
 	println("w: $wi_sim")
 	# w_sim = [wi_sim for t = 1:T-1]
 	w_sim = [wi_sim for t = 1:T-1]
@@ -317,9 +262,9 @@ for k = 1:N_sim
 		[_Q[1:model.n, 1:model.n] for _Q in Q], [_R[1:model.m, 1:model.m] for _R in R],
 		T_sim, h,
 		[wi_sim; 0.0],
-		[0.0 for t = 1:T-1],
-		ul = ul,
-		uu = uu)
+		[zeros(model.d) for t = 1:T-1])#,
+		# ul = ul,
+		# uu = uu)
 
 	push!(x_sim, x_nn)
 	push!(u_sim, u_nn)
@@ -331,7 +276,7 @@ idx = (1:2)
 plt = plot(t, hcat(x_ref...)[idx, :]',
 	width = 2.0, color = :black, label = "",
 	xlabel = "time (s)", ylabel = "state",
-	title = "pendulum (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
+	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 
 for xs in x_sim
 	plt = plot!(t_sim, hcat(xs...)[idx, :]',
@@ -342,7 +287,7 @@ display(plt)
 plt = plot(
 	label = "",
 	xlabel = "time (s)", ylabel = "control",
-	title = "pendulum (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
+	title = "double integrator (J_avg = $(round(mean(J_sim), digits = 3)), N_sim = $N_sim)")
 for us in u_sim
 	plt = plot!(t_sim, hcat(us..., us[end])',
 		width = 1.0, color = :magenta, label = "",

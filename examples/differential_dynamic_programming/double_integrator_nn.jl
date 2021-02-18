@@ -227,9 +227,9 @@ prob = problem_data(models, obj, con_set, copy(x̄), copy(ū), w, h, T,
 
 # Solve
 @time constrained_ddp_solve!(prob,
-    max_iter = 1000, max_al_iter = 10,
+    max_iter = 1000, max_al_iter = 25,
 	ρ_init = 1.0, ρ_scale = 10.0,
-	con_tol = 1.0e-3)
+	con_tol = 1.0e-6)
 
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
@@ -276,7 +276,7 @@ end
 include(joinpath(@__DIR__, "simulate.jl"))
 
 # Policy
-θ = u[1][models.N * model.m .+ (1:models.p)]
+θ = [u[1][models.N * model.m .+ (1:models.p)] for t = 1:T-1]
 
 # Model
 model_sim = DoubleIntegratorContinuous{RK3, FixedTime}(model.n, model.m, model.d)
@@ -296,7 +296,7 @@ u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = rand(range(-2.0, stop = 2.0, length = 1000))
+	wi_sim = 1.0 #rand(range(-2.0, stop = 2.0, length = 1000))
 	println("w: $wi_sim")
 	# w_sim = [wi_sim for t = 1:T-1]
 	w_sim = [wi_sim for t = 1:T-1]

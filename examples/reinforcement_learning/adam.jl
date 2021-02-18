@@ -35,24 +35,42 @@ display(plt)
 
 # adam
 x = ones(n)
-J_hist = [obj(x)]
 
-α = 0.01
-β1 = 0.9
-β2 = 0.999
-ϵ = 10.0^(-8.0)
-m = zeros(n)
-v = zeros(n)
 
-for i = 1:max_iter
-	g = gradient(x, vec(w_i[:, i]))
-	m = β1 .* m + (1.0 - β1) .* g
-	v = β2 .* v + (1.0 - β2) .* (g.^2.0)
-	m̂ = m ./ (1.0 - β1^i)
-	v̂ = v ./ (1.0 - β2^i)
-	x .-= α * m̂ ./ (sqrt.(v̂) .+ ϵ)
-	push!(J_hist, obj(x))
+function adam(obj, gradient, x;
+		max_iter = 1000)
+
+	# problem size
+	n = length(x)
+
+	# history
+	J_hist = [obj(x)]
+
+	# parameters
+	α = 0.01
+	β1 = 0.9
+	β2 = 0.999
+	ϵ = 10.0^(-8.0)
+	m = zero(x)
+	v = zero(x)
+	m̂ = zero(x)
+	v̂ = zero(x)
+
+	# iterate
+	for i = 1:max_iter
+		g = gradient(x, vec(w_i[:, i]))
+		m .= β1 .* m + (1.0 - β1) .* g
+		v .= β2 .* v + (1.0 - β2) .* (g.^2.0)
+		m̂ .= m ./ (1.0 - β1^i)
+		v̂ .= v ./ (1.0 - β2^i)
+		x .-= α * m̂ ./ (sqrt.(v̂) .+ ϵ)
+		push!(J_hist, obj(x))
+	end
+
+	return x, J_hist
 end
+
+x_sol, J_hist = adam(obj, gradient, ones(n))
 
 plt = plot!(J_hist,
 	xlabel = "iteration", ylabel = "obj.", title = "sgd",

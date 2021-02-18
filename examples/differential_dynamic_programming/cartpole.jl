@@ -75,10 +75,6 @@ prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T)
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
 
-dd = Dict(:a => [])
-push!(dd[:a], 1.0)
-dd
-
 # Visualize
 plot(π * ones(T),
     width = 2.0, color = :black, linestyle = :dash)

@@ -52,7 +52,8 @@ function active_set!(a, cons::StageConstraints, λ)
     end
 end
 
-function augmented_lagrangian_update!(obj::AugmentedLagrangianCosts; s = 10.0)
+function augmented_lagrangian_update!(obj::AugmentedLagrangianCosts;
+        s = 10.0, max_penalty = 1.0e8)
     # constraints
     T = obj.cons.T
     c = obj.cons.data.c
@@ -71,5 +72,5 @@ function augmented_lagrangian_update!(obj::AugmentedLagrangianCosts; s = 10.0)
         end
     end
 
-    obj.ρ *= s
+    obj.ρ = min(s * obj.ρ, max_penalty)
 end
