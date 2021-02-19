@@ -236,7 +236,7 @@ prob = problem_data(models, obj, con_set, copy(x̄), copy(ū), w, h, T,
 
 # Solve
 @time constrained_ddp_solve!(prob,
-    max_iter = 1000, max_al_iter = 10,
+    max_iter = 1000, max_al_iter = 20,
 	ρ_init = 1.0, ρ_scale = 10.0,
 	con_tol = 1.0e-3)
 

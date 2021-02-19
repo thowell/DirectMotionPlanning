@@ -41,7 +41,7 @@ function multiple_model(model, T, N; p = 0)
 end
 
 # Policy
-dp = 1
+dp = 5
 # p_policy = dp * model.n * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + model.m * dp * model.n + model.m
 
 # p_policy = dp * model.n * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + model.m * dp * model.n + model.m
@@ -74,7 +74,7 @@ function policy(θ, x, t, n, m)
 	#
 	# zo = Ko * z3 + ko
 
-	# # 2 layer
+	# 2 layer
 	# p_policy = dp * model.n * model.n + dp * model.n + dp * model.n * dp * model.n + dp * model.n + model.m * dp * model.n + model.m
 	#
 	# K1 = reshape(view(θ, 1:(dp * n) * n), dp * n, n)
@@ -106,7 +106,7 @@ function policy(θ, x, t, n, m)
 
 	zo = Ko * z1 + ko
 
-	## affine
+	# affine
 	# p_policy = model.m * model.n + model.m
 	#
 	# Ko = reshape(view(θ, 1:m * n), m, n)
@@ -168,8 +168,8 @@ function fd(models::MultipleModel, x, u, w, h, t)
 end
 
 # Time
-T = 251
-h = 0.01
+T = 201
+h = 0.0125
 tf = h * (T - 1)
 N = 1
 models = multiple_model(model, T, N, p = p_policy)
@@ -182,11 +182,11 @@ xT = [vcat([_xT for i = 1:N]..., zeros(t == 1 ? 0 : N * model.m), zeros(t == 1 ?
 # Initial conditions, controls, disturbances
 x1 = zeros(models.n[1])
 # x1_add = [1.0, -1.0, 2.0, -2.0, 0.0]
-# for i = 1:N
-# 	x1[(i - 1) * (model.n) + 1] = 0.0 + x1_add[i]
-# end
+for i = 1:N
+	x1[(i - 1) * (model.n) + 1] = 0.0
+end
 
-ū = [t == 1 ? [1.0e-1 * randn(model.m); 1.0e-5 * randn(models.p)] : 1.0e-1 * randn(model.m) for t = 1:T-1]
+ū = [t == 1 ? [1.0e-1 * rand(model.m); 1.0e-1 * randn(models.p)] : 1.0e-1 * rand(model.m) for t = 1:T-1]
 wi = [zeros(model.d)]#, -0.1, 0.2, -0.2]#, 0.0, 0.0, 0.0, 0.0]
 
 @assert length(wi) == N
@@ -202,10 +202,10 @@ _R = 1.0e-1 * ones(N * model.m)
 
 Q = [(t < T ?
 	 Diagonal(vcat([h * [1.0; 1.0; 1.0; 1.0] for i = 1:N]..., (t == 1 ? zeros(0) : h * _R)..., 1.0e-5 * ones(t == 1 ? 0 : models.p)))
-	: Diagonal(vcat([[1.0; 1.0; 1.0; 1.0] for i = 1:N]..., (t == 1 ? zeros(0) : _R)..., 1.0e-5 * ones(t == 1 ? 0 : models.p)))) for t = 1:T]
+	: Diagonal(vcat([h * [1.0; 1.0; 1.0; 1.0] for i = 1:N]..., (t == 1 ? zeros(0) : _R)..., 1.0e-5 * ones(t == 1 ? 0 : models.p)))) for t = 1:T]
 q = [-2.0 * Q[t] * xT[t] for t = 1:T]
 
-R = [Diagonal(t == 1 ? [h * _R; 1.0e-3 * ones(models.p)] : h * _R) for t = 1:T-1]
+R = [Diagonal(t == 1 ? [h * _R; 1.0 * ones(models.p)] : h * _R) for t = 1:T-1]
 r = [zeros(models.m[t]) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -218,11 +218,11 @@ function g(obj::StageCosts, x, u, t)
 		q = obj.cost[t].q
 	    R = obj.cost[t].R
 		r = obj.cost[t].r
-        return (x' * Q * x + q' * x + u' * R * u + r' * u) ./ N
+        return (x' * Q * x + q' * x + u' * R * u + r' * u) ./ (N * T)
     elseif t == T
 		Q = obj.cost[T].Q
 		q = obj.cost[T].q
-        return (x' * Q * x + q' * x) ./ N
+        return (x' * Q * x + q' * x) ./ (N * T)
     else
         return 0.0
     end
@@ -320,7 +320,7 @@ include(joinpath(@__DIR__, "simulate.jl"))
 # Model
 model_sim = Cartpole{RK3, FixedTime}(n, m, d, 1.0, 0.2, 0.5, 9.81)
 x1_sim = copy(x1[1:model.n])
-T_sim = 1 * T
+T_sim = 10 * T
 
 # Time
 tf = h * (T - 1)

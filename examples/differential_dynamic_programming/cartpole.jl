@@ -5,8 +5,9 @@ include_ddp()
 include_model("cartpole")
 
 # Time
-T = 101
-h = 0.025
+T = 26
+h = 0.1
+tf = h * (T - 1)
 
 # Initial conditions, controls, disturbances
 x1 = [0.0, 0.0, 0.0, 0.0]
@@ -78,7 +79,8 @@ x̄, ū = nominal_trajectory(prob)
 # Visualize
 plot(π * ones(T),
     width = 2.0, color = :black, linestyle = :dash)
-plot!(hcat(x̄...)', width = 2.0, label = "")
+plot!(hcat(x̄...)', width = 2.0, label = "",
+	ylims = (-2.5, 3.5))
 plot(hcat(ū..., ū[end])',
     width = 2.0, linetype = :steppost)
 
