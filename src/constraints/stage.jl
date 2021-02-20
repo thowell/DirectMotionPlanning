@@ -19,13 +19,12 @@ function stage_constraints(c_stage, n_stage, ineq_stage, t_idx)
     return StageConstraints(n, ineq, n_stage, c_stage, t_idx)
 end
 
-
 function constraints!(c, Z, con::StageConstraints, model, idx, h, T)
-    for t in con.t_idx
+    for (i, t) in enumerate(con.t_idx)
         x = view(Z, idx.x[t])
         u = view(Z, idx.u[t])
 
-        con.c_stage(view(c, (t - 1) * con.n_stage .+ (1:con.n_stage)), x, u)
+        con.c_stage(view(c, (i - 1) * con.n_stage .+ (1:con.n_stage)), x, u, t)
     end
     nothing
 end
@@ -38,8 +37,8 @@ function constraints_jacobian!(∇c, Z, con::StageConstraints, model, idx, h, T)
         x = view(Z, idx.x[t])
         u = view(Z, idx.u[t])
 
-        cx(c, y) = con.c_stage(c, y, u)
-        cu(c, y) = con.c_stage(c, x, y)
+        cx(c, y) = con.c_stage(c, y, u, t)
+        cu(c, y) = con.c_stage(c, x, y, t)
 
         r_idx = (i - 1) * con.n_stage .+ (1:con.n_stage)
 

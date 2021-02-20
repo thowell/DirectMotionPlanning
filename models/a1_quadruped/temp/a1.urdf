@@ -19,7 +19,7 @@
   <material name="silver">
     <color rgba="0.913725490196 0.913725490196 0.847058823529 1.0"/>
   </material>
-  <material name="orange">
+  <material name="black">
     <color rgba="1.0 0.423529411765 0.0392156862745 1.0"/>
   </material>
   <material name="brown">
@@ -50,7 +50,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/trunk.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -103,7 +103,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/hip.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
@@ -145,7 +145,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/thigh_mirror.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 1.57079632679 0" xyz="0 0 -0.1"/>
@@ -173,7 +173,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/calf.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 1.57079632679 0" xyz="0 0 -0.1"/>
@@ -198,7 +198,7 @@
       <geometry>
         <sphere radius="0.01"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -255,7 +255,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/hip.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
@@ -297,7 +297,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/thigh.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 1.57079632679 0" xyz="0 0 -0.1"/>
@@ -325,7 +325,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/calf.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 1.57079632679 0" xyz="0 0 -0.1"/>
@@ -350,7 +350,7 @@
       <geometry>
         <sphere radius="0.01"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -407,7 +407,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/hip.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
@@ -449,7 +449,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/thigh_mirror.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 1.57079632679 0" xyz="0 0 -0.1"/>
@@ -477,7 +477,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/calf.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 1.57079632679 0" xyz="0 0 -0.1"/>
@@ -502,7 +502,7 @@
       <geometry>
         <sphere radius="0.01"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -559,7 +559,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/hip.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
@@ -601,7 +601,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/thigh.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 1.57079632679 0" xyz="0 0 -0.1"/>
@@ -629,7 +629,7 @@
       <geometry>
         <mesh filename="/home/taylor/Research/motion_planning/models/a1_quadruped/meshes/calf.dae" scale="1 1 1"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 1.57079632679 0" xyz="0 0 -0.1"/>
@@ -654,7 +654,7 @@
       <geometry>
         <sphere radius="0.01"/>
       </geometry>
-      <material name="orange"/>
+      <material name="black"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>

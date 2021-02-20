@@ -2,7 +2,7 @@ using MeshCat, MeshCatMechanisms, RigidBodyDynamics
 
 urdf_path = joinpath(pwd(), "models/a1_quadruped/temp/a1.urdf")
 a1 = MeshCatMechanisms.parse_urdf(urdf_path, remove_fixed_tree_joints = true)
-a1_visuals = MeshCatMechanisms.URDFVisuals(urdf_path)
+a1_visuals = MeshCatMechanisms.URDFVisuals(joinpath(pwd(), "models/a1_quadruped/temp/a1.urdf"))
 
 state = MechanismState(a1)
 state_cache = StateCache(a1)

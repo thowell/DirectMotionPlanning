@@ -92,25 +92,26 @@ nb = nc * nf
 ns = 1
 
 # World parameters
-μ = 1.0      # coefficient of friction
+μ = 0.5      # coefficient of friction
 g = 9.81     # gravity
 
+# ~Unitree A1
 # Model parameters
-m_torso = 0.5 + 0.48 * 2.0
-m_thigh = 0.8112
-m_leg = 0.3037
+m_torso = 4.713
+m_thigh = 1.013
+m_leg = 0.166
 
-J_torso = 0.0029
-J_thigh = 0.00709
-J_leg = 0.00398
+J_torso = 0.01683
+J_thigh = 0.00552
+J_leg = 0.00299
 
-l_torso = 0.75
-l_thigh = 0.2755
-l_leg = 0.308
+l_torso = 0.267
+l_thigh = 0.2
+l_leg = 0.2
 
-d_torso = 0.75 / 2.0
-d_thigh = 0.2176
-d_leg = 0.1445
+d_torso = 0.0127
+d_thigh = 0.00323
+d_leg = 0.006435
 
 n = 2 * nq
 m = nu + nc + nb + nc + nb + ns
@@ -126,8 +127,8 @@ idx_s = nu + nc + nb + nc + nb .+ (1:ns)
 qL = -Inf * ones(nq)
 qU = Inf * ones(nq)
 
-uL = -100.0 * ones(nu) # -16.0 * ones(nu)
-uU = 100.0 * ones(nu) # 16.0 * ones(nu)
+uL = -33.5 * ones(nu)
+uU = 33.5 * ones(nu)
 
 function kinematics_1(model::Quadruped, q; body = :torso, mode = :ee)
 	x = q[1]
@@ -636,63 +637,63 @@ model = Quadruped{Discrete, FixedTime}(n, m, d,
 
 # visualization
 function visualize!(vis, model::Quadruped, q;
-      r = 0.035, Δt = 0.1)
+      r = 0.025, Δt = 0.1)
 
 	default_background!(vis)
 
 	torso = Cylinder(Point3f0(0.0, 0.0, 0.0), Point3f0(0.0, 0.0, model.l_torso),
-		convert(Float32, 0.025))
+		convert(Float32, 0.035))
 	setobject!(vis["torso"], torso,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	thigh_1 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_thigh1),
-		convert(Float32, 0.025))
+		convert(Float32, 0.0175))
 	setobject!(vis["thigh1"], thigh_1,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	calf_1 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_calf1),
-		convert(Float32, 0.025))
+		convert(Float32, 0.0125))
 	setobject!(vis["leg1"], calf_1,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	thigh_2 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_thigh2),
-		convert(Float32, 0.025))
+		convert(Float32, 0.0175))
 	setobject!(vis["thigh2"], thigh_2,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	calf_2 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_calf2),
-		convert(Float32, 0.025))
+		convert(Float32, 0.0125))
 	setobject!(vis["leg2"], calf_2,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	thigh_3 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_thigh3),
-		convert(Float32, 0.025))
+		convert(Float32, 0.0175))
 	setobject!(vis["thigh3"], thigh_3,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	calf_3 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_calf3),
-		convert(Float32, 0.025))
+		convert(Float32, 0.0125))
 	setobject!(vis["leg3"], calf_3,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	thigh_4 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_thigh4),
-		convert(Float32, 0.025))
+		convert(Float32, 0.0175))
 	setobject!(vis["thigh4"], thigh_4,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	calf_4 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_calf4),
-		convert(Float32, 0.025))
+		convert(Float32, 0.0125))
 	setobject!(vis["leg4"], calf_4,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
 
 	hip1 = setobject!(vis["hip1"], Sphere(Point3f0(0),
-        convert(Float32, 0.025)),
+        convert(Float32, 0.035)),
         MeshPhongMaterial(color = RGBA(0, 0, 0, 1.0)))
 
 	hip2 = setobject!(vis["hip2"], Sphere(Point3f0(0),
-        convert(Float32, 0.025)),
+        convert(Float32, 0.035)),
         MeshPhongMaterial(color = RGBA(0, 0, 0, 1.0)))
 
 	knee1 = setobject!(vis["knee1"], Sphere(Point3f0(0),
