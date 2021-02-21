@@ -87,7 +87,7 @@ plot(hcat(ū..., ū[end])',
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
-visualize!(vis, model, x, Δt = h)
+visualize!(vis, model, x_sim[1], Δt = dt_sim)
 
 # Simulate policy
 include(joinpath(@__DIR__, "simulate.jl"))

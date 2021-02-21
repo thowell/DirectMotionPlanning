@@ -19,7 +19,6 @@ function stage_constraints(c_stage, n_stage, ineq_stage, t_idx)
     return StageConstraints(n, ineq, n_stage, c_stage, t_idx)
 end
 
-
 function constraints!(c, Z, con::StageConstraints, model, idx, h, T)
     for (i, t) in enumerate(con.t_idx)
         x = view(Z, idx.x[t])

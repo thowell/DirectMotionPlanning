@@ -369,7 +369,6 @@ for xs in x_sim
 	    width = 1.0, color = :magenta, label = "")
 end
 display(plt)
-
 plt = plot(
 	label = "",
 	xlabel = "time (s)", ylabel = "control",
