@@ -37,7 +37,7 @@ function circle_obs(x, y, xc, yc, r)
     (x - xc)^2.0 + (y - yc)^2.0 - r^2.0
 end
 
-function obstacles!(c, x, u)
+function obstacles!(c, x, u, t)
     c[1] = circle_obs(x[1], x[2], circles[1][1], circles[1][2], circles[1][3])
     c[2] = circle_obs(x[1], x[2], circles[2][1], circles[2][2], circles[2][3])
     c[3] = circle_obs(x[1], x[2], circles[3][1], circles[3][2], circles[3][3])

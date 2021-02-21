@@ -91,15 +91,15 @@ m_thigh = 0.01
 m_calf = 0.01
 m_foot = 0.001
 
-l_torso = 0.25
-l_thigh = 0.25
-l_calf = 0.25
-l_foot = 0.075
+l_torso = 0.5
+l_thigh = 0.5
+l_calf = 0.5
+l_foot = 0.15
 
-d_torso = 0.125
-d_thigh = 0.125
-d_calf = 0.125
-d_foot = 0.025
+d_torso = 0.25
+d_thigh = 0.25
+d_calf = 0.25
+d_foot = 0.075
 
 J_torso = 0.1   # 1.0 / 12.0 * m_torso * l_torso^2.0
 J_thigh = 0.001 # 1.0 / 12.0 * m_thigh * l_thigh^2.0
@@ -612,44 +612,44 @@ model = Walker{Discrete, FixedTime}(n, m, d,
 
 # visualization
 function visualize!(vis, model::Walker, q;
-      r = 0.03, Δt = 0.1)
+      r = 0.055, Δt = 0.1)
 
 	default_background!(vis)
 
 	torso = Cylinder(Point3f0(0.0, 0.0, 0.0), Point3f0(0.0, 0.0, model.l_torso),
-		convert(Float32, 0.025))
+		convert(Float32, 0.05))
 	setobject!(vis["torso"], torso,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	thigh_1 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_thigh1),
-		convert(Float32, 0.025))
+		convert(Float32, 0.05))
 	setobject!(vis["thigh1"], thigh_1,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	calf_1 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_calf1),
-		convert(Float32, 0.025))
+		convert(Float32, 0.05))
 	setobject!(vis["calf1"], calf_1,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	foot_1 = Cylinder(Point3f0(0.0,0.0,0.0),
 		Point3f0(0.0, 0.0, model.l_foot1 + model.d_foot1),
-		convert(Float32, 0.025))
+		convert(Float32, 0.05))
 	setobject!(vis["foot1"], foot_1,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	thigh_2 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_thigh2),
-		convert(Float32, 0.025))
+		convert(Float32, 0.05))
 	setobject!(vis["thigh2"], thigh_2,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	calf_2 = Cylinder(Point3f0(0.0,0.0,0.0), Point3f0(0.0, 0.0, model.l_calf2),
-		convert(Float32, 0.025))
+		convert(Float32, 0.05))
 	setobject!(vis["calf2"], calf_2,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	foot_2 = Cylinder(Point3f0(0.0,0.0,0.0),
 		Point3f0(0.0, 0.0, model.l_foot2 + model.d_foot2),
-		convert(Float32, 0.025))
+		convert(Float32, 0.05))
 	setobject!(vis["foot2"], foot_2,
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
@@ -666,16 +666,16 @@ function visualize!(vis, model::Walker, q;
 		convert(Float32, r)),
 		MeshPhongMaterial(color = RGBA(1.0, 165.0 / 255.0, 0.0, 1.0)))
 	setobject!(vis["knee1"], Sphere(Point3f0(0.0),
-		convert(Float32, 0.025)),
+		convert(Float32, 0.05)),
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 	setobject!(vis["knee2"], Sphere(Point3f0(0.0),
-		convert(Float32, 0.025)),
+		convert(Float32, 0.05)),
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 	setobject!(vis["hip"], Sphere(Point3f0(0.0),
-		convert(Float32, 0.025)),
+		convert(Float32, 0.05)),
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 	setobject!(vis["torso_top"], Sphere(Point3f0(0.0),
-		convert(Float32, 0.025)),
+		convert(Float32, 0.05)),
 		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
