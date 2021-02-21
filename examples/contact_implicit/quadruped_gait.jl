@@ -6,6 +6,7 @@ include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
 
+
 # Horizon
 T = 31
 Tm = 16
@@ -100,14 +101,13 @@ plot!(hcat(pf2_ref...)')
 
 # control
 # u1 = initial_torque(model, q1, h)[model.idx_u]
-
 # ul <= u <= uu
 _uu = Inf * ones(model.m)
-_uu[model.idx_u] .= Inf
-_uu[end] = h
+_uu[model.idx_u] .= 33.5
+_uu[end] = 2.0 * h
 _ul = zeros(model.m)
-_ul[model.idx_u] .= -Inf
-_ul[end] = h
+_ul[model.idx_u] .= -33.5
+_ul[end] = 0.25 * h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
 xl, xu = state_bounds(model, T,
@@ -127,15 +127,15 @@ obj_penalty = PenaltyObjective(1.0e4, model.m - 1)
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
 obj_control = quadratic_time_tracking_objective(
-    [h * Diagonal(1.0e-1 * ones(model.n)) for t = 1:T],
-    [h * Diagonal([1.0 * ones(model.nu)..., zeros(model.m - model.nu)...]) for t = 1:T-1],
+    [0.0 * Diagonal(1.0e-1 * ones(model.n)) for t = 1:T],
+    [0.0 * Diagonal([1.0 * ones(model.nu)..., zeros(model.m - model.nu)...]) for t = 1:T-1],
     [[qT; qT] for t = 1:T],
     [zeros(model.m) for t = 1:T],
     1.0)
 
 # quadratic velocity penalty
 #Σ v' Q v
-v_penalty = 10.0 * ones(model.nq)
+v_penalty = 0.0 * ones(model.nq)
 obj_velocity = velocity_objective(
     [h * Diagonal(v_penalty) for t = 1:T-1],
     model.nq,
@@ -143,30 +143,54 @@ obj_velocity = velocity_objective(
     idx_angle = collect([3, 4, 5, 6, 7, 8, 9, 10, 11]))
 
 function l_stage(x, u, t)
-    q2_idx = (12:22)
-
-	q = view(x, q2_idx)
-
+	q1 = view(x, 1:11)
+	q2 = view(x, 11 .+ (1:11))
     J = 0.0
-    # torso height
-    J += 1.0 * (kinematics_1(model, q, body = :torso, mode = :com)[1] - kinematics_1(model, view(x0[t], q2_idx), body = :torso, mode = :com)[1])^2.0
+
+	# torso height
+    J += 1.0 * (kinematics_1(model, q1, body = :torso, mode = :com)[1] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[1])^2.0
 
     # # torso lateral
     # J += 1.0 * (kinematics_1(model, view(x, q2_idx), body = :torso, mode = :com)[2] - pt[2])^2.0
 
     # feet height
     if t > Tm
-		J += 1000.0 * sum((pr1_ref[t] - kinematics_2(model, q, body = :calf_1, mode = :ee)).^2.0)
-	    J += 1000.0 * sum((pf1_ref[t] - kinematics_3(model, q, body = :calf_3, mode = :ee)).^2.0)
+		pr1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
+		pr2 = kinematics_2(model, q2, body = :calf_1, mode = :ee)
+		vr = (pr2 - pr1) ./ h
+
+		pf1 = kinematics_3(model, q1, body = :calf_3, mode = :ee)
+		pf2 = kinematics_3(model, q2, body = :calf_3, mode = :ee)
+		vf = (pf2 - pf1) ./ h
+
+		J += 100.0 * sum((pr1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)).^2.0)
+	    J += 100.0 * sum((pf1_ref[t] - kinematics_3(model, q1, body = :calf_3, mode = :ee)).^2.0)
+		J += 100.0 * sum((pr1_ref[t] - kinematics_2(model, q2, body = :calf_1, mode = :ee)).^2.0)
+	    J += 100.0 * sum((pf1_ref[t] - kinematics_3(model, q2, body = :calf_3, mode = :ee)).^2.0)
+		J += 1.0 * vr' * vr
+		J += 1.0 * vf' * vf
 	end
 
     if t < Tm
-		J += 1000.0 * sum((pr2_ref[t] - kinematics_2(model, q, body = :calf_2, mode = :ee)).^2.0)
-	    J += 1000.0 * sum((pf2_ref[t] - kinematics_3(model, q, body = :calf_4, mode = :ee)).^2.0)
+		pr1 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
+		pr2 = kinematics_2(model, q2, body = :calf_2, mode = :ee)
+		vr = (pr2 - pr1) ./ h
+
+		pf1 = kinematics_3(model, q1, body = :calf_4, mode = :ee)
+		pf2 = kinematics_3(model, q2, body = :calf_4, mode = :ee)
+		vf = (pf2 - pf1) ./ h
+
+		J += 100.0 * sum((pr2_ref[t] - kinematics_2(model, q1, body = :calf_2, mode = :ee)).^2.0)
+	    J += 100.0 * sum((pf2_ref[t] - kinematics_3(model, q1, body = :calf_4, mode = :ee)).^2.0)
+		J += 100.0 * sum((pr2_ref[t] - kinematics_2(model, q2, body = :calf_2, mode = :ee)).^2.0)
+	    J += 100.0 * sum((pf2_ref[t] - kinematics_3(model, q2, body = :calf_4, mode = :ee)).^2.0)
+		J += 1.0 * vr' * vr
+		J += 1.0 * vf' * vf
 	end
 
     return J
 end
+
 l_terminal(x) = 0.0
 obj_shaping = nonlinear_stage_objective(l_stage, l_terminal)
 
@@ -196,7 +220,7 @@ end
 #
 # pt
 n_stage = 4
-t_idx1 = [t for t = 1:Tm]
+t_idx1 = [t for t = 1:Tm-1]
 t_idx2 = [t for t = Tm:T-1]
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
@@ -236,7 +260,7 @@ include_snopt()
 
 @time z̄, info = solve(prob, copy(z0),
     nlp = :ipopt,
-    tol = 1.0e-2, c_tol = 1.0e-2,
+    tol = 1.0e-3, c_tol = 1.0e-3,
 	max_iter = 2000,
     time_limit = 60 * 2, mapl = 5)
 
@@ -252,7 +276,7 @@ _tf, _t, h̄ = get_time(ū)
 # Visualize
 vis = Visualizer()
 render(vis)
-open(vis)
+# open(vis)
 visualize!(vis, model, state_to_configuration(x̄), Δt = h̄[1])
 
 _pr1_ref = [kinematics_2(model, q, body = :calf_1, mode = :ee) for q in q̄]
@@ -269,7 +293,7 @@ plot(hcat(_pf2_ref...)')
 
 @save joinpath(@__DIR__, "quadruped_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
-
+joinpath(@__DIR__, "quadruped_gait.jld2")
 function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
