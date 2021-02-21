@@ -151,7 +151,7 @@ pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 
 strd = 2 * (pf1 - pf2)[1]
 
-zh = 0.2
+zh = 0.15
 xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm)
 xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm)
 
@@ -220,10 +220,11 @@ obj_penalty = PenaltyObjective(1.0e4, model.m-1)
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
 q_penalty = 0.0 * ones(model.nq)
+# q_penalty[1] = 1.0
 # q_penalty[2] = 1.0
-q_penalty[3] = 100.0
-q_penalty[8] = 1000.0
-q_penalty[9] = 1000.0
+# q_penalty[3] = 10.0
+# q_penalty[8] = 10.0
+# q_penalty[9] = 10.0
 x_penalty = [q_penalty; q_penalty]
 obj_control = quadratic_time_tracking_objective(
     [Diagonal(x_penalty) for t = 1:T],
@@ -235,7 +236,9 @@ obj_control = quadratic_time_tracking_objective(
 obj_ctrl_vel = control_velocity_objective(Diagonal([0.0 * ones(model.nu); zeros(model.m - model.nu)]))
 
 # quadratic velocity penalty
-q_v = 1.0 * ones(model.nq)
+q_v = zeros(model.nq)
+# q_v[4:7] .= 1.0e-3
+# q_v[8:9] .= 1.0
 obj_velocity = velocity_objective(
     [Diagonal(q_v) for t = 1:T-1],
     model.nq,
@@ -246,7 +249,7 @@ function l_foot_height(x, u, t)
 	q1 = view(x, 1:9)
 	q2 = view(x, 1:9)
 
-	if t > Tm
+	if t >= Tm
 		pq1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		pq2 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		v = (pq2 - pq1) ./ h
@@ -255,7 +258,7 @@ function l_foot_height(x, u, t)
 		# J += 1000.0 * v' * v
 	end
 
-	if t < Tm
+	if t <= Tm
 		pq1 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
 		v = (pq2 - pq1) ./ h
@@ -288,9 +291,9 @@ function pinned1!(c, x, u, t)
 end
 
 function pinned2!(c, x, u, t)
-    q = view(x, 1:9)
+    q1 = view(x, 1:9)
     # c[1:2] = p1_ref[t] - kinematics_3(model, q, body = :foot_1, mode = :com)
-	c[1:2] = p2_ref[t] - kinematics_3(model, q, body = :foot_2, mode = :com)
+	c[1:2] = p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :com)
 	nothing
 end
 
@@ -300,8 +303,8 @@ end
 # pinned!(cc, xx, uuu, 1)
 # p1_ref[1]
 n_stage = 2
-t_idx1 = [t for t = 1:Tm]
-t_idx2 = [t for t = Tm:T-1]
+t_idx1 = [t for t = 1:Tm-1]
+t_idx2 = [t for t = (Tm+1):T-1]
 
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
@@ -314,7 +317,8 @@ con_free_time = free_time_constraints(T)
 con = multiple_constraints([con_contact,
 	con_free_time,
 	con_loop,
-	con_pinned1])#,
+	con_pinned1,
+	con_pinned2])#,
 	# con_pinned2])#,
 	# con_pinned2])#,
 	# con_pinned1,
@@ -343,7 +347,7 @@ z0 = pack(x0, u0, prob)
 include_snopt()
 @time z̄, info = solve(prob, copy(z0),
     nlp = :SNOPT7,
-	max_iter = 2000,
+	max_iter = 1000,
     tol = 1.0e-3, c_tol = 1.0e-3, mapl = 5,
     time_limit = 60 * 3)
 
@@ -352,15 +356,16 @@ include_snopt()
 # 	max_iter = 1000,
 #     tol = 1.0e-3, c_tol = 1.0e-3, mapl = 5,
 #     time_limit = 60 * 3)
+
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
-q̄ = state_to_configuration(x̄)
-τ̄ = [u[model.idx_u] for u in ū]
-λ̄ = [u[model.idx_λ] for u in ū]
-b̄ = [u[model.idx_b] for u in ū]
+# q̄ = state_to_configuration(x̄)
+# τ̄ = [u[model.idx_u] for u in ū]
+# λ̄ = [u[model.idx_λ] for u in ū]
+# b̄ = [u[model.idx_b] for u in ū]
 tf_, t_, h̄ = get_time(ū)
 
-@save joinpath(@__DIR__, "walker_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
+# @save joinpath(@__DIR__, "walker_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
 vis = Visualizer()
 render(vis)
@@ -368,7 +373,6 @@ visualize!(vis, model,
 	[[x̄[1][1:model.nq] for i = 1:10]...,
 	 state_to_configuration(x̄)...,
 	 [x̄[end][model.nq .+ (1:model.nq)] for i = 1:10]...], Δt = h̄[1])
-qT[1]
 
 # visualize!(vis, model,
 #  	[q̄[T+1]], Δt = h̄[1])
@@ -401,5 +405,5 @@ end
 q_viz = get_q_viz(q̄)
 open(vis)
 visualize!(vis, model,
-	q_viz,
+	q̄,
 	Δt = h̄[1])
