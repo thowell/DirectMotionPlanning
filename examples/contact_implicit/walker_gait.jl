@@ -253,8 +253,8 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		pq2 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		v = (pq2 - pq1) ./ h
-		J += 10000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
-		J += 10000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
+		J += 10000.0 * sum(([p1_ref[t][1]; zh] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
+		J += 10000.0 * sum(([p1_ref[t][1]; zh] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
@@ -262,8 +262,8 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
 		v = (pq2 - pq1) ./ h
-		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
-		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
+		J += 10000.0 * sum(([p2_ref[t][1]; zh] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
+		J += 10000.0 * sum(([p2_ref[t][1]; zh] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
@@ -348,7 +348,7 @@ include_snopt()
 @time z̄, info = solve(prob, copy(z0),
     nlp = :SNOPT7,
 	max_iter = 1000,
-    tol = 1.0e-3, c_tol = 1.0e-3, mapl = 5,
+    tol = 1.0e-4, c_tol = 1.0e-4, mapl = 5,
     time_limit = 60 * 3)
 
 # @time z̄, info = solve(prob, copy(z̄ .+ 0.01 * randn(prob.num_var)),
@@ -359,13 +359,13 @@ include_snopt()
 
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
-# q̄ = state_to_configuration(x̄)
-# τ̄ = [u[model.idx_u] for u in ū]
-# λ̄ = [u[model.idx_λ] for u in ū]
-# b̄ = [u[model.idx_b] for u in ū]
+q̄ = state_to_configuration(x̄)
+τ̄ = [u[model.idx_u] for u in ū]
+λ̄ = [u[model.idx_λ] for u in ū]
+b̄ = [u[model.idx_b] for u in ū]
 tf_, t_, h̄ = get_time(ū)
 
-# @save joinpath(@__DIR__, "walker_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
+@save joinpath(@__DIR__, "walker_gait_model1.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
 vis = Visualizer()
 render(vis)
@@ -390,7 +390,7 @@ function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
 	shift_vec[1] = q̄[end][1]
-	for i = 1:2
+	for i = 1:3
 		# println(shift)
 		# shift_vec[1] = strd
 		#
@@ -403,7 +403,7 @@ function get_q_viz(q̄)
 end
 
 q_viz = get_q_viz(q̄)
-open(vis)
+# open(vis)
 visualize!(vis, model,
-	q̄,
+	q_viz,
 	Δt = h̄[1])
