@@ -1,7 +1,7 @@
 using Plots
 
 # Model
-include_model("walker")
+include_model("walker_model2")
 
 model = free_time_model(model)
 
@@ -236,8 +236,8 @@ obj_control = quadratic_time_tracking_objective(
 obj_ctrl_vel = control_velocity_objective(Diagonal([0.0 * ones(model.nu); zeros(model.m - model.nu)]))
 
 # quadratic velocity penalty
-q_v = zeros(model.nq)
-# q_v[4:7] .= 1.0e-3
+q_v = 1.0e-1 * ones(model.nq)
+# q_v[3:7] .= 1.0e-3
 # q_v[8:9] .= 1.0
 obj_velocity = velocity_objective(
     [Diagonal(q_v) for t = 1:T-1],
@@ -254,7 +254,7 @@ function l_foot_height(x, u, t)
 		pq2 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		v = (pq2 - pq1) ./ h
 		J += 10000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
-		J += 10000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
+		J += 10000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
@@ -335,7 +335,7 @@ prob = trajectory_optimization_problem(model,
                ul = ul,
                uu = uu,
                con = con)
-
+qT[1]
 # trajectory initialization
 u0 = [[1.0e-2 * randn(model.nu); 0.01 * randn(model.m - model.nu - 1); h] for t = 1:T-1] # random controls
 
@@ -348,7 +348,7 @@ include_snopt()
 @time z̄, info = solve(prob, copy(z0),
     nlp = :SNOPT7,
 	max_iter = 1000,
-    tol = 1.0e-3, c_tol = 1.0e-3, mapl = 5,
+    tol = 1.0e-4, c_tol = 1.0e-4, mapl = 5,
     time_limit = 60 * 3)
 
 # @time z̄, info = solve(prob, copy(z̄ .+ 0.01 * randn(prob.num_var)),
@@ -359,13 +359,13 @@ include_snopt()
 
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
-# q̄ = state_to_configuration(x̄)
-# τ̄ = [u[model.idx_u] for u in ū]
-# λ̄ = [u[model.idx_λ] for u in ū]
-# b̄ = [u[model.idx_b] for u in ū]
+q̄ = state_to_configuration(x̄)
+τ̄ = [u[model.idx_u] for u in ū]
+λ̄ = [u[model.idx_λ] for u in ū]
+b̄ = [u[model.idx_b] for u in ū]
 tf_, t_, h̄ = get_time(ū)
 
-# @save joinpath(@__DIR__, "walker_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
+@save joinpath(@__DIR__, "walker_model2_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
 vis = Visualizer()
 render(vis)
@@ -390,7 +390,7 @@ function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
 	shift_vec[1] = q̄[end][1]
-	for i = 1:2
+	for i = 1:3
 		# println(shift)
 		# shift_vec[1] = strd
 		#
@@ -405,5 +405,5 @@ end
 q_viz = get_q_viz(q̄)
 open(vis)
 visualize!(vis, model,
-	q̄,
+	q_viz,
 	Δt = h̄[1])
