@@ -262,8 +262,8 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
 		v = (pq2 - pq1) ./ h
-		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
-		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
+		J += 10000.0 * sum(([p2_ref[t][1]; zh] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
+		J += 10000.0 * sum(([p2_ref[t][1]; zh] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
