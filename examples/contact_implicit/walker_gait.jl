@@ -390,7 +390,7 @@ function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
 	shift_vec[1] = q̄[end][1]
-	for i = 1:3
+	for i = 1:2
 		# println(shift)
 		# shift_vec[1] = strd
 		#
@@ -403,7 +403,7 @@ function get_q_viz(q̄)
 end
 
 q_viz = get_q_viz(q̄)
-# open(vis)
+open(vis)
 visualize!(vis, model,
 	q_viz,
 	Δt = h̄[1])
