@@ -185,10 +185,10 @@ visualize!(vis, model, q_ref, Δt = h)
 # ul <= u <= uu
 # u1 = initial_torque(model, q1, h)[model.idx_u] # gravity compensation for current q
 _uu = Inf * ones(model.m)
-_uu[model.idx_u] .= 10.0
+_uu[model.idx_u] .= 15.0
 _uu[end] = 2.0 * h
 _ul = zeros(model.m)
-_ul[model.idx_u] .= -10.0
+_ul[model.idx_u] .= -15.0
 _ul[end] = 0.1 * h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
@@ -237,8 +237,9 @@ obj_ctrl_vel = control_velocity_objective(Diagonal([0.0 * ones(model.nu); zeros(
 
 # quadratic velocity penalty
 q_v = 1.0e-1 * ones(model.nq)
+# q_v[3] = 100.0
 # q_v[3:7] .= 1.0e-3
-# q_v[8:9] .= 1.0
+# q_v[8:9] .= 100.0
 obj_velocity = velocity_objective(
     [Diagonal(q_v) for t = 1:T-1],
     model.nq,
@@ -262,8 +263,8 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
 		v = (pq2 - pq1) ./ h
-		J += 10000.0 * sum(([p2_ref[t][1]; zh] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
-		J += 10000.0 * sum(([p2_ref[t][1]; zh] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
+		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
+		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
@@ -348,7 +349,7 @@ include_snopt()
 @time z̄, info = solve(prob, copy(z0),
     nlp = :SNOPT7,
 	max_iter = 1000,
-    tol = 1.0e-4, c_tol = 1.0e-4, mapl = 5,
+    tol = 1.0e-6, c_tol = 1.0e-6, mapl = 5,
     time_limit = 60 * 3)
 
 # @time z̄, info = solve(prob, copy(z̄ .+ 0.01 * randn(prob.num_var)),
@@ -367,6 +368,7 @@ tf_, t_, h̄ = get_time(ū)
 
 @save joinpath(@__DIR__, "walker_model2_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
+(q̄[end][1] - q̄[1][1]) / tf_
 vis = Visualizer()
 render(vis)
 visualize!(vis, model,
@@ -385,7 +387,7 @@ plot(hcat(_pf1...)', title = "foot 1", legend = :topleft, label = ["x" "z"])
 plot(hcat(_pf2...)', title = "foot 2", legend = :bottomright, label = ["x" "z"])
 
 # @save joinpath(pwd(), "examples/trajectories/walker_steps.jld2") z̄
-
+plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
 function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
