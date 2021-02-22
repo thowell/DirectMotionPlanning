@@ -328,7 +328,7 @@ function lagrangian(model::Walker, q, q̇)
 	J_torso = jacobian_1(model, q, body = :torso, mode = :com)
 	v_torso = J_torso * q̇
 
-	L += 0.5 * model.m_torso * v_torso' * v_torso
+	L += 0.5 * model.m_torso * transpose(v_torso) * v_torso
 	L += 0.5 * model.J_torso * q̇[3]^2.0
 	L -= model.m_torso * model.g * p_torso[2]
 
@@ -337,7 +337,7 @@ function lagrangian(model::Walker, q, q̇)
 	J_thigh_1 = jacobian_1(model, q, body = :thigh_1, mode = :com)
 	v_thigh_1 = J_thigh_1 * q̇
 
-	L += 0.5 * model.m_thigh1 * v_thigh_1' * v_thigh_1
+	L += 0.5 * model.m_thigh1 * transpose(v_thigh_1) * v_thigh_1
 	L += 0.5 * model.J_thigh1 * q̇[4]^2.0
 	L -= model.m_thigh1 * model.g * p_thigh_1[2]
 
@@ -346,7 +346,7 @@ function lagrangian(model::Walker, q, q̇)
 	J_calf_1 = jacobian_2(model, q, body = :calf_1, mode = :com)
 	v_calf_1 = J_calf_1 * q̇
 
-	L += 0.5 * model.m_calf1 * v_calf_1' * v_calf_1
+	L += 0.5 * model.m_calf1 * transpose(v_calf_1) * v_calf_1
 	L += 0.5 * model.J_calf1 * q̇[5]^2.0
 	L -= model.m_calf1 * model.g * p_calf_1[2]
 
@@ -355,7 +355,7 @@ function lagrangian(model::Walker, q, q̇)
 	J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :com)
 	v_foot_1 = J_foot_1 * q̇
 
-	L += 0.5 * model.m_foot1 * v_foot_1' * v_foot_1
+	L += 0.5 * model.m_foot1 * transpose(v_foot_1) * v_foot_1
 	L += 0.5 * model.J_foot1 * q̇[8]^2.0
 	L -= model.m_foot1 * model.g * p_foot_1[2]
 
@@ -364,7 +364,7 @@ function lagrangian(model::Walker, q, q̇)
 	J_thigh_2 = jacobian_1(model, q, body = :thigh_2, mode = :com)
 	v_thigh_2 = J_thigh_2 * q̇
 
-	L += 0.5 * model.m_thigh2 * v_thigh_2' * v_thigh_2
+	L += 0.5 * model.m_thigh2 * transpose(v_thigh_2) * v_thigh_2
 	L += 0.5 * model.J_thigh2 * q̇[6]^2.0
 	L -= model.m_thigh2 * model.g * p_thigh_2[2]
 
@@ -373,7 +373,7 @@ function lagrangian(model::Walker, q, q̇)
 	J_calf_2 = jacobian_2(model, q, body = :calf_2, mode = :com)
 	v_calf_2 = J_calf_2 * q̇
 
-	L += 0.5 * model.m_calf2 * v_calf_2' * v_calf_2
+	L += 0.5 * model.m_calf2 * transpose(v_calf_2) * v_calf_2
 	L += 0.5 * model.J_calf2 * q̇[7]^2.0
 	L -= model.m_calf2 * model.g * p_calf_2[2]
 
@@ -382,21 +382,28 @@ function lagrangian(model::Walker, q, q̇)
 	J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :com)
 	v_foot_2 = J_foot_2 * q̇
 
-	L += 0.5 * model.m_foot2 * v_foot_2' * v_foot_2
+	L += 0.5 * model.m_foot2 * transpose(v_foot_2) * v_foot_2
 	L += 0.5 * model.J_foot2 * q̇[9]^2.0
 	L -= model.m_foot2 * model.g * p_foot_2[2]
 
 	return L
 end
 
-function dLdq(model::Walker, q, q̇)
+function _dLdq(model::Walker, q, q̇)
 	Lq(x) = lagrangian(model, x, q̇)
 	ForwardDiff.gradient(Lq, q)
 end
 
-function dLdq̇(model::Walker, q, q̇)
+function _dLdq̇(model::Walker, q, q̇)
 	Lq̇(x) = lagrangian(model, q, x)
 	ForwardDiff.gradient(Lq̇, q̇)
+end
+
+function _C_func(model::Walker, q, q̇)
+	tmp_q(z) = _dLdq̇(model, z, q̇)
+	tmp_q̇(z) = _dLdq̇(model, q, z)
+
+	ForwardDiff.jacobian(tmp_q, q) * q̇ - _dLdq(model, q, q̇)
 end
 
 # Methods
@@ -436,13 +443,6 @@ function M_func(model::Walker, q)
 	M += model.m_foot2 * J_foot_2' * J_foot_2
 
 	return M
-end
-
-function C_func(model::Walker, q, q̇)
-	tmp_q(z) = dLdq̇(model, z, q̇)
-	tmp_q̇(z) = dLdq̇(model, q, z)
-
-	ForwardDiff.jacobian(tmp_q, q) * q̇ - dLdq(model, q, q̇)
 end
 
 function ϕ_func(model::Walker, q)
@@ -556,14 +556,14 @@ function fd(model::Walker{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	λ = view(u, model.idx_λ)
 	b = view(u, model.idx_b)
 
-    [q2⁺ - q2⁻;
+    SVector{18}([q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{9}(q2⁺) - SVector{9}(q1))
     - M_func(model, q2⁺) * (SVector{9}(q3) - SVector{9}(q2⁺)))
     + h * (transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
     + transpose(N_func(model, q3)) * SVector{4}(λ)
     + transpose(P_func(model, q3)) * SVector{8}(b))
     - h * C_func(model, q3, (q3 - q2⁺) / h)
-	+ h * w)]
+	+ h * w)])
 end
 
 function fd(model::Walker{Discrete, FreeTime}, x⁺, x, u, w, h, t)
@@ -576,14 +576,14 @@ function fd(model::Walker{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	b = view(u, model.idx_b)
 	h = u[end]
 
-    [q2⁺ - q2⁻;
+    SVector{18}([q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{9}(q2⁺) - SVector{9}(q1))
     - M_func(model, q2⁺) * (SVector{9}(q3) - SVector{9}(q2⁺)))
     + h * (transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
     + transpose(N_func(model, q3)) * SVector{4}(λ)
     + transpose(P_func(model, q3)) * SVector{8}(b))
     - h * C_func(model, q3, (q3 - q2⁺) / h)
-	+ h * w)]
+	+ h * w)])
 end
 
 model = Walker{Discrete, FixedTime}(n, m, d,
@@ -609,6 +609,32 @@ model = Walker{Discrete, FixedTime}(n, m, d,
 			  idx_ψ,
 			  idx_η,
 			  idx_s)
+
+#NOTE: if a new model is instantiated, re-run the lines below
+@variables z_sym[1:model.n]
+l(z) = lagrangian(model, view(z, 1:model.nq), view(z, model.nq .+ (1:model.nq)))
+_l = simplify.(l(z_sym))
+_dL = ModelingToolkit.gradient(_l, z_sym)
+_dLq = view(_dL, 1:model.nq)
+_dLq̇ = view(_dL, model.nq .+ (1:model.nq))
+_ddL = ModelingToolkit.sparsehessian(_l, z_sym)
+_ddLq̇q = view(_ddL, model.nq .+ (1:model.nq), 1:model.nq)
+
+dL = eval(ModelingToolkit.build_function(_dL, z_sym)[1])
+dLq = eval(ModelingToolkit.build_function(_dLq, z_sym)[1])
+dLq̇ = eval(ModelingToolkit.build_function(_dLq̇, z_sym)[1])
+ddLq̇q = eval(ModelingToolkit.build_function(_ddLq̇q, z_sym)[1])
+ddL = eval(ModelingToolkit.build_function(_ddL, z_sym)[1])
+
+function C_func(model::Walker, q, q̇)
+	ddLq̇q([q; q̇]) * q̇ - dLq([q; q̇])
+end
+
+
+qq = rand(model.nq)
+vv = rand(model.nq)
+norm(C_func(model, qq, vv) - _C_func(model, qq, vv))
+dL(qq)
 
 # visualization
 function visualize!(vis, model::Walker, q;

@@ -1,7 +1,7 @@
 using Plots
 
 # Model
-include_model("walker_model2")
+include_model("walker")
 
 model = free_time_model(model)
 
@@ -248,7 +248,7 @@ obj_velocity = velocity_objective(
 function l_foot_height(x, u, t)
 	J = 0.0
 	q1 = view(x, 1:9)
-	q2 = view(x, 1:9)
+	q2 = view(x, 9 .+ (1:9))
 
 	if t >= Tm
 		pq1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
@@ -266,6 +266,10 @@ function l_foot_height(x, u, t)
 		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
 		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
+	end
+
+	if t < T
+		J += 100.0 * ((q2[1] - q1[1]) / max(1.0e-6, u[model.m]) - 1.0)^2.0
 	end
 
 	return J
@@ -366,7 +370,7 @@ q̄ = state_to_configuration(x̄)
 b̄ = [u[model.idx_b] for u in ū]
 tf_, t_, h̄ = get_time(ū)
 
-@save joinpath(@__DIR__, "walker_model2_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
+# @save joinpath(@__DIR__, "walker_model2_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
 (q̄[end][1] - q̄[1][1]) / tf_
 vis = Visualizer()
@@ -409,3 +413,5 @@ open(vis)
 visualize!(vis, model,
 	q_viz,
 	Δt = h̄[1])
+
+(q̄[end][1] - q̄[1][1]) / tf_

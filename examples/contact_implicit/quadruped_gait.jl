@@ -6,7 +6,6 @@ include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
 
-
 # Horizon
 T = 31
 Tm = 16
