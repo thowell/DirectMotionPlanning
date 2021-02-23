@@ -334,12 +334,13 @@ end
 function lagrangian(model::Quadruped, q, q̇)
 	L = 0.0
 
-	# torso
+	L = transpose(q) * q + transpose(q̇) * q̇
+	# # torso
 	p_torso = kinematics_1(model, q, body = :torso, mode = :com)
 	J_torso = jacobian_1(model, q, body = :torso, mode = :com)
 	v_torso = J_torso * q̇
-
-	L += 0.5 * model.m_torso * v_torso' * v_torso
+	#
+	L += 0.5 * model.m_torso * transpose(v_torso) * v_torso
 	L += 0.5 * model.J_torso * q̇[3]^2.0
 	L -= model.m_torso * model.g * p_torso[2]
 
@@ -348,7 +349,7 @@ function lagrangian(model::Quadruped, q, q̇)
 	J_thigh_1 = jacobian_1(model, q, body = :thigh_1, mode = :com)
 	v_thigh_1 = J_thigh_1 * q̇
 
-	L += 0.5 * model.m_thigh1 * v_thigh_1' * v_thigh_1
+	L += 0.5 * model.m_thigh1 * transpose(v_thigh_1) * v_thigh_1
 	L += 0.5 * model.J_thigh1 * q̇[4]^2.0
 	L -= model.m_thigh1 * model.g * p_thigh_1[2]
 
@@ -357,7 +358,7 @@ function lagrangian(model::Quadruped, q, q̇)
 	J_calf_1 = jacobian_2(model, q, body = :calf_1, mode = :com)
 	v_calf_1 = J_calf_1 * q̇
 
-	L += 0.5 * model.m_calf1 * v_calf_1' * v_calf_1
+	L += 0.5 * model.m_calf1 * transpose(v_calf_1) * v_calf_1
 	L += 0.5 * model.J_calf1 * q̇[5]^2.0
 	L -= model.m_calf1 * model.g * p_calf_1[2]
 
@@ -366,7 +367,7 @@ function lagrangian(model::Quadruped, q, q̇)
 	J_thigh_2 = jacobian_1(model, q, body = :thigh_2, mode = :com)
 	v_thigh_2 = J_thigh_2 * q̇
 
-	L += 0.5 * model.m_thigh2 * v_thigh_2' * v_thigh_2
+	L += 0.5 * model.m_thigh2 * transpose(v_thigh_2) * v_thigh_2
 	L += 0.5 * model.J_thigh2 * q̇[6]^2.0
 	L -= model.m_thigh2 * model.g * p_thigh_2[2]
 
@@ -375,7 +376,7 @@ function lagrangian(model::Quadruped, q, q̇)
 	J_calf_2 = jacobian_2(model, q, body = :calf_2, mode = :com)
 	v_calf_2 = J_calf_2 * q̇
 
-	L += 0.5 * model.m_calf2 * v_calf_2' * v_calf_2
+	L += 0.5 * model.m_calf2 * transpose(v_calf_2) * v_calf_2
 	L += 0.5 * model.J_calf2 * q̇[7]^2.0
 	L -= model.m_calf2 * model.g * p_calf_2[2]
 
@@ -384,7 +385,7 @@ function lagrangian(model::Quadruped, q, q̇)
 	J_thigh_3 = jacobian_2(model, q, body = :thigh_3, mode = :com)
 	v_thigh_3 = J_thigh_3 * q̇
 
-	L += 0.5 * model.m_thigh3 * v_thigh_3' * v_thigh_3
+	L += 0.5 * model.m_thigh3 * transpose(v_thigh_3) * v_thigh_3
 	L += 0.5 * model.J_thigh3 * q̇[8]^2.0
 	L -= model.m_thigh3 * model.g * p_thigh_3[2]
 
@@ -393,7 +394,7 @@ function lagrangian(model::Quadruped, q, q̇)
 	J_calf_3 = jacobian_3(model, q, body = :calf_3, mode = :com)
 	v_calf_3 = J_calf_3 * q̇
 
-	L += 0.5 * model.m_calf3 * v_calf_3' * v_calf_3
+	L += 0.5 * model.m_calf3 * transpose(v_calf_3) * v_calf_3
 	L += 0.5 * model.J_calf3 * q̇[9]^2.0
 	L -= model.m_calf3 * model.g * p_calf_3[2]
 
@@ -402,7 +403,7 @@ function lagrangian(model::Quadruped, q, q̇)
 	J_thigh_4 = jacobian_2(model, q, body = :thigh_4, mode = :com)
 	v_thigh_4 = J_thigh_4 * q̇
 
-	L += 0.5 * model.m_thigh4 * v_thigh_4' * v_thigh_4
+	L += 0.5 * model.m_thigh4 * transpose(v_thigh_4) * v_thigh_4
 	L += 0.5 * model.J_thigh4 * q̇[10]^2.0
 	L -= model.m_thigh4 * model.g * p_thigh_4[2]
 
@@ -411,19 +412,19 @@ function lagrangian(model::Quadruped, q, q̇)
 	J_calf_4 = jacobian_3(model, q, body = :calf_4, mode = :com)
 	v_calf_4 = J_calf_4 * q̇
 
-	L += 0.5 * model.m_calf4 * v_calf_4' * v_calf_4
+	L += 0.5 * model.m_calf4 * transpose(v_calf_4) * v_calf_4
 	L += 0.5 * model.J_calf4 * q̇[11]^2.0
 	L -= model.m_calf4 * model.g * p_calf_4[2]
 
 	return L
 end
 
-function dLdq(model::Quadruped, q, q̇)
+function _dLdq(model::Quadruped, q, q̇)
 	Lq(x) = lagrangian(model, x, q̇)
 	ForwardDiff.gradient(Lq, q)
 end
 
-function dLdq̇(model::Quadruped, q, q̇)
+function _dLdq̇(model::Quadruped, q, q̇)
 	Lq̇(x) = lagrangian(model, q, x)
 	ForwardDiff.gradient(Lq̇, q̇)
 end
@@ -471,11 +472,11 @@ function M_func(model::Quadruped, q)
 	return M
 end
 
-function C_func(model::Quadruped, q, q̇)
-	tmp_q(z) = dLdq̇(model, z, q̇)
-	tmp_q̇(z) = dLdq̇(model, q, z)
+function _C_func(model::Quadruped, q, q̇)
+	tmp_q(z) = _dLdq̇(model, z, q̇)
+	tmp_q̇(z) = _dLdq̇(model, q, z)
 
-	ForwardDiff.jacobian(tmp_q, q) * q̇ - dLdq(model, q, q̇)
+	ForwardDiff.jacobian(tmp_q, q) * q̇ - _dLdq(model, q, q̇)
 end
 
 function ϕ_func(model::Quadruped, q)
@@ -634,6 +635,31 @@ model = Quadruped{Discrete, FixedTime}(n, m, d,
 			  idx_ψ,
 			  idx_η,
 			  idx_s)
+
+#NOTE: if a new model is instantiated, re-run the lines below
+@variables z_sym[1:model.n]
+l(z) = lagrangian(model, view(z, 1:model.nq), view(z, model.nq .+ (1:model.nq)))
+_l = simplify.(l(z_sym))
+_dL = ModelingToolkit.gradient(_l, z_sym)
+_dLq = view(_dL, 1:model.nq)
+_dLq̇ = view(_dL, model.nq .+ (1:model.nq))
+_ddL = ModelingToolkit.sparsehessian(_l, z_sym)
+_ddLq̇q = view(_ddL, model.nq .+ (1:model.nq), 1:model.nq)
+
+dL = eval(ModelingToolkit.build_function(_dL, z_sym)[1])
+dLq = eval(ModelingToolkit.build_function(_dLq, z_sym)[1])
+dLq̇ = eval(ModelingToolkit.build_function(_dLq̇, z_sym)[1])
+ddLq̇q = eval(ModelingToolkit.build_function(_ddLq̇q, z_sym)[1])
+ddL = eval(ModelingToolkit.build_function(_ddL, z_sym)[1])
+
+function C_func(model::Quadruped, q, q̇)
+	ddLq̇q([q; q̇]) * q̇ - dLq([q; q̇])
+end
+
+# qq = rand(model.nq)
+# vv = rand(model.nq)
+# norm(C_func(model, qq, vv) - _C_func(model, qq, vv))
+# dL(qq)
 
 # visualization
 function visualize!(vis, model::Quadruped, q;

@@ -5,6 +5,7 @@ using MathOptInterface, Ipopt
 using Distributions, Interpolations
 using JLD2
 using BenchmarkTools
+using ModelingToolkit
 
 using Colors
 using CoordinateTransformations
