@@ -7,8 +7,8 @@ vis = Visualizer()
 render(vis)
 
 # Horizon
-T = 31
-Tm = 16
+T = 60
+Tm = 31
 
 # Time step
 tf = 0.5
@@ -117,7 +117,7 @@ xl, xu = state_bounds(model, T,
 include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 q_ref = linear_interpolation(q1, qT, T)
 render(vis)
-visualize!(vis, model, q_ref)
+visualize!(vis, model, q_ref, Δt = h)
 x0 = configuration_to_state(q_ref)
 
 # penalty on slack variable
@@ -149,8 +149,8 @@ function l_stage(x, u, t)
     J = 0.0
 
 	# torso height
-    J += 100.0 * (kinematics_1(model, q1, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
-	J += 100.0 * (kinematics_1(model, q2, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
+    J += 10.0 * (kinematics_1(model, q1, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
+	J += 10.0 * (kinematics_1(model, q2, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
 
 	# feet height
     if t >= Tm
@@ -220,8 +220,8 @@ end
 #
 # pt
 n_stage = 4
-t_idx1 = [t for t = 1:Tm-1]
-t_idx2 = [t for t = (Tm+1):T-1]
+t_idx1 = [t for t = 1:Tm]
+t_idx2 = [t for t = Tm:T-1]
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
@@ -261,8 +261,8 @@ include_snopt()
 
 @time z̄, info = solve(prob, copy(z0),
     nlp = :ipopt,
-    tol = 1.0e-4, c_tol = 1.0e-1,
-	max_iter = 5000,
+    tol = 1.0e-3, c_tol = 1.0e-3,
+	max_iter = 1000,
     time_limit = 60 * 2, mapl = 5)
 
 check_slack(z̄, prob)
@@ -273,8 +273,20 @@ q̄ = state_to_configuration(x̄)
 b̄ = [u[model.idx_b] for u in ū]
 
 _tf, _t, h̄ = get_time(ū)
-
-[norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1]
+#
+# maximum([norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1])
+# _ϕ = [minimum(min.(0.0, ϕ_func(model, q))) for q in q̄]
+#
+# cc = zeros(con_contact.n)
+# constraints!(cc, z̄, con_contact, model, prob.prob.idx, h̄[1], T)
+# idx_ineq = con_ineq_contact(model, T)
+# idx_eq = convert.(Int, setdiff(range(1, stop = con_contact.n, length = con_contact.n), idx_ineq))
+# norm(cc[idx_eq], Inf)
+# norm(min.(0.0, cc[idx_ineq]), Inf)
+#
+# length(idx_ineq)
+# con_contact.n
+# setdiff([(1:5)...], [(4:7)...])
 # Visualize
 vis = Visualizer()
 render(vis)
@@ -287,6 +299,7 @@ _pf1_ref = [kinematics_3(model, q, body = :calf_3, mode = :ee) for q in q̄]
 _pr2_ref = [kinematics_2(model, q, body = :calf_2, mode = :ee) for q in q̄]
 _pf2_ref = [kinematics_3(model, q, body = :calf_4, mode = :ee) for q in q̄]
 
+using Plots
 plot(hcat(_pr1_ref...)')
 plot(hcat(_pf1_ref...)')
 
@@ -296,7 +309,7 @@ plot(hcat(_pf2_ref...)')
 plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
 
 @save joinpath(@__DIR__, "quadruped_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
-
+h̄[1]
 function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
@@ -317,3 +330,50 @@ q_viz = get_q_viz(q̄)
 visualize!(vis, model,
 	q_viz,
 	Δt = h̄[1])
+
+
+# resimulate
+model_sim = Quadruped{Discrete, FixedTime}(n, m, d,
+			  g, μ,
+			  l_torso, d_torso, m_torso, J_torso,
+			  l_thigh, d_thigh, m_thigh, J_thigh,
+			  l_leg, d_leg, m_leg, J_leg,
+			  l_thigh, d_thigh, m_thigh, J_thigh,
+			  l_leg, d_leg, m_leg, J_leg,
+			  l_thigh, d_thigh, m_thigh, J_thigh,
+			  l_leg, d_leg, m_leg, J_leg,
+			  l_thigh, d_thigh, m_thigh, J_thigh,
+			  l_leg, d_leg, m_leg, J_leg,
+			  qL, qU,
+			  uL, uU,
+			  nq,
+			  nu,
+			  nc,
+			  nf,
+			  nb,
+			  ns,
+			  idx_u,
+			  idx_λ,
+			  idx_b,
+			  idx_ψ,
+			  idx_η,
+			  idx_s,
+			  joint_friction)
+
+x_sim = [x̄[1]]
+q_sim = [x̄[1][1:model.nq], x̄[2][model.nq .+ (1:model.nq)]]
+include(joinpath(pwd(), "src/contact_simulator/simulator.jl"))
+for t = 1:T-1
+	_x = step_contact(model_sim, x_sim[end], ū[t][1:model.nu], zeros(model.d), h̄[t],
+	        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
+	push!(x_sim, _x)
+	push!(q_sim, x_sim[end][model.nq .+ (1:model.nq)])
+end
+
+plot(hcat(q̄...)')
+plot(hcat(q_sim...)')
+
+vis = Visualizer()
+render(vis)
+# open(vis)
+visualize!(vis, model, q_sim, Δt = h̄[1])

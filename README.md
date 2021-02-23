@@ -26,7 +26,7 @@
 - [ ] atlas
 
 ## direct policy optimization examples
-<img src="examples/animations/rocket_landing_ghost.png" alt="drawing" width="200"/>
+<img src="examples/animations/dpo/rocket_landing_ghost.png" alt="drawing" width="200"/>
 
 We provide the [examples](src/examples/direct_policy_optimization) from [Direct Policy Optimization using Deterministic Sampling and Collocation](https://arxiv.org/abs/2010.08506). Optimizing the policies requires [SNOPT](https://en.wikipedia.org/wiki/SNOPT) and resources for its installation are available [here](src/solvers/snopt.jl). The trajectories and policies from these examples have been saved and can be loaded in order to run the policy simulations and visualizations.
 
