@@ -655,12 +655,14 @@ ddL = eval(ModelingToolkit.build_function(_ddL, z_sym)[1])
 function C_func(model::Quadruped, q, q̇)
 	ddLq̇q([q; q̇]) * q̇ - dLq([q; q̇])
 end
-
-# qq = rand(model.nq)
-# vv = rand(model.nq)
+# dLq([qq;vv])
+# qq = SVector{model.nq}(rand(model.nq))
+# vv = SVector{model.nq}(rand(model.nq))
+# zz = SVector{2*model.nq}([qq;vv])
+# dLq(zz)
 # norm(C_func(model, qq, vv) - _C_func(model, qq, vv))
 # dL(qq)
-
+# C_func(model, )
 # visualization
 function visualize!(vis, model::Quadruped, q;
       r = 0.025, Δt = 0.1)
