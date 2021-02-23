@@ -215,7 +215,7 @@ include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 x0 = configuration_to_state(q_ref)
 
 # penalty on slack variable
-obj_penalty = PenaltyObjective(1.0e4, model.m-1)
+obj_penalty = PenaltyObjective(1.0e5, model.m-1)
 
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
@@ -350,7 +350,7 @@ z0 = pack(x0, u0, prob)
 # Solve
 # NOTE: run multiple times to get good trajectory
 include_snopt()
-@time z̄, info = solve(prob, copy(z0),
+@time z̄, info = solve(prob, copy(z̄),
     nlp = :SNOPT7,
 	max_iter = 1000,
     tol = 1.0e-6, c_tol = 1.0e-6, mapl = 5,
@@ -370,8 +370,10 @@ q̄ = state_to_configuration(x̄)
 b̄ = [u[model.idx_b] for u in ū]
 tf_, t_, h̄ = get_time(ū)
 
-# @save joinpath(@__DIR__, "walker_model2_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
+@save joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
+# @load joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
+[norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1]
 (q̄[end][1] - q̄[1][1]) / tf_
 vis = Visualizer()
 render(vis)
@@ -383,15 +385,15 @@ visualize!(vis, model,
 # visualize!(vis, model,
 #  	[q̄[T+1]], Δt = h̄[1])
 
-_pf1 = [kinematics_3(model, q, body = :foot_1, mode = :com) for q in q̄]
-_pf2 = [kinematics_3(model, q, body = :foot_2, mode = :com) for q in q̄]
-
-using Plots
-plot(hcat(_pf1...)', title = "foot 1", legend = :topleft, label = ["x" "z"])
-plot(hcat(_pf2...)', title = "foot 2", legend = :bottomright, label = ["x" "z"])
-
-# @save joinpath(pwd(), "examples/trajectories/walker_steps.jld2") z̄
-plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
+# _pf1 = [kinematics_3(model, q, body = :foot_1, mode = :com) for q in q̄]
+# _pf2 = [kinematics_3(model, q, body = :foot_2, mode = :com) for q in q̄]
+#
+# using Plots
+# plot(hcat(_pf1...)', title = "foot 1", legend = :topleft, label = ["x" "z"])
+# plot(hcat(_pf2...)', title = "foot 2", legend = :bottomright, label = ["x" "z"])
+#
+# # @save joinpath(pwd(), "examples/trajectories/walker_steps.jld2") z̄
+# plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
 function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
