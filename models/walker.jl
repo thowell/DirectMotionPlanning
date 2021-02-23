@@ -71,6 +71,8 @@ struct Walker{I, T} <: Model{I, T}
     idx_ψ
     idx_η
     idx_s
+
+    joint_friction
 end
 
 # Dimensions
@@ -84,6 +86,7 @@ ns = 1                    # slack
 # World parameters
 μ = 0.5      # coefficient of friction
 g = 9.81     # gravity
+joint_friction = 0.1
 
 # Model parameters
 m_torso = 0.5 + 0.48 * 2.0
@@ -556,13 +559,18 @@ function fd(model::Walker{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	λ = view(u, model.idx_λ)
 	b = view(u, model.idx_b)
 
+	v = (q3 - q2⁺) / h
+	joint_fric = model.joint_friction * v
+	joint_fric[1:2] .= 0.0
+
     SVector{18}([q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{9}(q2⁺) - SVector{9}(q1))
     - M_func(model, q2⁺) * (SVector{9}(q3) - SVector{9}(q2⁺)))
     + h * (transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
     + transpose(N_func(model, q3)) * SVector{4}(λ)
     + transpose(P_func(model, q3)) * SVector{8}(b))
-    - h * C_func(model, q3, (q3 - q2⁺) / h)
+    - h * C_func(model, q3, v)
+	- h * joint_fric
 	+ h * w)])
 end
 
@@ -576,13 +584,18 @@ function fd(model::Walker{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	b = view(u, model.idx_b)
 	h = u[end]
 
+	v = (q3 - q2⁺) / h
+	joint_fric = model.joint_friction * v
+	joint_fric[1:2] .= 0.0
+
     SVector{18}([q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{9}(q2⁺) - SVector{9}(q1))
     - M_func(model, q2⁺) * (SVector{9}(q3) - SVector{9}(q2⁺)))
     + h * (transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
     + transpose(N_func(model, q3)) * SVector{4}(λ)
     + transpose(P_func(model, q3)) * SVector{8}(b))
-    - h * C_func(model, q3, (q3 - q2⁺) / h)
+    - h * C_func(model, q3, v)
+	- h * joint_fric
 	+ h * w)])
 end
 
@@ -608,7 +621,8 @@ model = Walker{Discrete, FixedTime}(n, m, d,
 			  idx_b,
 			  idx_ψ,
 			  idx_η,
-			  idx_s)
+			  idx_s,
+			  joint_friction)
 
 #NOTE: if a new model is instantiated, re-run the lines below
 @variables z_sym[1:model.n]
