@@ -7,8 +7,8 @@ vis = Visualizer()
 render(vis)
 
 # Horizon
-T = 31
-Tm = 16
+T = 60
+Tm = 31
 
 # Time step
 tf = 0.5
@@ -117,7 +117,7 @@ xl, xu = state_bounds(model, T,
 include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 q_ref = linear_interpolation(q1, qT, T)
 render(vis)
-visualize!(vis, model, q_ref)
+visualize!(vis, model, q_ref, Δt = h)
 x0 = configuration_to_state(q_ref)
 
 # penalty on slack variable
@@ -141,7 +141,7 @@ obj_velocity = velocity_objective(
     h = h,
     idx_angle = collect([3, 4, 5, 6, 7, 8, 9, 10, 11]))
 
-obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
+obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-3 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
 
 function l_stage(x, u, t)
 	q1 = view(x, 1:11)
@@ -149,8 +149,8 @@ function l_stage(x, u, t)
     J = 0.0
 
 	# torso height
-    J += 100.0 * (kinematics_1(model, q1, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
-	J += 100.0 * (kinematics_1(model, q2, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
+    J += 10.0 * (kinematics_1(model, q1, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
+	J += 10.0 * (kinematics_1(model, q2, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
 
 	# feet height
     if t >= Tm
@@ -162,10 +162,10 @@ function l_stage(x, u, t)
 		# pf2 = kinematics_3(model, q2, body = :calf_3, mode = :ee)
 		# vf = (pf2 - pf1) ./ h
 
-		J += 100.0 * sum((pr1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)).^2.0)
-	    J += 100.0 * sum((pf1_ref[t] - kinematics_3(model, q1, body = :calf_3, mode = :ee)).^2.0)
-		J += 100.0 * sum((pr1_ref[t] - kinematics_2(model, q2, body = :calf_1, mode = :ee)).^2.0)
-	    J += 100.0 * sum((pf1_ref[t] - kinematics_3(model, q2, body = :calf_3, mode = :ee)).^2.0)
+		J += 10.0 * sum((pr1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)).^2.0)
+	    J += 10.0 * sum((pf1_ref[t] - kinematics_3(model, q1, body = :calf_3, mode = :ee)).^2.0)
+		J += 10.0 * sum((pr1_ref[t] - kinematics_2(model, q2, body = :calf_1, mode = :ee)).^2.0)
+	    J += 10.0 * sum((pf1_ref[t] - kinematics_3(model, q2, body = :calf_3, mode = :ee)).^2.0)
 		# J += 1.0 * vr' * vr
 		# J += 1.0 * vf' * vf
 	end
@@ -179,10 +179,10 @@ function l_stage(x, u, t)
 		# pf2 = kinematics_3(model, q2, body = :calf_4, mode = :ee)
 		# vf = (pf2 - pf1) ./ h
 
-		J += 100.0 * sum((pr2_ref[t] - kinematics_2(model, q1, body = :calf_2, mode = :ee)).^2.0)
-	    J += 100.0 * sum((pf2_ref[t] - kinematics_3(model, q1, body = :calf_4, mode = :ee)).^2.0)
-		J += 100.0 * sum((pr2_ref[t] - kinematics_2(model, q2, body = :calf_2, mode = :ee)).^2.0)
-	    J += 100.0 * sum((pf2_ref[t] - kinematics_3(model, q2, body = :calf_4, mode = :ee)).^2.0)
+		J += 10.0 * sum((pr2_ref[t] - kinematics_2(model, q1, body = :calf_2, mode = :ee)).^2.0)
+	    J += 10.0 * sum((pf2_ref[t] - kinematics_3(model, q1, body = :calf_4, mode = :ee)).^2.0)
+		J += 10.0 * sum((pr2_ref[t] - kinematics_2(model, q2, body = :calf_2, mode = :ee)).^2.0)
+	    J += 10.0 * sum((pf2_ref[t] - kinematics_3(model, q2, body = :calf_4, mode = :ee)).^2.0)
 		# J += 1.0 * vr' * vr
 		# J += 1.0 * vf' * vf
 	end
@@ -220,8 +220,8 @@ end
 #
 # pt
 n_stage = 4
-t_idx1 = [t for t = 1:Tm-1]
-t_idx2 = [t for t = (Tm+1):T-1]
+t_idx1 = [t for t = 1:Tm]
+t_idx2 = [t for t = Tm:T-1]
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
@@ -262,7 +262,7 @@ include_snopt()
 @time z̄, info = solve(prob, copy(z0),
     nlp = :ipopt,
     tol = 1.0e-4, c_tol = 1.0e-1,
-	max_iter = 5000,
+	max_iter = 1000,
     time_limit = 60 * 2, mapl = 5)
 
 check_slack(z̄, prob)
@@ -273,8 +273,20 @@ q̄ = state_to_configuration(x̄)
 b̄ = [u[model.idx_b] for u in ū]
 
 _tf, _t, h̄ = get_time(ū)
-
-[norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1]
+#
+# maximum([norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1])
+# _ϕ = [minimum(min.(0.0, ϕ_func(model, q))) for q in q̄]
+#
+# cc = zeros(con_contact.n)
+# constraints!(cc, z̄, con_contact, model, prob.prob.idx, h̄[1], T)
+# idx_ineq = con_ineq_contact(model, T)
+# idx_eq = convert.(Int, setdiff(range(1, stop = con_contact.n, length = con_contact.n), idx_ineq))
+# norm(cc[idx_eq], Inf)
+# norm(min.(0.0, cc[idx_ineq]), Inf)
+#
+# length(idx_ineq)
+# con_contact.n
+# setdiff([(1:5)...], [(4:7)...])
 # Visualize
 vis = Visualizer()
 render(vis)
@@ -287,6 +299,7 @@ _pf1_ref = [kinematics_3(model, q, body = :calf_3, mode = :ee) for q in q̄]
 _pr2_ref = [kinematics_2(model, q, body = :calf_2, mode = :ee) for q in q̄]
 _pf2_ref = [kinematics_3(model, q, body = :calf_4, mode = :ee) for q in q̄]
 
+using Plots
 plot(hcat(_pr1_ref...)')
 plot(hcat(_pf1_ref...)')
 
@@ -317,3 +330,5 @@ q_viz = get_q_viz(q̄)
 visualize!(vis, model,
 	q_viz,
 	Δt = h̄[1])
+
+h̄[1]
