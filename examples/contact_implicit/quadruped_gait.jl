@@ -141,7 +141,7 @@ obj_velocity = velocity_objective(
     h = h,
     idx_angle = collect([3, 4, 5, 6, 7, 8, 9, 10, 11]))
 
-obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-3 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
+obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
 
 function l_stage(x, u, t)
 	q1 = view(x, 1:11)
@@ -162,10 +162,10 @@ function l_stage(x, u, t)
 		# pf2 = kinematics_3(model, q2, body = :calf_3, mode = :ee)
 		# vf = (pf2 - pf1) ./ h
 
-		J += 10.0 * sum((pr1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)).^2.0)
-	    J += 10.0 * sum((pf1_ref[t] - kinematics_3(model, q1, body = :calf_3, mode = :ee)).^2.0)
-		J += 10.0 * sum((pr1_ref[t] - kinematics_2(model, q2, body = :calf_1, mode = :ee)).^2.0)
-	    J += 10.0 * sum((pf1_ref[t] - kinematics_3(model, q2, body = :calf_3, mode = :ee)).^2.0)
+		J += 100.0 * sum((pr1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)).^2.0)
+	    J += 100.0 * sum((pf1_ref[t] - kinematics_3(model, q1, body = :calf_3, mode = :ee)).^2.0)
+		J += 100.0 * sum((pr1_ref[t] - kinematics_2(model, q2, body = :calf_1, mode = :ee)).^2.0)
+	    J += 100.0 * sum((pf1_ref[t] - kinematics_3(model, q2, body = :calf_3, mode = :ee)).^2.0)
 		# J += 1.0 * vr' * vr
 		# J += 1.0 * vf' * vf
 	end
@@ -179,10 +179,10 @@ function l_stage(x, u, t)
 		# pf2 = kinematics_3(model, q2, body = :calf_4, mode = :ee)
 		# vf = (pf2 - pf1) ./ h
 
-		J += 10.0 * sum((pr2_ref[t] - kinematics_2(model, q1, body = :calf_2, mode = :ee)).^2.0)
-	    J += 10.0 * sum((pf2_ref[t] - kinematics_3(model, q1, body = :calf_4, mode = :ee)).^2.0)
-		J += 10.0 * sum((pr2_ref[t] - kinematics_2(model, q2, body = :calf_2, mode = :ee)).^2.0)
-	    J += 10.0 * sum((pf2_ref[t] - kinematics_3(model, q2, body = :calf_4, mode = :ee)).^2.0)
+		J += 100.0 * sum((pr2_ref[t] - kinematics_2(model, q1, body = :calf_2, mode = :ee)).^2.0)
+	    J += 100.0 * sum((pf2_ref[t] - kinematics_3(model, q1, body = :calf_4, mode = :ee)).^2.0)
+		J += 100.0 * sum((pr2_ref[t] - kinematics_2(model, q2, body = :calf_2, mode = :ee)).^2.0)
+	    J += 100.0 * sum((pf2_ref[t] - kinematics_3(model, q2, body = :calf_4, mode = :ee)).^2.0)
 		# J += 1.0 * vr' * vr
 		# J += 1.0 * vf' * vf
 	end
@@ -261,7 +261,7 @@ include_snopt()
 
 @time z̄, info = solve(prob, copy(z0),
     nlp = :ipopt,
-    tol = 1.0e-4, c_tol = 1.0e-1,
+    tol = 1.0e-3, c_tol = 1.0e-3,
 	max_iter = 1000,
     time_limit = 60 * 2, mapl = 5)
 
@@ -309,7 +309,7 @@ plot(hcat(_pf2_ref...)')
 plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
 
 @save joinpath(@__DIR__, "quadruped_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
-
+h̄[1]
 function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
@@ -331,4 +331,49 @@ visualize!(vis, model,
 	q_viz,
 	Δt = h̄[1])
 
-h̄[1]
+
+# resimulate
+model_sim = Quadruped{Discrete, FixedTime}(n, m, d,
+			  g, μ,
+			  l_torso, d_torso, m_torso, J_torso,
+			  l_thigh, d_thigh, m_thigh, J_thigh,
+			  l_leg, d_leg, m_leg, J_leg,
+			  l_thigh, d_thigh, m_thigh, J_thigh,
+			  l_leg, d_leg, m_leg, J_leg,
+			  l_thigh, d_thigh, m_thigh, J_thigh,
+			  l_leg, d_leg, m_leg, J_leg,
+			  l_thigh, d_thigh, m_thigh, J_thigh,
+			  l_leg, d_leg, m_leg, J_leg,
+			  qL, qU,
+			  uL, uU,
+			  nq,
+			  nu,
+			  nc,
+			  nf,
+			  nb,
+			  ns,
+			  idx_u,
+			  idx_λ,
+			  idx_b,
+			  idx_ψ,
+			  idx_η,
+			  idx_s,
+			  joint_friction)
+
+x_sim = [x̄[1]]
+q_sim = [x̄[1][1:model.nq], x̄[2][model.nq .+ (1:model.nq)]]
+include(joinpath(pwd(), "src/contact_simulator/simulator.jl"))
+for t = 1:T-1
+	_x = step_contact(model_sim, x_sim[end], ū[t][1:model.nu], zeros(model.d), h̄[t],
+	        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
+	push!(x_sim, _x)
+	push!(q_sim, x_sim[end][model.nq .+ (1:model.nq)])
+end
+
+plot(hcat(q̄...)')
+plot(hcat(q_sim...)')
+
+vis = Visualizer()
+render(vis)
+# open(vis)
+visualize!(vis, model, q_sim, Δt = h̄[1])
