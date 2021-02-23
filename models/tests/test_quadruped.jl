@@ -67,6 +67,6 @@ k3(z) = kinematics_3(model, z, body = :calf_4, mode = :com)
 q̇ = rand(nq)
 eigen(M_func(model, q))
 
-tmp_q(z) = dLdq̇(model, z, q̇)
-tmp_q̇(z) = dLdq̇(model, q, z)
+tmp_q(z) = _dLdq̇(model, z, q̇)
+tmp_q̇(z) = _dLdq̇(model, q, z)
 norm(ForwardDiff.jacobian(tmp_q̇,q̇) - M_func(model, q))

@@ -11,7 +11,7 @@ T = 31
 Tm = 16
 
 # Time step
-tf = 1.0
+tf = 0.5
 h = tf / (T - 1)
 
 function ellipse_traj(x_start, x_goal, z, T)
@@ -44,8 +44,8 @@ function initial_configuration(model::Quadruped, θ1, θ2, θ3)
     return q1
 end
 
-θ1 = pi / 3.5
-θ2 = pi / 5.0
+θ1 = pi / 4.0
+θ2 = pi / 4.0
 θ3 = pi / 3.0
 
 q1 = initial_configuration(model, θ1, θ2, θ3)
@@ -66,7 +66,7 @@ qT[1] += strd
 # torso height
 pt = kinematics_1(model, q1, body = :torso, mode = :com)
 
-zh = 0.1
+zh = 0.05
 xr1_el, zr1_el = ellipse_traj(pr1[1], pr1[1] + strd, zh, Tm)
 xr1 = [[xr1_el[1] for t = 1:Tm-1]..., xr1_el...]
 zr1 = [[zr1_el[1] for t = 1:Tm-1]..., zr1_el...]
@@ -114,7 +114,7 @@ xl, xu = state_bounds(model, T,
     xT = [Inf * ones(model.nq); qT[1]; Inf * ones(model.nq - 1)])
 
 # Objective
-include_objective(["velocity", "nonlinear_stage"])
+include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 q_ref = linear_interpolation(q1, qT, T)
 render(vis)
 visualize!(vis, model, q_ref)
@@ -126,8 +126,8 @@ obj_penalty = PenaltyObjective(1.0e4, model.m - 1)
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
 obj_control = quadratic_time_tracking_objective(
-    [0.0 * Diagonal(1.0e-1 * ones(model.n)) for t = 1:T],
-    [0.0 * Diagonal([1.0 * ones(model.nu)..., zeros(model.m - model.nu)...]) for t = 1:T-1],
+    [1.0 * Diagonal(1.0e-5 * ones(model.n)) for t = 1:T],
+    [1.0 * Diagonal([1.0e-5 * ones(model.nu)..., zeros(model.m - model.nu)...]) for t = 1:T-1],
     [[qT; qT] for t = 1:T],
     [zeros(model.m) for t = 1:T],
     1.0)
@@ -141,50 +141,50 @@ obj_velocity = velocity_objective(
     h = h,
     idx_angle = collect([3, 4, 5, 6, 7, 8, 9, 10, 11]))
 
+obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
+
 function l_stage(x, u, t)
 	q1 = view(x, 1:11)
 	q2 = view(x, 11 .+ (1:11))
     J = 0.0
 
 	# torso height
-    J += 1.0 * (kinematics_1(model, q1, body = :torso, mode = :com)[1] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[1])^2.0
+    J += 100.0 * (kinematics_1(model, q1, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
+	J += 100.0 * (kinematics_1(model, q2, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
 
-    # # torso lateral
-    # J += 1.0 * (kinematics_1(model, view(x, q2_idx), body = :torso, mode = :com)[2] - pt[2])^2.0
-
-    # feet height
-    if t > Tm
-		pr1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
-		pr2 = kinematics_2(model, q2, body = :calf_1, mode = :ee)
-		vr = (pr2 - pr1) ./ h
-
-		pf1 = kinematics_3(model, q1, body = :calf_3, mode = :ee)
-		pf2 = kinematics_3(model, q2, body = :calf_3, mode = :ee)
-		vf = (pf2 - pf1) ./ h
+	# feet height
+    if t >= Tm
+		# pr1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
+		# pr2 = kinematics_2(model, q2, body = :calf_1, mode = :ee)
+		# vr = (pr2 - pr1) ./ h
+		#
+		# pf1 = kinematics_3(model, q1, body = :calf_3, mode = :ee)
+		# pf2 = kinematics_3(model, q2, body = :calf_3, mode = :ee)
+		# vf = (pf2 - pf1) ./ h
 
 		J += 100.0 * sum((pr1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)).^2.0)
 	    J += 100.0 * sum((pf1_ref[t] - kinematics_3(model, q1, body = :calf_3, mode = :ee)).^2.0)
 		J += 100.0 * sum((pr1_ref[t] - kinematics_2(model, q2, body = :calf_1, mode = :ee)).^2.0)
 	    J += 100.0 * sum((pf1_ref[t] - kinematics_3(model, q2, body = :calf_3, mode = :ee)).^2.0)
-		J += 1.0 * vr' * vr
-		J += 1.0 * vf' * vf
+		# J += 1.0 * vr' * vr
+		# J += 1.0 * vf' * vf
 	end
 
-    if t < Tm
-		pr1 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
-		pr2 = kinematics_2(model, q2, body = :calf_2, mode = :ee)
-		vr = (pr2 - pr1) ./ h
-
-		pf1 = kinematics_3(model, q1, body = :calf_4, mode = :ee)
-		pf2 = kinematics_3(model, q2, body = :calf_4, mode = :ee)
-		vf = (pf2 - pf1) ./ h
+    if t <= Tm
+		# pr1 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
+		# pr2 = kinematics_2(model, q2, body = :calf_2, mode = :ee)
+		# vr = (pr2 - pr1) ./ h
+		#
+		# pf1 = kinematics_3(model, q1, body = :calf_4, mode = :ee)
+		# pf2 = kinematics_3(model, q2, body = :calf_4, mode = :ee)
+		# vf = (pf2 - pf1) ./ h
 
 		J += 100.0 * sum((pr2_ref[t] - kinematics_2(model, q1, body = :calf_2, mode = :ee)).^2.0)
 	    J += 100.0 * sum((pf2_ref[t] - kinematics_3(model, q1, body = :calf_4, mode = :ee)).^2.0)
 		J += 100.0 * sum((pr2_ref[t] - kinematics_2(model, q2, body = :calf_2, mode = :ee)).^2.0)
 	    J += 100.0 * sum((pf2_ref[t] - kinematics_3(model, q2, body = :calf_4, mode = :ee)).^2.0)
-		J += 1.0 * vr' * vr
-		J += 1.0 * vf' * vf
+		# J += 1.0 * vr' * vr
+		# J += 1.0 * vf' * vf
 	end
 
     return J
@@ -196,7 +196,8 @@ obj_shaping = nonlinear_stage_objective(l_stage, l_terminal)
 obj = MultiObjective([obj_penalty,
                       obj_control,
                       obj_velocity,
-					  obj_shaping])
+					  obj_shaping,
+					  obj_ctrl_velocity])
 # Constraints
 include_constraints(["stage", "contact", "free_time", "loop"])
 function pinned1!(c, x, u, t)
@@ -220,7 +221,7 @@ end
 # pt
 n_stage = 4
 t_idx1 = [t for t = 1:Tm-1]
-t_idx2 = [t for t = Tm:T-1]
+t_idx2 = [t for t = (Tm+1):T-1]
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
@@ -248,7 +249,7 @@ prob = trajectory_optimization_problem(model,
                con = con)
 
 # trajectory initialization
-u0 = [[1.0e-3 * rand(model.m - 1); h] for t = 1:T-1] # random controls
+u0 = [[1.0e-2 * rand(model.m - 1); h] for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 z0 = pack(x0, u0, prob)
@@ -256,11 +257,12 @@ z0 = pack(x0, u0, prob)
 
 # Solve
 include_snopt()
+# @load joinpath(@__DIR__, "quadruped_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
 @time z̄, info = solve(prob, copy(z0),
     nlp = :ipopt,
-    tol = 1.0e-3, c_tol = 1.0e-3,
-	max_iter = 2000,
+    tol = 1.0e-4, c_tol = 1.0e-1,
+	max_iter = 5000,
     time_limit = 60 * 2, mapl = 5)
 
 check_slack(z̄, prob)
@@ -272,6 +274,7 @@ b̄ = [u[model.idx_b] for u in ū]
 
 _tf, _t, h̄ = get_time(ū)
 
+[norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1]
 # Visualize
 vis = Visualizer()
 render(vis)
@@ -290,9 +293,10 @@ plot(hcat(_pf1_ref...)')
 plot(hcat(_pr2_ref...)')
 plot(hcat(_pf2_ref...)')
 
-@save joinpath(@__DIR__, "quadruped_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
+plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
 
-joinpath(@__DIR__, "quadruped_gait.jld2")
+@save joinpath(@__DIR__, "quadruped_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
+
 function get_q_viz(q̄)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)

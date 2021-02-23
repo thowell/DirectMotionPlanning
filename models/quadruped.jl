@@ -81,6 +81,8 @@ struct Quadruped{I, T} <: Model{I, T}
     idx_ψ
     idx_η
     idx_s
+
+	joint_friction
 end
 
 # Dimensions
@@ -129,6 +131,8 @@ qU = Inf * ones(nq)
 
 uL = -33.5 * ones(nu)
 uU = 33.5 * ones(nu)
+
+joint_friction = 0.1
 
 function kinematics_1(model::Quadruped, q; body = :torso, mode = :ee)
 	x = q[1]
@@ -334,7 +338,6 @@ end
 function lagrangian(model::Quadruped, q, q̇)
 	L = 0.0
 
-	L = transpose(q) * q + transpose(q̇) * q̇
 	# # torso
 	p_torso = kinematics_1(model, q, body = :torso, mode = :com)
 	J_torso = jacobian_1(model, q, body = :torso, mode = :com)
@@ -572,13 +575,18 @@ function fd(model::Quadruped{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	λ = view(u, model.idx_λ)
 	b = view(u, model.idx_b)
 
+	v = (q3 - q2⁺) / h
+	joint_fric = model.joint_friction * v
+	joint_fric[1:2] .= 0.0
+
     [q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{11}(q2⁺) - SVector{11}(q1))
     - M_func(model, q2⁺) * (SVector{11}(q3) - SVector{11}(q2⁺)))
     + h * (transpose(B_func(model, q3)) * SVector{8}(u_ctrl)
+	- joint_fric
     + transpose(N_func(model, q3)) * SVector{4}(λ)
     + transpose(P_func(model, q3)) * SVector{8}(b)
-    - C_func(model, q3, (q3 - q2⁺) / h)))]
+    - C_func(model, q3, v)))]
 end
 
 function fd(model::Quadruped{Discrete, FreeTime}, x⁺, x, u, w, h, t)
@@ -590,11 +598,14 @@ function fd(model::Quadruped{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	λ = view(u, model.idx_λ)
 	b = view(u, model.idx_b)
 	h = u[end]
-
+	v = (q3 - q2⁺) / h
+	joint_fric = model.joint_friction * v
+	joint_fric[1:2] .= 0.0
     [q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{11}(q2⁺) - SVector{11}(q1))
     - M_func(model, q2⁺) * (SVector{11}(q3) - SVector{11}(q2⁺)))
     + h * (transpose(B_func(model, q3)) * SVector{8}(u_ctrl)
+	- joint_fric
     + transpose(N_func(model, q3)) * SVector{4}(λ)
     + transpose(P_func(model, q3)) * SVector{8}(b)
     - C_func(model, q3, (q3 - q2⁺) / h)))]
@@ -634,7 +645,8 @@ model = Quadruped{Discrete, FixedTime}(n, m, d,
 			  idx_b,
 			  idx_ψ,
 			  idx_η,
-			  idx_s)
+			  idx_s,
+			  joint_friction)
 
 #NOTE: if a new model is instantiated, re-run the lines below
 @variables z_sym[1:model.n]
@@ -655,12 +667,14 @@ ddL = eval(ModelingToolkit.build_function(_ddL, z_sym)[1])
 function C_func(model::Quadruped, q, q̇)
 	ddLq̇q([q; q̇]) * q̇ - dLq([q; q̇])
 end
-
-# qq = rand(model.nq)
-# vv = rand(model.nq)
+# dLq([qq;vv])
+# qq = SVector{model.nq}(rand(model.nq))
+# vv = SVector{model.nq}(rand(model.nq))
+# zz = SVector{2*model.nq}([qq;vv])
+# dLq(zz)
 # norm(C_func(model, qq, vv) - _C_func(model, qq, vv))
 # dL(qq)
-
+# C_func(model, )
 # visualization
 function visualize!(vis, model::Quadruped, q;
       r = 0.025, Δt = 0.1)
