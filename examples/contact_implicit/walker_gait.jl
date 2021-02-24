@@ -370,7 +370,7 @@ q̄ = state_to_configuration(x̄)
 b̄ = [u[model.idx_b] for u in ū]
 tf_, t_, h̄ = get_time(ū)
 
-# @save joinpath(@__DIR__, "walker_gait_alt.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
+@save joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 # @load joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
 [norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1]
@@ -381,7 +381,6 @@ visualize!(vis, model,
 	[[x̄[1][1:model.nq] for i = 1:10]...,
 	 state_to_configuration(x̄)...,
 	 [x̄[end][model.nq .+ (1:model.nq)] for i = 1:10]...], Δt = h̄[1])
-
 # visualize!(vis, model,
 #  	[q̄[T+1]], Δt = h̄[1])
 
