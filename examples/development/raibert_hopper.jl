@@ -13,11 +13,8 @@ end
 # Dimensions
 nq = 5 # configuration dim
 nu = 2 # control dim
-nu_sim = 0
 nc = 1 # number of contact points
 nf = 2 # number of faces for friction cone pyramid
-
-T = 50 # number of time steps to optimize
 
 # Parameters
 g = 9.81 # gravity
@@ -103,10 +100,3 @@ plot!(_t,_ϕ,color=:cyan,label="phi",width=2.)
 
 plot!(_t,0.01*_M)
 plot!(_t,0.01*_ṙ)
-#
-# # Visualize
-# include("../src/visualize.jl")
-# vis = Visualizer()
-# open(vis)
-# visualize!(vis,model,Q,tf/(T-1))
-#
