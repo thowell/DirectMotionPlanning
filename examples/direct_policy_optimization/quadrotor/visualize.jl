@@ -18,7 +18,7 @@ plot(t_dpo, hcat(x...)[1:3,:]', linetype=:steppost, width = 2.0)
 plot(t_dpo[1:end-1], hcat(u...)', linetype=:steppost, width = 2.0)
 
 vis = Visualizer()
-open(vis)
+render(vis)
 visualize!(vis, model, x̄, Δt = ū[1][end])
 
 # # Plots results
@@ -253,7 +253,7 @@ end
 # # visualize
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
-# render(vis)
+render(vis)
 open(vis)
 shift = zero(x[1])
 shift[1] = -1.5
@@ -291,7 +291,7 @@ pts_nom = collect(eachcol(hcat([z[1:3] + _shift for z in z_lqr4]...)))
 material_nom = LineBasicMaterial(color = colorant"gray", linewidth = 5.0)
 setobject!(vis["com_traj_lqr4"], Object(PointCloud(pts_nom), material_nom, "Line"))
 setvisible!(vis["com_traj_lqr4"],false)
-visualize!(vis,model,pad_trajectory(z_lqr4, shift, 100),Δt=dt_sim_nom)
+visualize!(vis,model,pad_trajectory(z_lqr4[27], shift, 100),Δt=dt_sim_nom)
 
 
 pts_nom = collect(eachcol(hcat([z[1:3] + _shift for z in x]...)))

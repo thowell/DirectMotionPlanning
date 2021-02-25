@@ -82,11 +82,11 @@ function ellipse_traj(x_start, x_goal, z, T)
 end
 
 # Horizon
-T = 61
-Tm = 31 #convert(Int, floor(0.5 * T))
+T = 50
+Tm = 26 #convert(Int, floor(0.5 * T))
 
 # Time step
-tf = 1.0
+tf = 0.5
 h = tf / (T - 1)
 
 # Configurations
@@ -138,7 +138,7 @@ function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2
     return q1
 end
 
-q1 = initial_configuration(model, -pi / 100.0, pi / 10.0, -pi / 30.0, -pi / 20.0)
+q1 = initial_configuration(model, -pi / 100.0, pi / 20.0, pi / 50.0, -pi / 40.0)
 
 pf1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
@@ -151,9 +151,9 @@ pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 
 strd = 2 * (pf1 - pf2)[1]
 
-zh = 0.15
-xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm)
-xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm)
+zh = 0.075
+xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm-1)
+xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm-1)
 
 zf2 = [zf2_el..., [zf2_el[end] for t = 1:Tm-1]...]
 xf2 = [xf2_el..., [xf2_el[end] for t = 1:Tm-1]...]
@@ -219,7 +219,7 @@ obj_penalty = PenaltyObjective(1.0e4, model.m-1)
 
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
-q_penalty = 0.0 * ones(model.nq)
+q_penalty = 1.0e-5 * ones(model.nq)
 # q_penalty[1] = 1.0
 # q_penalty[2] = 1.0
 # q_penalty[3] = 10.0
@@ -228,12 +228,12 @@ q_penalty = 0.0 * ones(model.nq)
 x_penalty = [q_penalty; q_penalty]
 obj_control = quadratic_time_tracking_objective(
     [Diagonal(x_penalty) for t = 1:T],
-    [Diagonal([0.0e-5 * ones(model.nu)..., 0.0 * ones(model.m - model.nu)...]) for t = 1:T-1],
+    [Diagonal([1.0e-5 * ones(model.nu)..., 1.0e-8 * ones(model.m - model.nu)...]) for t = 1:T-1],
     [x_ref[end] for t = 1:T],
     [[zeros(model.nu); zeros(model.m - model.nu)] for t = 1:T-1],
 	1.0)
 
-obj_ctrl_vel = control_velocity_objective(Diagonal([0.0 * ones(model.nu); zeros(model.m - model.nu)]))
+obj_ctrl_vel = control_velocity_objective(Diagonal([1.0e-3 * ones(model.nu); zeros(model.m - model.nu)]))
 
 # quadratic velocity penalty
 q_v = 1.0e-1 * ones(model.nq)
@@ -254,8 +254,8 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		pq2 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		v = (pq2 - pq1) ./ h
-		J += 10000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
-		J += 10000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :heel)).^2.0)
+		J += 100000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
+		J += 100000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
@@ -263,13 +263,13 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
 		v = (pq2 - pq1) ./ h
-		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
-		J += 10000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
+		J += 100000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
+		J += 100000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
 	if t < T
-		J += 1000.0 * ((q2[1] - q1[1]) / max(1.0e-6, u[model.m]) - 1.0)^2.0
+		J += 1.0e-3 * ((q2[1] - q1[1]) / max(1.0e-6, u[model.m]) - 1.0)^2.0
 	end
 
 	return J
@@ -370,7 +370,7 @@ q̄ = state_to_configuration(x̄)
 b̄ = [u[model.idx_b] for u in ū]
 tf_, t_, h̄ = get_time(ū)
 
-@save joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
+# @save joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 # @load joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
 [norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1]

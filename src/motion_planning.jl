@@ -14,7 +14,7 @@ using GeometryBasics
 using MeshCat, MeshIO
 using Rotations
 # using RigidBodyDynamics, MeshCatMechanisms
-
+Point
 include("indices.jl")
 include("utils.jl")
 

@@ -26,7 +26,7 @@ W = Distributions.MvNormal(zeros(model_sim.n),
 w = rand(W, T_sim)
 
 W0 = Distributions.MvNormal(zeros(model_sim.n),
-	Diagonal(1.0e-5 * ones(model_sim.n)))
+	Diagonal(1.0e-2 * ones(model_sim.n)))
 w0 = rand(W0, 1)
 
 z0_sim = vec(copy(x1_sim) + w0)
