@@ -135,7 +135,7 @@ function visualize!(vis, model::CYBERTRUCK, q;
 				LinearMap(RotZ(q[t][4] + pi) * RotY(0.0) * RotX(pi / 2.0))))
         end
     end
-	
+
 	if scenario == :pp
 		settransform!(vis["/Cameras/default"],
 			compose(Translation(2.0, 0.0, 1.0),LinearMap(RotZ(0.0))))
