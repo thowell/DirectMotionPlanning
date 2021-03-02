@@ -95,12 +95,6 @@ end
     particle dynamics
     - 3D particle subject to contact forces
 
-    - configuration: q = (x, y, z) ∈ R³
-    - impact force (magnitude): n ∈ R₊
-    - friction force: β ∈ R⁴₊
-        - contact force: λ = (β, n) ∈ R⁴₊ × R₊
-        - friction coefficient: μ ∈ R₊
-
     Discrete Mechanics and Variational Integrators
         pg. 363
 """
@@ -163,7 +157,7 @@ function _step(q1, q2, h;
     #     s are slack variables for convenience
 
     # initialize
-    z = 1.0e-1 * ones(11)
+    z = 1.0e-1 * ones(13)
     z[1:3] = copy(q2)
 
     # initialize soc variables

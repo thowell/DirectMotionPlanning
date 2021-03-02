@@ -217,8 +217,6 @@ function visualize!(vis, model::Hopper, q;
     r_foot = 0.05
     r_leg = 0.5 * r_foot
 
-	default_background!(vis)
-
     setobject!(vis["body"], Sphere(Point3f0(0),
         convert(Float32, 0.1)),
         MeshPhongMaterial(color = RGBA(0, 1, 0, 1.0)))
@@ -236,27 +234,6 @@ function visualize!(vis, model::Hopper, q;
 
     p_leg = [zeros(3) for i = 1:n_leg]
     anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
-
-	if scenario == :push
-		p1 = Cylinder(Point3f0(0.0, 0.0, 0.0),
-			Point3f0(0.0, 0.0, 0.25),
-			convert(Float32, 0.025))
-		setobject!(vis["pusher1"], p1,
-			MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
-		settransform!(vis["pusher1"],
-			compose(Translation(-0.0875, 0.0, 0.5), LinearMap(RotY(-pi / 2))))
-
-		p2 = Cylinder(Point3f0(0.0, 0.0, 0.0),
-			Point3f0(0.0, 0.0, 0.075),
-			convert(Float32, 0.1))
-		setobject!(vis["pusher2"], p2,
-			MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
-		settransform!(vis["pusher2"],
-			compose(Translation(-0.0875, 0.0, 0.5), LinearMap(RotY(-pi / 2))))
-
-		x_push = [range(-2.0, stop = -0.088, length = 51)...,
-			range(-0.088, stop = -2.0, length = 400-51)...]
-	end
 
     for t = 1:length(q)
         p_body = [q[t][1], 0.0, q[t][2]]
@@ -280,25 +257,11 @@ function visualize!(vis, model::Hopper, q;
             for i = 1:n_leg
                 settransform!(vis["leg$i"], Translation(p_leg[i] + z_shift))
             end
-
-			if scenario == :push
-				settransform!(vis["pusher1"],
-					compose(Translation(x_push[t], 0.0, 0.725),
-						LinearMap(RotY(-pi / 2))))
-				settransform!(vis["pusher2"],
-					compose(Translation(x_push[t], 0.0, 0.725),
-						LinearMap(RotY(-pi / 2))))
-			end
         end
     end
 
-	if scenario == :flip
-		settransform!(vis["/Cameras/default"],
-			compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
-	elseif scenario == :vertical || scenario == :push
-		settransform!(vis["/Cameras/default"],
-			compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
-	end
+	settransform!(vis["/Cameras/default"],
+		compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
 
     MeshCat.setanimation!(vis, anim)
 end

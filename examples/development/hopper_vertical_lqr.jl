@@ -160,7 +160,7 @@ P_vec = [vec(P[t]) for t = 1:T_track-1]
 plot(hcat(K_vec...)', label = "")
 plot(hcat(P_vec...)', label = "")
 
-include(joinpath(pwd(), "src/simulate_contact.jl"))
+include(joinpath(pwd(), "src/contact_simulator/simulator_variable_time_step.jl"))
 model_sim = model
 
 T_sim = 1 * T_track
@@ -173,7 +173,7 @@ x_track_stack = hcat(x_track...)
 x_sim = [copy(x_proj[1])]
 u_sim = []
 T_horizon = T_sim - T
-
+x_shift = 0.0
 x_shift_vec = [x_shift; 0.0; 0.0; 0.0; x_shift; 0.0; 0.0; 0.0]
 
 for tt = 1:T_horizon-1
@@ -196,7 +196,7 @@ for tt = 1:T_horizon-1
 	_q_sim = [x_sim[end][1:nq], x_sim[end][nq .+ (1:nq)]]
 	_v_sim = [(x_sim[end][nq .+ (1:nq)] - x_sim[end][1:nq]) / h̄[1]]
 
-	d = 2
+	d = 3
 	_h = h̄[1] / convert(Float64, d)
 	for p = 1:d
 

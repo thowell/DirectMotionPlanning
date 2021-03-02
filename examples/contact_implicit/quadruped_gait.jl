@@ -257,13 +257,13 @@ z0 = pack(x0, u0, prob)
 
 # Solve
 include_snopt()
-# @load joinpath(@__DIR__, "quadruped_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
+@load joinpath(@__DIR__, "quadruped_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
-@time z̄, info = solve(prob, copy(z0),
-    nlp = :ipopt,
-    tol = 1.0e-3, c_tol = 1.0e-3,
-	max_iter = 1000,
-    time_limit = 60 * 2, mapl = 5)
+# @time z̄, info = solve(prob, copy(z0),
+#     nlp = :ipopt,
+#     tol = 1.0e-3, c_tol = 1.0e-3,
+# 	max_iter = 1000,
+#     time_limit = 60 * 2, mapl = 5)
 
 check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
@@ -377,3 +377,43 @@ vis = Visualizer()
 render(vis)
 # open(vis)
 visualize!(vis, model, q_sim, Δt = h̄[1])
+
+
+function traj_concat(q̄, ū; N = 3)
+	u_viz = [ū...]
+	q_viz = [q̄...]
+
+	shift_vec = zeros(model.nq)
+	shift_vec[1] = q̄[end][1]
+
+	for i = 1:N
+		push!(u_viz, ū...)
+		# println(shift)
+		# shift_vec[1] = strd
+		#
+		q_update = [q + shift_vec for q in q̄[3:end]]
+		push!(q_viz, q_update...)
+		shift_vec[1] = q_update[end][1]
+	end
+
+	return q_viz, u_viz
+end
+
+q_cat, u_cat = traj_concat(q̄, ū, N = 25)
+plot(hcat(q_cat...)', label = "")
+plot(hcat(u_cat...)[1:model.nu, :]', label = "")
+x_cat = configuration_to_state(q_cat)
+u_cat
+Q = [Diagonal(ones(model.n)) for t = 1:length(x_cat)]
+R = [Diagonal(ones(model.m)) for t = 1:length(u_cat)]
+
+K, P = tvlqr(model, x_cat, u_cat, nothing, Q, R)
+
+plot(hcat([vec(k) for k in K]...)', label = "")
+
+K_quadruped = K[1:T-1]
+x̄_quadruped = x̄[1:T]
+ū_quadruped = ū[1:T-1]
+h̄_quadruped = h̄[1:T-1]
+
+@save joinpath(@__DIR__, "quadruped_lqr.jld2") K_quadruped x̄_quadruped ū_quadruped h̄_quadruped

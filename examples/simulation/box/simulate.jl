@@ -9,8 +9,8 @@ function simulate(q1, q2, T, h)
 
     # initialize histories
     q = [q1, q2]
-    n = [0.0]
-    b = [zeros(2)]
+    n = []
+    b = []
     Δq1 = []
     Δq2 = []
     Δu1 = []
@@ -21,14 +21,13 @@ function simulate(q1, q2, T, h)
     for t = 1:T
         println("   t = $t")
         q3, n1, b1, _Δq1, _Δq2, _Δu1, status = step(q[end-1], q[end], u1, h)
-
         if !status
             @error "failed step (t = $t)"
-            return q, n, b
+            return q, n, b, Δq1, Δq2, Δu1
         else
             push!(q, q3)
-            push!(n, n1)
-            push!(b, b1)
+            # push!(n, n1)
+            # push!(b, b1)
             push!(Δq1, _Δq1)
             push!(Δq2, _Δq2)
             push!(Δu1, _Δu1)

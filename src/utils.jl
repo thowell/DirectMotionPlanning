@@ -101,7 +101,7 @@ end
 
 function configuration_to_state(Q)
     T = length(Q)
-    [[t == 1 ? Q[1] : Q[t-1]; Q[t]] for t = 1:T]
+    [[Q[t-1]; Q[t]] for t = 2:T]
 end
 
 function additive_noise_model(model::T) where T

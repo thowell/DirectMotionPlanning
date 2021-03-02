@@ -82,11 +82,7 @@ function ellipse_traj(x_start, x_goal, z, T)
 end
 
 # Horizon
-<<<<<<< HEAD
-T = 50
-=======
 T = 51
->>>>>>> 730463d90d97e1c90c43f1792ea551a9ded1068e
 Tm = 26 #convert(Int, floor(0.5 * T))
 
 # Time step
@@ -156,13 +152,8 @@ pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 strd = 2 * (pf1 - pf2)[1]
 
 zh = 0.075
-<<<<<<< HEAD
-xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm-1)
-xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm-1)
-=======
 xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm)
 xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm)
->>>>>>> 730463d90d97e1c90c43f1792ea551a9ded1068e
 
 zf2 = [zf2_el..., [zf2_el[end] for t = 1:Tm-1]...]
 xf2 = [xf2_el..., [xf2_el[end] for t = 1:Tm-1]...]
@@ -177,7 +168,7 @@ plot(hcat(p2_ref...)')
 
 qT = copy(q1)
 qT[1] += strd
-q_ref = linear_interpolation(q1, qT, T)
+q_ref = linear_interpolation(q1, qT, T+1)
 x_ref = configuration_to_state(q_ref)
 visualize!(vis, model, q_ref, Δt = h)
 
@@ -353,23 +344,25 @@ qT[1]
 # trajectory initialization
 u0 = [[1.0e-3 * randn(model.nu); 0.01 * randn(model.m - model.nu - 1); h] for t = 1:T-1] # random controls
 
+
 # Pack trajectories into vector
 z0 = pack(x0, u0, prob)
 
 # Solve
 # NOTE: run multiple times to get good trajectory
-include_snopt()
-@time z̄, info = solve(prob, copy(z0),
-    nlp = :ipopt,
-	max_iter = 1000,
-    tol = 1.0e-1, c_tol = 1.0e-3, mapl = 5,
-    time_limit = 60 * 3)
+# include_snopt()
+# @time z̄, info = solve(prob, copy(z0),
+#     nlp = :ipopt,
+# 	max_iter = 1000,
+#     tol = 1.0e-1, c_tol = 1.0e-3, mapl = 5,
+#     time_limit = 60 * 3)
 
 # @time z̄, info = solve(prob, copy(z̄ .+ 0.01 * randn(prob.num_var)),
 #     nlp = :SNOPT7,
 # 	max_iter = 1000,
 #     tol = 1.0e-3, c_tol = 1.0e-3, mapl = 5,
 #     time_limit = 60 * 3)
+@load joinpath(@__DIR__, "walker_gait_3.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
@@ -404,11 +397,11 @@ plot(hcat(_pf2...)', title = "foot 2", legend = :bottomright, label = ["x" "z"])
 #
 # # # @save joinpath(pwd(), "examples/trajectories/walker_steps.jld2") z̄
 # # plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
-function get_q_viz(q̄)
+function get_q_viz(q̄; N = 3)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
 	shift_vec[1] = q̄[end][1]
-	for i = 1:3
+	for i = 1:N
 		# println(shift)
 		# shift_vec[1] = strd
 		#
@@ -425,7 +418,50 @@ open(vis)
 visualize!(vis, model,
 	q_viz,
 	Δt = h̄[1])
-#
+
+
+function traj_concat(q̄, ū; N = 3)
+	u_viz = [ū...]
+	q_viz = [q̄...]
+
+	shift_vec = zeros(model.nq)
+	shift_vec[1] = q̄[end][1]
+
+	for i = 1:N
+		push!(u_viz, ū...)
+		# println(shift)
+		# shift_vec[1] = strd
+		#
+		q_update = [q + shift_vec for q in q̄[3:end]]
+		push!(q_viz, q_update...)
+		shift_vec[1] = q_update[end][1]
+	end
+
+	return q_viz, u_viz
+end
+
+q_cat, u_cat = traj_concat(q̄, ū, N = 25)
+plot(hcat(q_cat...)', label = "")
+plot(hcat(u_cat...)[1:model.nu, :]', label = "")
+x_cat = configuration_to_state(q_cat)
+u_cat
+
+qp = ones(model.nq)
+qp[1] = 1.0
+qp[2] = 1.0
+Q = [Diagonal([qp; qp]) for t = 1:length(x_cat)]
+R = [Diagonal(ones(model.m)) for t = 1:length(u_cat)]
+
+K, P = tvlqr(model, x_cat, u_cat, nothing, Q, R)
+
+plot(hcat([vec(k) for k in K]...)', label = "")
+
+K_walker = K[1:T-1]
+x̄_walker = x̄[1:T]
+ū_walker = ū[1:T-1]
+h̄_walker = h̄[1:T-1]
+
+@save joinpath(@__DIR__, "walker_lqr.jld2") K_walker x̄_walker ū_walker h̄_walker
 # (q̄[end][1] - q̄[1][1]) / tf_
 #
 # h̄[1]

@@ -10,14 +10,14 @@ model = Particle(2 * 3, 3, 0, 1.0, 9.81, 0.5, 3, 3)
 joinpath(@__DIR__,"model.jl")
 
 # horizon
-T = 26
+T = 1001
 
 # time step
-h = 0.1
+h = 0.01
 t = range(0, stop = h * (T - 1), length = T)
 
 # initial conditions
-v1 = [0.0; 0.0; 0.0]
+v1 = [10.0; 1.0; 10.0]
 q1 = [0.0; 0.0; 1.0]
 
 v2 = v1 - gravity(model, q1) * h
@@ -26,19 +26,19 @@ q2 = q1 + 0.5 * (v1 + v2) * h
 # # simulate
 q_sol, y_sol, b_sol, Δq1, Δq2, Δu1 = simulate(q1, q2, T, h)
 
-# include(joinpath(pwd(), "models/visualize.jl"))
-# vis = Visualizer()
-# render(vis)
-#
-# visualize!(vis, model,
-#     q_sol,
-#     Δt = h)
-#
-# settransform!(vis["/Cameras/default"],
-#     compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(pi))))
-#
-# settransform!(vis["/Cameras/default"],
-# 	compose(Translation(0.0, 0.0, 3.0),LinearMap(RotY(-pi/2.5))))
+include(joinpath(pwd(), "models/visualize.jl"))
+vis = Visualizer()
+render(vis)
+
+visualize!(vis, model,
+    q_sol,
+    Δt = h)
+
+settransform!(vis["/Cameras/default"],
+    compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(pi))))
+
+settransform!(vis["/Cameras/default"],
+	compose(Translation(0.0, 0.0, 3.0),LinearMap(RotY(-pi/2.5))))
 
 ## trajectory optimization
 ul, uu = control_bounds(model, T, zeros(model.m), zeros(model.m))
