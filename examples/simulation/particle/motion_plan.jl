@@ -41,6 +41,8 @@ settransform!(vis["/Cameras/default"],
 	compose(Translation(0.0, 0.0, 3.0),LinearMap(RotY(-pi/2.5))))
 
 ## trajectory optimization
+T = 26
+h = 0.1
 ul, uu = control_bounds(model, T, zeros(model.m), zeros(model.m))
 ul[1] = [-Inf; -Inf; 0.0]
 uu[1] = [Inf; Inf; 0.0]
@@ -72,7 +74,7 @@ prob = trajectory_optimization_problem(model,
 			   dynamics = false)
 
 # Trajectory initialization
-x0 = configuration_to_state(linear_interpolation(q1, qT, T)) #linear_interpolation(x1, x1, T) # linear interpolation on state
+x0 = configuration_to_state([q1, linear_interpolation(q1, qT, T)...]) #linear_interpolation(x1, x1, T) # linear interpolation on state
 u0 = [1.0e-1 * rand(model.m) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
@@ -87,6 +89,7 @@ include_snopt()
 
 x̄, ū = unpack(z̄, prob)
 q̄ = state_to_configuration(x̄)
+t = range(0, stop = h * (T - 1), length = T)
 
 plot(t, hcat(q̄[2:end]...)', xlabel = "time (s)", ylabel = "")
 plot(t, hcat(ū...,ū[end])',

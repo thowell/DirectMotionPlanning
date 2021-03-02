@@ -72,7 +72,10 @@ end
         solves 1-step feasibility problem
 """
 function step(q1, q2, u1, h;
-    tol = 1.0e-8, max_iter = 100, z_init = 1.0e-1)
+    r_tol = 1.0e-5,
+    μ_tol = 1.0e-5,
+    z_init = 1.0e-2,
+    max_iter = 100)
     # 1-step optimization problem:
     #     find z
     #     s.t. r(z) = 0
@@ -88,11 +91,11 @@ function step(q1, q2, u1, h;
 
     θ = [q1; q2; u1; h; μ]
 
-    for k = 1:5
+    for k = 1:10
         for i = 1:max_iter
             # compute residual, residual Jacobian
             res = r(z, θ)
-            if norm(res) < tol
+            if norm(res) < r_tol
                 # println("   iter ($i) - norm: $(norm(res))")
                 # println("     μ = $μ")
                 # return z, true
@@ -117,7 +120,7 @@ function step(q1, q2, u1, h;
                     @error "backtracking line search fail"
                     println("μ $μ")
                     flag = false
-                    return nothing, nothing, nothing, nothing, nothing, nothing, nothing, false
+                    return q2, zeros(num_contacts), zeros(3 * num_contacts), zeros(nq, nq), zeros(nq, nq), zeros(nq , nu), false
                 end
             end
 
@@ -127,8 +130,10 @@ function step(q1, q2, u1, h;
                 iter += 1
                 if iter > 50
                     @error "line search fail"
+                    println("μ $μ")
+
                     flag = false
-                    return nothing, nothing, nothing, nothing, nothing, nothing, nothing, false
+                    return q2, zeros(num_contacts), zeros(3 * num_contacts), zeros(nq, nq), zeros(nq, nq), zeros(nq , nu), false
                 end
             end
 
@@ -136,8 +141,12 @@ function step(q1, q2, u1, h;
             z .-= α * Δ
         end
 
-        μ = 0.1 * μ
-        θ[end] = μ
+        if μ < μ_tol
+            break
+        else
+            μ = 0.1 * μ
+            θ[end] = μ
+        end
     end
 
     Δz = -1.0 * Rz(z, θ) \ Rθ(z, θ)

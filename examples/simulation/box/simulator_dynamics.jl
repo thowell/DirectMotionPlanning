@@ -32,7 +32,8 @@ function constraints!(c, Z, con::SimulatorConstraints, model, idx, h, T)
         q2_next = view(x⁺, 1:nq)
         q3 = view(x⁺, nq .+ (1:nq))
 
-        @show q_sim = (con.slack ? step_slack(q1, q2, u, h, tol = 1.0e-5)[1] : step(q1, q2, u, h, tol = 1.0e-5)[1])
+        q_sim = step(q1, q2, u, h,
+            r_tol = 1.0e-5, μ_tol = 1.0e-3)[1]
         c[(t-1) * n .+ (1:nq)] = q3 - q_sim
         c[(t-1) * n + nq .+ (1:nq)] = q2_next - q2
     end
@@ -60,7 +61,8 @@ function constraints_jacobian!(∇c, Z, con::SimulatorConstraints, model, idx, h
         q2 = view(x, nq .+ (1:nq))
         q2_next = view(x⁺, 1:nq)
         q3 = view(x⁺, nq .+ (1:nq))
-        _, _, _, Δq1, Δq2, Δu1, _ = (con.slack ? step_slack(q1, q2, u, h, tol = 1.0e-5) : step(q1, q2, u, h, tol = 1.0e-5))
+        _, _, _, Δq1, Δq2, Δu1, _ = step(q1, q2, u, h,
+            r_tol = 1.0e-8, μ_tol = 1.0e-3)
 
         #c[(t-1) * n .+ (1:nq)] = q3 - step(q1, q2, u, h)[1]
         r_idx = (t-1) * n .+ (1:nq)

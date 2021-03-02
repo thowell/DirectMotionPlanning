@@ -16,6 +16,8 @@ ul, uu = control_bounds(model, T, _ul, _uu)
 
 # Initial and final states
 mrp_init = MRP(UnitQuaternion(RotY(0.0) * RotX(0.0)))
+mrp_side = MRP(UnitQuaternion(RotY(-1.0 * atan(1.0 / sqrt(2.0))) * RotX(pi / 4.0)))
+
 mrp_corner = MRP(UnitQuaternion(RotY(-1.0 * atan(1.0 / sqrt(2.0))) * RotX(pi / 4.0)))
 
 q1 = [model.r, model.r, model.r, mrp_init.x, mrp_init.y, mrp_init.z]

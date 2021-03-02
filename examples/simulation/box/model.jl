@@ -16,7 +16,11 @@
 """
 
 struct Box
-    m # mass
+	n::Int
+	m::Int
+	d::Int
+
+    mass # mass
     J # inertia
     μ # friction coefficient
     g # gravity
@@ -30,12 +34,12 @@ end
 
 # Methods
 function mass_matrix(model::Box)
-	Diagonal(@SVector [model.m, model.m, model.m,
+	Diagonal(@SVector [model.mass, model.mass, model.mass,
 		model.J, model.J, model.J])
 end
 
 function gravity(model::Box)
-	@SVector [0., 0., model.m * model.g, 0., 0., 0.]
+	@SVector [0., 0., model.mass * model.g, 0., 0., 0.]
 end
 
 function kinematics(model::Box, q)
@@ -70,12 +74,29 @@ function P_func(model::Box, q)
 	ForwardDiff.jacobian(k, q)
 end
 
+function B_func(model::Box, q)
+	# p = view(q, 1:3)
+    r = view(q, 4:6)
+
+    R = MRP(r...)
+    # @SMatrix [0. 0. 0. R[1,1] R[2,1] R[3,1];
+    #           0. 0. 0. R[1,2] R[2,2] R[3,2];
+    #           0. 0. 0. R[1,3] R[2,3] R[3,3]]
+	@SMatrix [1. 0. 0. 0.0 0.0 0.0;
+			  0. 1. 0. 0.0 0.0 0.0;
+			  0. 0. 1. 0.0 0.0 0.0;
+			  0. 0. 0. R[1,1] R[2,1] R[3,1];
+		      0. 0. 0. R[1,2] R[2,2] R[3,2];
+		      0. 0. 0. R[1,3] R[2,3] R[3,3]]
+end
+
 # dynamics
 function dynamics(model, q1, q2, q3, u1, λ, h)
       nq = model.nq
       SVector{nq}(mass_matrix(model) * (2.0 * q2 - q1 - q3) / h
             - h * gravity(model)
-            + h * jacobian(model, q3)' * λ)
+            + h * jacobian(model, q3)' * λ
+			+ h * transpose(B_func(model, q3)) * u1)
 end
 
 # Kinematics
@@ -94,10 +115,11 @@ corner_offset = @SVector [c1, c2, c3, c4, c5, c6, c7, c8]
 
 # Model
 nq = 6
-nu = 3
-model = Box(1.0,
+nu = 6
+model = Box(2 * nq, nu, 0,
+			1.0,
 			1.0 / 12.0 * 1.0 * ((2.0 * d)^2 + (2.0 * d)^2),
- 			0.5,
+ 			0.1,
 			9.81,
             d, num_contacts, corner_offset,
             nq)
@@ -107,8 +129,7 @@ model = Box(1.0,
 # ϕ_func(model, qq)
 # jacobian(model, qq)
 # P_func(model, qq)
-
-
+num_contacts
 # var
 num_var = nq + num_contacts + num_contacts + 3 * num_contacts + 3 * num_contacts
 function unpack(z)
