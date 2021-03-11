@@ -33,7 +33,7 @@ function constraints!(c, Z, con::SimulatorConstraints, model, idx, h, T)
         q3 = view(x⁺, nq .+ (1:nq))
 
         q_sim = step(q1, q2, u, h,
-            r_tol = 1.0e-5, μ_tol = 1.0e-3)[1]
+            r_tol = 1.0e-5, μ_tol = 1.0e-5)[1]
         c[(t-1) * n .+ (1:nq)] = q3 - q_sim
         c[(t-1) * n + nq .+ (1:nq)] = q2_next - q2
     end

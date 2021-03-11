@@ -2,20 +2,22 @@ function check_variables(z)
     q3, n, sϕ, b, sb = unpack(z)
 
     if any([ni <= 0.0 for ni in n])
+        # println("n not in cone")
         return true
     end
 
     if any([si <= 0.0 for si in sϕ])
+        # println("ϕ not in cone")
         return true
     end
 
     if any([!κ_so(bi)[2] for bi in b])
-        # println("bs not in cone")
+        # println("b not in cone")
         return true
     end
 
     if any([!κ_so(si)[2] for si in sb])
-        # println("bz not in cone")
+        # println("bs not in cone")
         return true
     end
 
@@ -74,7 +76,8 @@ end
 function step(q1, q2, u1, h;
     r_tol = 1.0e-5,
     μ_tol = 1.0e-5,
-    z_init = 1.0e-2,
+    z_init = 1.0,
+    μ_init = 1.0,
     max_iter = 100)
     # 1-step optimization problem:
     #     find z
@@ -85,11 +88,10 @@ function step(q1, q2, u1, h;
     #     b[2:3] is the friction force
 
     z = initialize(q2, num_var, z_init = z_init)
+    μ = μ_init # barrier parameter
+    θ = [q1; q2; u1; h; μ] # problem data
 
-    μ = 1.0 # barrier parameter
     flag = false
-
-    θ = [q1; q2; u1; h; μ]
 
     for k = 1:10
         for i = 1:max_iter
@@ -114,11 +116,16 @@ function step(q1, q2, u1, h;
             iter = 0
             while check_variables(z - α * Δ) # backtrack inequalities
                 α = 0.5 * α
+
                 # println("   α = $α")
                 iter += 1
                 if iter > 50
                     @error "backtracking line search fail"
-                    println("μ $μ")
+                    q3, n, sϕ, b, sb = unpack(z)
+                    println("q3: $q3")
+                    println("q2: $q2")
+                    println("q1: $q1")
+                    println("μ: $μ")
                     flag = false
                     return q2, zeros(num_contacts), zeros(3 * num_contacts), zeros(nq, nq), zeros(nq, nq), zeros(nq , nu), false
                 end
@@ -127,10 +134,15 @@ function step(q1, q2, u1, h;
             while norm(r(z - α * Δ, θ), Inf)^2.0 >= (1.0 - 0.001 * α) * norm(res, Inf)^2.0
                 α = 0.5 * α
                 # println("   α = $α")
+
                 iter += 1
                 if iter > 50
                     @error "line search fail"
-                    println("μ $μ")
+                    q3, n, sϕ, b, sb = unpack(z)
+                    println("q3: $q3")
+                    println("q2: $q2")
+                    println("q1: $q1")
+                    println("μ: $μ")
 
                     flag = false
                     return q2, zeros(num_contacts), zeros(3 * num_contacts), zeros(nq, nq), zeros(nq, nq), zeros(nq , nu), false

@@ -577,7 +577,7 @@ function fd(model::Quadruped{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 
 	v = (q3 - q2⁺) / h
 	joint_fric = model.joint_friction * v
-	joint_fric[1:2] .= 0.0
+	joint_fric[1:3] .= 0.0
 
     [q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{11}(q2⁺) - SVector{11}(q1))
@@ -600,7 +600,7 @@ function fd(model::Quadruped{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	h = u[end]
 	v = (q3 - q2⁺) / h
 	joint_fric = model.joint_friction * v
-	joint_fric[1:2] .= 0.0
+	joint_fric[1:3] .= 0.0
     [q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{11}(q2⁺) - SVector{11}(q1))
     - M_func(model, q2⁺) * (SVector{11}(q3) - SVector{11}(q2⁺)))

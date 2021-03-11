@@ -6,24 +6,33 @@ include("simulate.jl")
 include("visualize.jl")
 
 # horizon
-T = 201
+T = 101
 
 # time step
 h = 0.01
 t = range(0, stop = h * (T - 1), length = T)
 
-mrp = MRP(UnitQuaternion(RotY(π / 6.0) * RotX(π / 10.0)))
+mrp = MRP(UnitQuaternion(1.0 * RotY(π / 6.0) * RotX(π / 20.0)))
 
 # initial conditions
-v1 = [2.5; 5.0; 0.0; 0.0; 0.0; 0.0]
-q1 = [0.0; 0.0; 1.0; mrp.x; mrp.y; mrp.z]
-
+v1 = [5.0; 1.0; 0.0; 0.0; 0.0; 0.0]
+q1 = [0.0; 0.0; model.r + 1.0; mrp.x; mrp.y; mrp.z]
+signed_distance(model, q1)
 v2 = v1 - gravity(model) * h
-q2 = q1 + 0.5 * (v1 + v2) * h
+q2 = Array(q1 + 0.5 * (v1 + v2) * h)
+
+q2[3] = q1[3]
+signed_distance(model, q2)
 
 # simulate
-q_sol, y_sol, b_sol, Δq1, Δq2, Δu1 = simulate(q1, q2, T, h)
+q_sol, y_sol, b_sol, Δq1, Δq2, Δu1 = simulate(q1, q2, T, h,
+	z_init = 0.001, μ_init = 1.0)
 
+q3, n, b, Δq1, Δq2, Δu1, flag = step(q1, q2, zeros(6), h)
+Δq1
+Δq2
+
+Δu1
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)

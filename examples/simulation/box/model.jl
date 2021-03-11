@@ -119,7 +119,7 @@ nu = 6
 model = Box(2 * nq, nu, 0,
 			1.0,
 			1.0 / 12.0 * 1.0 * ((2.0 * d)^2 + (2.0 * d)^2),
- 			0.1,
+ 			0.5,
 			9.81,
             d, num_contacts, corner_offset,
             nq)
@@ -145,13 +145,13 @@ function unpack(z)
 	return q, n, sϕ, b_traj, sb_traj
 end
 
-function initialize(q2, num_var; z_init = 0.01)
+function initialize(q2, num_var; z_init = 1.0)
 	z = z_init * ones(num_var)
 
 	z[1:nq] = copy(q2)
-	z[nq + 2 * num_contacts .+ (1:3 * num_contacts)] = vcat([[1.0; 0.01; 0.01] for i = 1:num_contacts]...)
-	z[nq + 2 * num_contacts + 3 * num_contacts .+ (1:3 * num_contacts)] = vcat([[1.0; 0.01; 0.01] for i = 1:num_contacts]...)
-
+	z[nq + num_contacts .+ (1:num_contacts)] = signed_distance(model, q2)
+	z[nq + 2 * num_contacts .+ (1:3 * num_contacts)] = vcat([[model.μ * view(z, nq .+ (1:num_contacts))[i]; 0.1 * model.μ * view(z, nq .+ (1:num_contacts))[i]; 0.1 * model.μ * view(z, nq .+ (1:num_contacts))[i]] for i = 1:num_contacts]...)
+	z[nq + 2 * num_contacts + 3 * num_contacts .+ (1:3 * num_contacts)] = vcat([[10.0 * z_init; 1.0 * z_init; 1.0 * z_init] for i = 1:num_contacts]...)
 	return z
 end
 
