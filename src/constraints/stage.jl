@@ -21,10 +21,9 @@ end
 
 function constraints!(c, Z, con::StageConstraints, model, idx, h, T)
     for (i, t) in enumerate(con.t_idx)
-        x = view(Z, idx.x[t])
-        u = view(Z, idx.u[t])
-
-        con.c_stage(view(c, (i - 1) * con.n_stage .+ (1:con.n_stage)), x, u, t)
+        con.c_stage(view(c, (i - 1) * con.n_stage .+ (1:con.n_stage)),
+            view(Z, idx.x[t]),
+            t == T ? nothing : view(Z, idx.u[t]), t)
     end
     nothing
 end
@@ -35,10 +34,9 @@ function constraints_jacobian!(∇c, Z, con::StageConstraints, model, idx, h, T)
 
     for (i, t) in enumerate(con.t_idx)
         x = view(Z, idx.x[t])
-        u = view(Z, idx.u[t])
+        u = t == T ? nothing : view(Z, idx.u[t])
 
         cx(c, y) = con.c_stage(c, y, u, t)
-        cu(c, y) = con.c_stage(c, x, y, t)
 
         r_idx = (i - 1) * con.n_stage .+ (1:con.n_stage)
 
@@ -48,6 +46,9 @@ function constraints_jacobian!(∇c, Z, con::StageConstraints, model, idx, h, T)
             con.n_stage, model.n),
             cx, c_tmp, x)
         shift += len
+
+        t == T && continue
+        cu(c, y) = con.c_stage(c, x, y, t)
 
         c_idx = idx.u[t]
         len = length(r_idx) * length(c_idx)
@@ -74,6 +75,8 @@ function constraints_sparsity(con::StageConstraints, model, idx, T;
 
         c_idx = shift_col .+ idx.x[t]
         row_col!(row, col, r_idx, c_idx)
+
+        t == T && continue
 
         c_idx = idx.u[t]
         row_col!(row, col, r_idx, c_idx)

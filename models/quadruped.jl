@@ -554,7 +554,7 @@ function maximum_dissipation(model::Quadruped, x⁺, u, h)
 	ψ = view(u, model.idx_ψ)
 	ψ_stack = [ψ[1] * ones(2); ψ[2] * ones(2); ψ[3] * ones(2); ψ[4] * ones(2)]
 	η = view(u, model.idx_η)
-	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
+	return (P_func(model, q3) * q3 - P_func(model, q2) * q2) / h + ψ_stack - η
 end
 
 function no_slip(model::Quadruped, x⁺, u, h)
@@ -601,6 +601,7 @@ function fd(model::Quadruped{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	v = (q3 - q2⁺) / h
 	joint_fric = model.joint_friction * v
 	joint_fric[1:3] .= 0.0
+
     [q2⁺ - q2⁻;
     ((1.0 / h) * (M_func(model, q1) * (SVector{11}(q2⁺) - SVector{11}(q1))
     - M_func(model, q2⁺) * (SVector{11}(q3) - SVector{11}(q2⁺)))
@@ -618,7 +619,7 @@ function maximum_dissipation(model::Quadruped{Discrete, FreeTime}, x⁺, u, h)
 	ψ_stack = [ψ[1] * ones(2); ψ[2] * ones(2); ψ[3] * ones(2); ψ[4] * ones(2)]
 	η = view(u, model.idx_η)
 	h = u[end]
-	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
+	return (P_func(model, q3) * q3 - P_func(model, q2) * q2) / h + ψ_stack - η
 end
 
 model = Quadruped{Discrete, FixedTime}(n, m, d,
