@@ -27,3 +27,4 @@ for (i,k) in enumerate(spar)
 end
 @assert norm(vec(∇c) - vec(∇c_fd)) < 1.0e-10
 @assert sum(∇c) - sum(∇c_fd) < 1.0e-10
+norm(vec(∇c))# -

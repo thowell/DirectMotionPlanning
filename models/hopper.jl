@@ -287,9 +287,3 @@ function visualize!(vis, model::Hopper, q;
 
     MeshCat.setanimation!(vis, anim)
 end
-
-
-qq = ones(nq)
-
-M_func(model, qq)
-B_func(model, qq)
