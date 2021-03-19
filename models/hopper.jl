@@ -78,7 +78,7 @@ M_func(model::Hopper, q) = Diagonal(@SVector [
 								 model.Jb + model.Jl,
 								 model.ml])
 
-G_func(model::Hopper, q) = @SVector [0.0,
+C_func(model::Hopper, q, q̇) = @SVector [0.0,
 									 (model.mb + model.ml) * model.g,
 									 0.0,
 									 0.0]
@@ -101,6 +101,12 @@ end
 B_func(::Hopper, q) = @SMatrix [0.0 0.0 1.0 0.0;
                                 -sin(q[3]) cos(q[3]) 0.0 1.0]
 
+function lagrangian_derivatives(model, q, v)
+	D1L = -1.0 * C_func(model, q, v)
+    D2L = M_func(model, q) * v
+	return D1L, D2L
+end
+
 function fd(model::Hopper{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	q3 = view(x⁺, model.nq .+ (1:model.nq))
 	q2⁺ = view(x⁺, 1:model.nq)
@@ -110,11 +116,18 @@ function fd(model::Hopper{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	λ = view(u, model.idx_λ)
 	b = view(u, model.idx_b)
 
+	# evalutate at midpoint
+	qm1 = 0.5 * (q1 + q2⁺)
+    vm1 = (q2⁺ - q1) / h
+    qm2 = 0.5 * (q2⁺ + q3)
+    vm2 = (q3 - q2⁺) / h
+
+	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
+	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
+
     [q2⁺ - q2⁻;
-	((1.0 / h) * (M_func(model, q1) * (SVector{4}(q2⁺) - SVector{4}(q1))
-    - M_func(model, q2⁺) * (SVector{4}(q3) - SVector{4}(q2⁺)))
-	- h * G_func(model, q2⁺)
-    + h * (transpose(B_func(model, q3)) * SVector{2}(u_ctrl)
+	 (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
+    + (transpose(B_func(model, qm2)) * SVector{2}(u_ctrl)
     + transpose(N_func(model, q3)) * SVector{1}(λ)
     + transpose(P_func(model, q3)) * SVector{2}(b))
     + h * w)]
@@ -139,11 +152,18 @@ function fd(model::Hopper{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	b = view(u, model.idx_b)
 	h = u[end]
 
-	[q2⁺ - q2⁻;
-	((1.0 / h) * (M_func(model, q1) * (SVector{4}(q2⁺) - SVector{4}(q1))
-	- M_func(model, q2⁺) * (SVector{4}(q3) - SVector{4}(q2⁺)))
-	- h * G_func(model, q2⁺)
-	+ h * (transpose(B_func(model, q3)) * SVector{2}(u_ctrl)
+	# evalutate at midpoint
+	qm1 = 0.5 * (q1 + q2⁺)
+    vm1 = (q2⁺ - q1) / h
+    qm2 = 0.5 * (q2⁺ + q3)
+    vm2 = (q3 - q2⁺) / h
+
+	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
+	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
+
+    [q2⁺ - q2⁻;
+	 (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
+	+ (transpose(B_func(model, qm2)) * SVector{2}(u_ctrl)
 	+ transpose(N_func(model, q3)) * SVector{1}(λ)
 	+ transpose(P_func(model, q3)) * SVector{2}(b))
 	+ h * w)]
@@ -217,6 +237,8 @@ function visualize!(vis, model::Hopper, q;
     r_foot = 0.05
     r_leg = 0.5 * r_foot
 
+	default_background!(vis)
+
     setobject!(vis["body"], Sphere(Point3f0(0),
         convert(Float32, 0.1)),
         MeshPhongMaterial(color = RGBA(0, 1, 0, 1.0)))
@@ -265,3 +287,9 @@ function visualize!(vis, model::Hopper, q;
 
     MeshCat.setanimation!(vis, anim)
 end
+
+
+qq = ones(nq)
+
+M_func(model, qq)
+B_func(model, qq)

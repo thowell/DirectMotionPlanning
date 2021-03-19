@@ -1,5 +1,8 @@
 # Model
 include_model("quadruped")
+u_hold = h * initial_torque(model, q1, h)[1:model.nu]
+@save joinpath(@__DIR__, "quadruped_gait_hold.jld2") u_hold h
+
 model = free_time_model(model)
 
 include(joinpath(pwd(), "models/visualize.jl"))

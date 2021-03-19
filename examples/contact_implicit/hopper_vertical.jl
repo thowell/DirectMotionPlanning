@@ -72,6 +72,20 @@ z0 = pack(x0, u0, prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
+@time z̄, info = solve(prob, copy(z0),
+	nlp = :ipopt,
+	tol = 1.0e-7, c_tol = 1.0e-7, mapl = 5,
+	time_limit = 60)
+@show check_slack(z̄, prob)
+x̄, ū = unpack(z̄, prob)
+tf, t, h̄ = get_time(ū)
+
+q = state_to_configuration(x̄)
+u = [u[model.idx_u] for u in ū]
+γ = [u[model.idx_λ] for u in ū]
+b = [u[model.idx_b] for u in ū]
+h̄ = mean(h̄)
+@save joinpath(pwd(), "examples/trajectories/hopper_vertical_gait.jld2") z̄ x̄ ū h̄ q u γ b
 
 if true
 	# include_snopt()
@@ -131,7 +145,7 @@ include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
 visualize!(vis, model_ft,
-	state_to_configuration([x_proj..., ([x_proj[2:end] for i = 1:5]...)...]),
+	state_to_configuration([x̄..., ([x̄[2:end] for i = 1:5]...)...]),
 	Δt = h̄[1],
 	scenario = :vertical)
 
