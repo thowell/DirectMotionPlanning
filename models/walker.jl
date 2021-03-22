@@ -578,7 +578,7 @@ function fd(model::Walker{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 
 	[q2⁺ - q2⁻;
      (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
-     + transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
+     + transpose(B_func(model, qm2)) * SVector{7}(u_ctrl)
      + transpose(N_func(model, q3)) * SVector{4}(λ)
      + transpose(P_func(model, q3)) * SVector{8}(b)
      - h * joint_friction)]
@@ -607,7 +607,7 @@ function fd(model::Walker{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 
 	[q2⁺ - q2⁻;
      (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
-     + transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
+     + transpose(B_func(model, qm2)) * SVector{7}(u_ctrl)
      + transpose(N_func(model, q3)) * SVector{4}(λ)
      + transpose(P_func(model, q3)) * SVector{8}(b)
      - h * joint_friction)]

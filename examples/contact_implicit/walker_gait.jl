@@ -364,16 +364,16 @@ z0 = pack(x0, u0, prob)
 
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
-q̄ = state_to_configuration(x̄)
-τ̄ = [u[model.idx_u] for u in ū]
-λ̄ = [u[model.idx_λ] for u in ū]
-b̄ = [u[model.idx_b] for u in ū]
-tf_, t_, h̄ = get_time(ū)
-
-@save joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū h̄ q u γ b
+_tf, _t, h̄ = get_time(ū)
+q = state_to_configuration(x̄)
+u = [u[model.idx_u] for u in ū]
+γ = [u[model.idx_λ] for u in ū]
+b = [u[model.idx_b] for u in ū]
+h̄ = mean(h̄)
+@save joinpath(@__DIR__, "biped_gait.jld2") z̄ x̄ ū h̄ q u γ b
 # @load joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
-[norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1]
+[norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄, t)) for t = 1:T-1]
 (q̄[end][1] - q̄[1][1]) / tf_
 vis = Visualizer()
 render(vis)
@@ -383,124 +383,125 @@ visualize!(vis, model,
 	 [x̄[end][model.nq .+ (1:model.nq)] for i = 1:10]...], Δt = h̄[1])
 visualize!(vis, model,
  	[q̄[T+1]], Δt = h̄[1])
-
-
-plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
-_pf1 = [kinematics_3(model, q, body = :foot_1, mode = :com) for q in q̄]
-_pf2 = [kinematics_3(model, q, body = :foot_2, mode = :com) for q in q̄]
-
-using Plots
-plot(hcat(_pf1...)', title = "foot 1", legend = :topleft, label = ["x" "z"])
-plot(hcat(_pf2...)', title = "foot 2", legend = :bottomright, label = ["x" "z"])
 #
-# # # @save joinpath(pwd(), "examples/trajectories/walker_steps.jld2") z̄
-# # plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
-function get_q_viz(q̄; N = 4)
-	q_viz = [q̄...]
-	shift_vec = zeros(model.nq)
-	shift_vec[1] = q̄[end][1]
-	for i = 1:N
-		# println(shift)
-		# shift_vec[1] = strd
-		#
-		q_update = [q + shift_vec for q in q̄[2:end]]
-		push!(q_viz, q_update...)
-		shift_vec[1] = q_update[end][1]
-	end
-
-	return q_viz
-end
-
-q_viz = get_q_viz(q̄)
-open(vis)
-visualize!(vis, model,
-	q_viz,
-	Δt = h̄[1])
-
-
-function traj_concat(q̄, ū; N = 3)
-	u_viz = [ū...]
-	q_viz = [q̄...]
-
-	shift_vec = zeros(model.nq)
-	shift_vec[1] = q̄[end][1]
-
-	for i = 1:N
-		push!(u_viz, ū...)
-		# println(shift)
-		# shift_vec[1] = strd
-		#
-		q_update = [q + shift_vec for q in q̄[3:end]]
-		push!(q_viz, q_update...)
-		shift_vec[1] = q_update[end][1]
-	end
-
-	return q_viz, u_viz
-end
-
-q_cat, u_cat = traj_concat(q̄, ū, N = 25)
-plot(hcat(q_cat...)', label = "")
-plot(hcat(u_cat...)[1:model.nu, :]', label = "")
-x_cat = configuration_to_state(q_cat)
-u_cat
-
-qp = ones(model.nq)
-qp[1] = 1.0
-qp[2] = 1.0
-Q = [Diagonal([qp; qp]) for t = 1:length(x_cat)]
-R = [Diagonal(ones(model.m)) for t = 1:length(u_cat)]
-
-K, P = tvlqr(model, x_cat, u_cat, nothing, Q, R)
-
-plot(hcat([vec(k) for k in K]...)', label = "")
-
-K_walker = K[1:T-1]
-x̄_walker = x̄[1:T]
-ū_walker = ū[1:T-1]
-h̄_walker = h̄[1:T-1]
-
-@save joinpath(@__DIR__, "walker_lqr.jld2") K_walker x̄_walker ū_walker h̄_walker
-# (q̄[end][1] - q̄[1][1]) / tf_
 #
-# h̄[1]
+# plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
+# _pf1 = [kinematics_3(model, q, body = :foot_1, mode = :com) for q in q̄]
+# _pf2 = [kinematics_3(model, q, body = :foot_2, mode = :com) for q in q̄]
 #
-# model_sim = Walker{Discrete, FixedTime}(n, m, d,
-# 			  g, μ,
-# 			  l_torso, d_torso, m_torso, J_torso,
-# 			  l_thigh, d_thigh, m_thigh, J_thigh,
-# 			  l_calf, d_calf, m_calf, J_calf,
-# 			  l_foot, d_foot, m_foot, J_foot,
-# 			  l_thigh, d_thigh, m_thigh, J_thigh,
-# 			  l_calf, d_calf, m_calf, J_calf,
-# 			  l_foot, d_foot, m_foot, J_foot,
-# 			  qL, qU,
-# 			  uL, uU,
-# 			  nq,
-# 			  nu,
-# 			  nc,
-# 			  nf,
-# 			  nb,
-# 			  ns,
-# 			  idx_u,
-# 			  idx_λ,
-# 			  idx_b,
-# 			  idx_ψ,
-# 			  idx_η,
-# 			  idx_s,
-# 			  joint_friction)
+# using Plots
+
+# plot(hcat(_pf1...)', title = "foot 1", legend = :topleft, label = ["x" "z"])
+# plot(hcat(_pf2...)', title = "foot 2", legend = :bottomright, label = ["x" "z"])
+# #
+# # # # @save joinpath(pwd(), "examples/trajectories/walker_steps.jld2") z̄
+# # # plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
+# function get_q_viz(q̄; N = 4)
+# 	q_viz = [q̄...]
+# 	shift_vec = zeros(model.nq)
+# 	shift_vec[1] = q̄[end][1]
+# 	for i = 1:N
+# 		# println(shift)
+# 		# shift_vec[1] = strd
+# 		#
+# 		q_update = [q + shift_vec for q in q̄[2:end]]
+# 		push!(q_viz, q_update...)
+# 		shift_vec[1] = q_update[end][1]
+# 	end
 #
-# x_sim = [x̄[1]]
-# q_sim = [x̄[1][1:model.nq], x̄[2][model.nq .+ (1:model.nq)]]
-# include(joinpath(pwd(), "src/contact_simulator/simulator.jl"))
-# for t = 1:T-1
-# 	_x = step_contact(model_sim, x_sim[end], ū[t][1:model.nu], zeros(model.d), h̄[t],
-# 	        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
-# 	push!(x_sim, _x)
-# 	push!(q_sim, x_sim[end][model.nq .+ (1:model.nq)])
+# 	return q_viz
 # end
-# plot(hcat(q̄...)')
-# plot(hcat(q_sim...)')
-# vis = Visualizer()
-# render(vis)
-# # open(vis)
-# visualize!(vis, model, q_sim, Δt = h̄[1])
+#
+# q_viz = get_q_viz(q̄)
+# open(vis)
+# visualize!(vis, model,
+# 	q_viz,
+# 	Δt = h̄[1])
+#
+#
+# function traj_concat(q̄, ū; N = 3)
+# 	u_viz = [ū...]
+# 	q_viz = [q̄...]
+#
+# 	shift_vec = zeros(model.nq)
+# 	shift_vec[1] = q̄[end][1]
+#
+# 	for i = 1:N
+# 		push!(u_viz, ū...)
+# 		# println(shift)
+# 		# shift_vec[1] = strd
+# 		#
+# 		q_update = [q + shift_vec for q in q̄[3:end]]
+# 		push!(q_viz, q_update...)
+# 		shift_vec[1] = q_update[end][1]
+# 	end
+#
+# 	return q_viz, u_viz
+# end
+#
+# q_cat, u_cat = traj_concat(q̄, ū, N = 25)
+# plot(hcat(q_cat...)', label = "")
+# plot(hcat(u_cat...)[1:model.nu, :]', label = "")
+# x_cat = configuration_to_state(q_cat)
+# u_cat
+#
+# qp = ones(model.nq)
+# qp[1] = 1.0
+# qp[2] = 1.0
+# Q = [Diagonal([qp; qp]) for t = 1:length(x_cat)]
+# R = [Diagonal(ones(model.m)) for t = 1:length(u_cat)]
+#
+# K, P = tvlqr(model, x_cat, u_cat, nothing, Q, R)
+#
+# plot(hcat([vec(k) for k in K]...)', label = "")
+#
+# K_walker = K[1:T-1]
+# x̄_walker = x̄[1:T]
+# ū_walker = ū[1:T-1]
+# h̄_walker = h̄[1:T-1]
+#
+# @save joinpath(@__DIR__, "walker_lqr.jld2") K_walker x̄_walker ū_walker h̄_walker
+# # (q̄[end][1] - q̄[1][1]) / tf_
+# #
+# # h̄[1]
+# #
+# # model_sim = Walker{Discrete, FixedTime}(n, m, d,
+# # 			  g, μ,
+# # 			  l_torso, d_torso, m_torso, J_torso,
+# # 			  l_thigh, d_thigh, m_thigh, J_thigh,
+# # 			  l_calf, d_calf, m_calf, J_calf,
+# # 			  l_foot, d_foot, m_foot, J_foot,
+# # 			  l_thigh, d_thigh, m_thigh, J_thigh,
+# # 			  l_calf, d_calf, m_calf, J_calf,
+# # 			  l_foot, d_foot, m_foot, J_foot,
+# # 			  qL, qU,
+# # 			  uL, uU,
+# # 			  nq,
+# # 			  nu,
+# # 			  nc,
+# # 			  nf,
+# # 			  nb,
+# # 			  ns,
+# # 			  idx_u,
+# # 			  idx_λ,
+# # 			  idx_b,
+# # 			  idx_ψ,
+# # 			  idx_η,
+# # 			  idx_s,
+# # 			  joint_friction)
+# #
+# # x_sim = [x̄[1]]
+# # q_sim = [x̄[1][1:model.nq], x̄[2][model.nq .+ (1:model.nq)]]
+# # include(joinpath(pwd(), "src/contact_simulator/simulator.jl"))
+# # for t = 1:T-1
+# # 	_x = step_contact(model_sim, x_sim[end], ū[t][1:model.nu], zeros(model.d), h̄[t],
+# # 	        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
+# # 	push!(x_sim, _x)
+# # 	push!(q_sim, x_sim[end][model.nq .+ (1:model.nq)])
+# # end
+# # plot(hcat(q̄...)')
+# # plot(hcat(q_sim...)')
+# # vis = Visualizer()
+# # render(vis)
+# # # open(vis)
+# # visualize!(vis, model, q_sim, Δt = h̄[1])

@@ -70,14 +70,14 @@ qT[1] += strd
 pt = kinematics_1(model, q1, body = :torso, mode = :com)
 
 zh = 0.05
-xr1_el, zr1_el = ellipse_traj(pr1[1], pr1[1] + strd, zh, Tm)
-xr1 = [[xr1_el[1] for t = 1:Tm]..., xr1_el...]
-zr1 = [[zr1_el[1] for t = 1:Tm]..., zr1_el...]
+xr1_el, zr1_el = ellipse_traj(pr1[1], pr1[1] + strd, zh, Tm+1)
+xr1 = [[xr1_el[1] for t = 1:Tm-1]..., xr1_el...]
+zr1 = [[zr1_el[1] for t = 1:Tm-1]..., zr1_el...]
 pr1_ref = [[xr1[t]; zr1[t]] for t = 1:T]
-
-xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm)
-xf1 = [[xf1_el[1] for t = 1:Tm]..., xf1_el...]
-zf1 = [[zf1_el[1] for t = 1:Tm]..., zf1_el...]
+pr1_ref[Tm+1]
+xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm+1)
+xf1 = [[xf1_el[1] for t = 1:Tm-1]..., xf1_el...]
+zf1 = [[zf1_el[1] for t = 1:Tm-1]..., zf1_el...]
 pf1_ref = [[xf1[t]; zf1[t]] for t = 1:T]
 
 
@@ -91,13 +91,13 @@ xf2 = [xf2_el..., [xf2_el[end] for t = 1:Tm]...]
 zf2 = [zf2_el..., [zf2_el[end] for t = 1:Tm]...]
 pf2_ref = [[xf2[t]; zf2[t]] for t = 1:T]
 
+tr = range(0, stop = tf, length = T)
 using Plots
-plot(hcat(pr1_ref...)')
-plot!(hcat(pf1_ref...)')
+plot(tr, hcat(pr1_ref...)')
+plot!(tr, hcat(pf1_ref...)')
 
-plot(hcat(pr2_ref...)')
-plot!(hcat(pf2_ref...)')
-
+plot!(tr, hcat(pr2_ref...)')
+plot!(tr, hcat(pf2_ref...)')
 
 # Bounds
 
@@ -105,10 +105,10 @@ plot!(hcat(pf2_ref...)')
 # u1 = initial_torque(model, q1, h)[model.idx_u]
 # ul <= u <= uu
 _uu = Inf * ones(model.m)
-_uu[model.idx_u] .= 33.5
+_uu[model.idx_u] .= 33.5 * h
 _uu[end] = 2.0 * h
 _ul = zeros(model.m)
-_ul[model.idx_u] .= -33.5
+_ul[model.idx_u] .= -33.5 * h
 _ul[end] = 0.25 * h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
@@ -144,7 +144,7 @@ obj_velocity = velocity_objective(
     h = h,
     idx_angle = collect([3, 4, 5, 6, 7, 8, 9, 10, 11]))
 
-obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
+obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-3 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
 
 function l_stage(x, u, t)
 	q1 = view(x, 1:11)
@@ -226,7 +226,7 @@ end
 
 n_stage = 4
 t_idx1 = [t for t = 1:Tm]
-t_idx2 = [t for t = Tm+1:T]
+t_idx2 = [t for t = Tm:T]
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
@@ -261,16 +261,12 @@ z0 = pack(x0, u0, prob)
 @time z̄, info = solve(prob, copy(z0),
     nlp = :ipopt,
     tol = 1.0e-3, c_tol = 1.0e-3,
-	max_iter = 1000,
+	max_iter = 2000,
     time_limit = 60 * 2, mapl = 5)
 
 check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
 q̄ = state_to_configuration(x̄)
-τ̄ = [u[model.idx_u] for u in ū]
-λ̄ = [u[model.idx_λ] for u in ū]
-b̄ = [u[model.idx_b] for u in ū]
-
 _tf, _t, h̄ = get_time(ū)
 @show h̄[1]
 # maximum([norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1])
@@ -312,7 +308,7 @@ u = [u[model.idx_u] for u in ū]
 γ = [u[model.idx_λ] for u in ū]
 b = [u[model.idx_b] for u in ū]
 h̄ = mean(h̄)
-@save joinpath(@__DIR__, "quadruped_gait.jld2") z̄ x̄ ū h̄ q u γ b
+@save joinpath(@__DIR__, "quadruped_gait2.jld2") z̄ x̄ ū h̄ q u γ b
 
 function get_q_viz(q̄)
 	q_viz = [q̄...]
@@ -335,89 +331,89 @@ visualize!(vis, model,
 	q_viz,
 	Δt = h̄[1])
 
-
-# resimulate
-model_sim = Quadruped{Discrete, FixedTime}(n, m, d,
-			  g, μ,
-			  l_torso, d_torso, m_torso, J_torso,
-			  l_thigh, d_thigh, m_thigh, J_thigh,
-			  l_leg, d_leg, m_leg, J_leg,
-			  l_thigh, d_thigh, m_thigh, J_thigh,
-			  l_leg, d_leg, m_leg, J_leg,
-			  l_thigh, d_thigh, m_thigh, J_thigh,
-			  l_leg, d_leg, m_leg, J_leg,
-			  l_thigh, d_thigh, m_thigh, J_thigh,
-			  l_leg, d_leg, m_leg, J_leg,
-			  qL, qU,
-			  uL, uU,
-			  nq,
-			  nu,
-			  nc,
-			  nf,
-			  nb,
-			  ns,
-			  idx_u,
-			  idx_λ,
-			  idx_b,
-			  idx_ψ,
-			  idx_η,
-			  idx_s,
-			  joint_friction)
-
-x_sim = [x̄[1]]
-q_sim = [x̄[1][1:model.nq], x̄[2][model.nq .+ (1:model.nq)]]
-include(joinpath(pwd(), "src/contact_simulator/simulator.jl"))
-for t = 1:T-1
-	_x = step_contact(model_sim, x_sim[end], ū[t][1:model.nu], zeros(model.d), h̄[t],
-	        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
-	push!(x_sim, _x)
-	push!(q_sim, x_sim[end][model.nq .+ (1:model.nq)])
-end
-
-plot(hcat(q̄...)')
-plot(hcat(q_sim...)')
-
-vis = Visualizer()
-render(vis)
-# open(vis)
-visualize!(vis, model, q_sim, Δt = h̄[1])
-
-
-function traj_concat(q̄, ū; N = 3)
-	u_viz = [ū...]
-	q_viz = [q̄...]
-
-	shift_vec = zeros(model.nq)
-	shift_vec[1] = q̄[end][1]
-
-	for i = 1:N
-		push!(u_viz, ū...)
-		# println(shift)
-		# shift_vec[1] = strd
-		#
-		q_update = [q + shift_vec for q in q̄[3:end]]
-		push!(q_viz, q_update...)
-		shift_vec[1] = q_update[end][1]
-	end
-
-	return q_viz, u_viz
-end
-
-q_cat, u_cat = traj_concat(q̄, ū, N = 25)
-plot(hcat(q_cat...)', label = "")
-plot(hcat(u_cat...)[1:model.nu, :]', label = "")
-x_cat = configuration_to_state(q_cat)
-u_cat
-Q = [Diagonal(ones(model.n)) for t = 1:length(x_cat)]
-R = [Diagonal(ones(model.m)) for t = 1:length(u_cat)]
-
-K, P = tvlqr(model, x_cat, u_cat, nothing, Q, R)
-
-plot(hcat([vec(k) for k in K]...)', label = "")
-
-K_quadruped = K[1:T-1]
-x̄_quadruped = x̄[1:T]
-ū_quadruped = ū[1:T-1]
-h̄_quadruped = h̄[1:T-1]
-
-@save joinpath(@__DIR__, "quadruped_lqr.jld2") K_quadruped x̄_quadruped ū_quadruped h̄_quadruped
+#
+# # resimulate
+# model_sim = Quadruped{Discrete, FixedTime}(n, m, d,
+# 			  g, μ,
+# 			  l_torso, d_torso, m_torso, J_torso,
+# 			  l_thigh, d_thigh, m_thigh, J_thigh,
+# 			  l_leg, d_leg, m_leg, J_leg,
+# 			  l_thigh, d_thigh, m_thigh, J_thigh,
+# 			  l_leg, d_leg, m_leg, J_leg,
+# 			  l_thigh, d_thigh, m_thigh, J_thigh,
+# 			  l_leg, d_leg, m_leg, J_leg,
+# 			  l_thigh, d_thigh, m_thigh, J_thigh,
+# 			  l_leg, d_leg, m_leg, J_leg,
+# 			  qL, qU,
+# 			  uL, uU,
+# 			  nq,
+# 			  nu,
+# 			  nc,
+# 			  nf,
+# 			  nb,
+# 			  ns,
+# 			  idx_u,
+# 			  idx_λ,
+# 			  idx_b,
+# 			  idx_ψ,
+# 			  idx_η,
+# 			  idx_s,
+# 			  joint_friction)
+#
+# x_sim = [x̄[1]]
+# q_sim = [x̄[1][1:model.nq], x̄[2][model.nq .+ (1:model.nq)]]
+# include(joinpath(pwd(), "src/contact_simulator/simulator.jl"))
+# for t = 1:T-1
+# 	_x = step_contact(model_sim, x_sim[end], ū[t][1:model.nu], zeros(model.d), h̄[t],
+# 	        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
+# 	push!(x_sim, _x)
+# 	push!(q_sim, x_sim[end][model.nq .+ (1:model.nq)])
+# end
+#
+# plot(hcat(q̄...)')
+# plot(hcat(q_sim...)')
+#
+# vis = Visualizer()
+# render(vis)
+# # open(vis)
+# visualize!(vis, model, q_sim, Δt = h̄[1])
+#
+#
+# function traj_concat(q̄, ū; N = 3)
+# 	u_viz = [ū...]
+# 	q_viz = [q̄...]
+#
+# 	shift_vec = zeros(model.nq)
+# 	shift_vec[1] = q̄[end][1]
+#
+# 	for i = 1:N
+# 		push!(u_viz, ū...)
+# 		# println(shift)
+# 		# shift_vec[1] = strd
+# 		#
+# 		q_update = [q + shift_vec for q in q̄[3:end]]
+# 		push!(q_viz, q_update...)
+# 		shift_vec[1] = q_update[end][1]
+# 	end
+#
+# 	return q_viz, u_viz
+# end
+#
+# q_cat, u_cat = traj_concat(q̄, ū, N = 25)
+# plot(hcat(q_cat...)', label = "")
+# plot(hcat(u_cat...)[1:model.nu, :]', label = "")
+# x_cat = configuration_to_state(q_cat)
+# u_cat
+# Q = [Diagonal(ones(model.n)) for t = 1:length(x_cat)]
+# R = [Diagonal(ones(model.m)) for t = 1:length(u_cat)]
+#
+# K, P = tvlqr(model, x_cat, u_cat, nothing, Q, R)
+#
+# plot(hcat([vec(k) for k in K]...)', label = "")
+#
+# K_quadruped = K[1:T-1]
+# x̄_quadruped = x̄[1:T]
+# ū_quadruped = ū[1:T-1]
+# h̄_quadruped = h̄[1:T-1]
+#
+# @save joinpath(@__DIR__, "quadruped_lqr.jld2") K_quadruped x̄_quadruped ū_quadruped h̄_quadruped

@@ -554,13 +554,13 @@ function friction_cone(model::Quadruped, u)
 					 model.μ * λ[4] - sum(view(b, 7:8))]
 end
 
-function maximum_dissipation(model::Quadruped, x⁺, u, h)
+function maximum_dissipation(model::Quadruped{Discrete, FixedTime}, x⁺, u, h)
 	q3 = view(x⁺, model.nq .+ (1:model.nq))
 	q2 = view(x⁺, 1:model.nq)
 	ψ = view(u, model.idx_ψ)
 	ψ_stack = [ψ[1] * ones(2); ψ[2] * ones(2); ψ[3] * ones(2); ψ[4] * ones(2)]
 	η = view(u, model.idx_η)
-	return (P_func(model, q3) * q3 - P_func(model, q2) * q2) / h + ψ_stack - η
+	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
 end
 
 function no_slip(model::Quadruped, x⁺, u, h)
@@ -636,7 +636,7 @@ function maximum_dissipation(model::Quadruped{Discrete, FreeTime}, x⁺, u, h)
 	ψ_stack = [ψ[1] * ones(2); ψ[2] * ones(2); ψ[3] * ones(2); ψ[4] * ones(2)]
 	η = view(u, model.idx_η)
 	h = u[end]
-	return (P_func(model, q3) * q3 - P_func(model, q2) * q2) / h + ψ_stack - η
+	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
 end
 
 model = Quadruped{Discrete, FixedTime}(n, m, d,
