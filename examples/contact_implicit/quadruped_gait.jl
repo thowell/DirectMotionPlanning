@@ -1,7 +1,7 @@
 # Model
 include_model("quadruped")
-u_hold = h * initial_torque(model, q1, h)[1:model.nu]
-@save joinpath(@__DIR__, "quadruped_gait_hold.jld2") u_hold h
+# u_hold = h * initial_torque(model, q1, h)[1:model.nu]
+# @save joinpath(@__DIR__, "quadruped_gait_hold.jld2") u_hold h
 
 model = free_time_model(model)
 
@@ -144,7 +144,7 @@ obj_velocity = velocity_objective(
     h = h,
     idx_angle = collect([3, 4, 5, 6, 7, 8, 9, 10, 11]))
 
-obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
+obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
 
 function l_stage(x, u, t)
 	q1 = view(x, 1:11)
@@ -152,8 +152,11 @@ function l_stage(x, u, t)
     J = 0.0
 
 	# torso height
-    J += 10.0 * (kinematics_1(model, q1, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
-	J += 10.0 * (kinematics_1(model, q2, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
+    J += 100.0 * (kinematics_1(model, q1, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
+	J += 100.0 * (kinematics_1(model, q2, body = :torso, mode = :ee)[2] - kinematics_1(model, view(x0[t], 1:11), body = :torso, mode = :com)[2])^2.0
+
+	J += 100.0 * (q1[2] - x0[1][2])^2.0
+	J += 100.0 * (q2[2] - x0[1][2])^2.0
 
 	# feet height
     if t >= Tm
@@ -252,7 +255,7 @@ z0 = pack(x0, u0, prob)
 # z0 .+= 0.001 * randn(prob.num_var)
 
 # Solve
-include_snopt()
+# include_snopt()
 # @load joinpath(@__DIR__, "quadruped_gait.jld2") z̄ q̄ ū τ̄ λ̄ b̄ h̄
 
 @time z̄, info = solve(prob, copy(z0),
@@ -310,7 +313,6 @@ u = [u[model.idx_u] for u in ū]
 b = [u[model.idx_b] for u in ū]
 h̄ = mean(h̄)
 @save joinpath(@__DIR__, "quadruped_gait.jld2") z̄ x̄ ū h̄ q u γ b
-model
 
 function get_q_viz(q̄)
 	q_viz = [q̄...]
