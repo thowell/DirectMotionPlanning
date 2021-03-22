@@ -138,8 +138,6 @@ function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2
     return q1
 end
 
-q1 = initial_configuration(model, -pi / 100.0, pi / 20.0, pi / 50.0, -pi / 40.0)
-
 pf1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 
@@ -233,7 +231,7 @@ obj_control = quadratic_time_tracking_objective(
     [[zeros(model.nu); zeros(model.m - model.nu)] for t = 1:T-1],
 	1.0)
 
-obj_ctrl_vel = control_velocity_objective(Diagonal([1.0e-3 * ones(model.nu); zeros(model.m - model.nu)]))
+obj_ctrl_vel = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu); zeros(model.m - model.nu)]))
 
 # quadratic velocity penalty
 q_v = 1.0e-3 * ones(model.nq)
@@ -254,8 +252,8 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		pq2 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		v = (pq2 - pq1) ./ h
-		J += 100000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
-		J += 100000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :heel)).^2.0)
+		J += 1000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
+		J += 1000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
@@ -263,8 +261,8 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
 		v = (pq2 - pq1) ./ h
-		J += 100000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
-		J += 100000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
+		J += 1000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
+		J += 1000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
 	end
 
@@ -309,7 +307,7 @@ end
 # p1_ref[1]
 n_stage = 2
 t_idx1 = [t for t = 1:Tm]
-t_idx2 = [t for t = Tm:T-1]
+t_idx2 = [t for t = Tm:T]
 
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
@@ -340,9 +338,9 @@ prob = trajectory_optimization_problem(model,
                ul = ul,
                uu = uu,
                con = con)
-qT[1]
+
 # trajectory initialization
-u0 = [[1.0e-3 * randn(model.nu); 0.01 * randn(model.m - model.nu - 1); h] for t = 1:T-1] # random controls
+u0 = [[1.0e-2 * randn(model.nu); 0.01 * randn(model.m - model.nu - 1); h] for t = 1:T-1] # random controls
 
 
 # Pack trajectories into vector
@@ -351,18 +349,18 @@ z0 = pack(x0, u0, prob)
 # Solve
 # NOTE: run multiple times to get good trajectory
 # include_snopt()
-# @time z̄, info = solve(prob, copy(z0),
-#     nlp = :ipopt,
-# 	max_iter = 1000,
-#     tol = 1.0e-1, c_tol = 1.0e-3, mapl = 5,
-#     time_limit = 60 * 3)
+@time z̄, info = solve(prob, copy(z0),
+    nlp = :ipopt,
+	max_iter = 1000,
+    tol = 1.0e-1, c_tol = 1.0e-3, mapl = 5,
+    time_limit = 60 * 3)
 
 # @time z̄, info = solve(prob, copy(z̄ .+ 0.01 * randn(prob.num_var)),
 #     nlp = :SNOPT7,
 # 	max_iter = 1000,
 #     tol = 1.0e-3, c_tol = 1.0e-3, mapl = 5,
 #     time_limit = 60 * 3)
-@load joinpath(@__DIR__, "walker_gait_3.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
+# @load joinpath(@__DIR__, "walker_gait_3.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
@@ -372,7 +370,7 @@ q̄ = state_to_configuration(x̄)
 b̄ = [u[model.idx_b] for u in ū]
 tf_, t_, h̄ = get_time(ū)
 
-# @save joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
+@save joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū h̄ q u γ b
 # @load joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
 [norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄[t], t)) for t = 1:T-1]
@@ -397,7 +395,7 @@ plot(hcat(_pf2...)', title = "foot 2", legend = :bottomright, label = ["x" "z"])
 #
 # # # @save joinpath(pwd(), "examples/trajectories/walker_steps.jld2") z̄
 # # plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
-function get_q_viz(q̄; N = 3)
+function get_q_viz(q̄; N = 4)
 	q_viz = [q̄...]
 	shift_vec = zeros(model.nq)
 	shift_vec[1] = q̄[end][1]

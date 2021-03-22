@@ -550,6 +550,12 @@ function no_slip(model::Walker{Discrete, FreeTime}, x⁺, u, h)
 	return s[1] - (λ' * _P_func(model, q3) * (q3 - q2) / h)[1]
 end
 
+function lagrangian_derivatives(model, q, v)
+	D1L = -1.0 * C_func(model, q, v)
+    D2L = M_func(model, q) * v
+	return D1L, D2L
+end
+
 function fd(model::Walker{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	q3 = view(x⁺, model.nq .+ (1:model.nq))
 	q2⁺ = view(x⁺, 1:model.nq)
@@ -559,19 +565,23 @@ function fd(model::Walker{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	λ = view(u, model.idx_λ)
 	b = view(u, model.idx_b)
 
-	v = (q3 - q2⁺) / h
-	joint_fric = model.joint_friction * v
-	joint_fric[1:2] .= 0.0
+	qm1 = 0.5 * (q1 + q2⁺)
+    vm1 = (q2⁺ - q1) / h
+    qm2 = 0.5 * (q2⁺ + q3)
+    vm2 = (q3 - q2⁺) / h
 
-    SVector{18}([q2⁺ - q2⁻;
-    ((1.0 / h) * (M_func(model, q1) * (SVector{9}(q2⁺) - SVector{9}(q1))
-    - M_func(model, q2⁺) * (SVector{9}(q3) - SVector{9}(q2⁺)))
-    + h * (transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{4}(λ)
-    + transpose(P_func(model, q3)) * SVector{8}(b))
-    - h * C_func(model, q3, v)
-	- h * joint_fric
-	+ h * w)])
+	joint_friction = model.joint_friction * vm2
+	joint_friction[1:3] .= 0.0
+
+	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
+	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
+
+	[q2⁺ - q2⁻;
+     (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
+     + transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
+     + transpose(N_func(model, q3)) * SVector{4}(λ)
+     + transpose(P_func(model, q3)) * SVector{8}(b)
+     - h * joint_friction)]
 end
 
 function fd(model::Walker{Discrete, FreeTime}, x⁺, x, u, w, h, t)
@@ -584,19 +594,23 @@ function fd(model::Walker{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	b = view(u, model.idx_b)
 	h = u[end]
 
-	v = (q3 - q2⁺) / h
-	joint_fric = model.joint_friction * v
-	joint_fric[1:2] .= 0.0
+	qm1 = 0.5 * (q1 + q2⁺)
+    vm1 = (q2⁺ - q1) / h
+    qm2 = 0.5 * (q2⁺ + q3)
+    vm2 = (q3 - q2⁺) / h
 
-    SVector{18}([q2⁺ - q2⁻;
-    ((1.0 / h) * (M_func(model, q1) * (SVector{9}(q2⁺) - SVector{9}(q1))
-    - M_func(model, q2⁺) * (SVector{9}(q3) - SVector{9}(q2⁺)))
-    + h * (transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{4}(λ)
-    + transpose(P_func(model, q3)) * SVector{8}(b))
-    - h * C_func(model, q3, v)
-	- h * joint_fric
-	+ h * w)])
+	joint_friction = model.joint_friction * vm2
+	joint_friction[1:3] .= 0.0
+
+	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
+	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
+
+	[q2⁺ - q2⁻;
+     (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
+     + transpose(B_func(model, q3)) * SVector{7}(u_ctrl)
+     + transpose(N_func(model, q3)) * SVector{4}(λ)
+     + transpose(P_func(model, q3)) * SVector{8}(b)
+     - h * joint_friction)]
 end
 
 model = Walker{Discrete, FixedTime}(n, m, d,
