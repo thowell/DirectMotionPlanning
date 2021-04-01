@@ -17,7 +17,7 @@ ul, uu = control_bounds(model, T, _ul, _uu)
 # Initial and final states
 q1 = [0.0, 0.0, 1.0]
 v1 = [3.0, 5.0, 0.0]
-v2 = v1 - G_func(model,q1) * h
+v2 = v1 - C_func(model, q1, v1) * h
 q2 = q1 + 0.5 * h * (v1 + v2)
 
 x1 = [q1; q2]
