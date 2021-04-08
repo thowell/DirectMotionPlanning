@@ -84,8 +84,8 @@ nb = nc * nf              # number of friction parameters
 ns = 1                    # slack
 
 # World parameters
-μ = 0.5      # coefficient of friction
-g = 9.81     # gravity
+μ_world = 0.5      # coefficient of friction
+g_world = 9.81     # gravity
 joint_friction = 0.1
 
 # Model parameters
@@ -127,7 +127,6 @@ qU = Inf * ones(nq)
 # control limits
 uL = -100.0 * ones(nu)
 uU = 100.0 * ones(nu)
-
 function kinematics_1(model::Walker, q; body = :torso, mode = :ee)
 	x = q[1]
 	z = q[2]
@@ -419,31 +418,31 @@ function M_func(model::Walker, q)
 
 	# torso
 	J_torso = jacobian_1(model, q, body = :torso, mode = :com)
-	M += model.m_torso * J_torso' * J_torso
+	M += model.m_torso * transpose(J_torso) * J_torso
 
 	# thigh 1
 	J_thigh_1 = jacobian_1(model, q, body = :thigh_1, mode = :com)
-	M += model.m_thigh1 * J_thigh_1' * J_thigh_1
+	M += model.m_thigh1 * transpose(J_thigh_1) * J_thigh_1
 
 	# leg 1
 	J_calf_1 = jacobian_2(model, q, body = :calf_1, mode = :com)
-	M += model.m_calf1 * J_calf_1' * J_calf_1
+	M += model.m_calf1 * transpose(J_calf_1) * J_calf_1
 
 	# foot 1
 	J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :com)
-	M += model.m_foot1 * J_foot_1' * J_foot_1
+	M += model.m_foot1 * transpose(J_foot_1) * J_foot_1
 
 	# thigh 2
 	J_thigh_2 = jacobian_1(model, q, body = :thigh_2, mode = :com)
-	M += model.m_thigh2 * J_thigh_2' * J_thigh_2
+	M += model.m_thigh2 * transpose(J_thigh_2) * J_thigh_2
 
 	# leg 2
 	J_calf_2 = jacobian_2(model, q, body = :calf_2, mode = :com)
-	M += model.m_calf2 * J_calf_2' * J_calf_2
+	M += model.m_calf2 * transpose(J_calf_2) * J_calf_2
 
 	# foot 2
 	J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :com)
-	M += model.m_foot2 * J_foot_2' * J_foot_2
+	M += model.m_foot2 * transpose(J_foot_2) * J_foot_2
 
 	return M
 end
@@ -614,7 +613,7 @@ function fd(model::Walker{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 end
 
 model = Walker{Discrete, FixedTime}(n, m, d,
-			  g, μ,
+			  g_world, μ_world,
 			  l_torso, d_torso, m_torso, J_torso,
 			  l_thigh, d_thigh, m_thigh, J_thigh,
 			  l_calf, d_calf, m_calf, J_calf,
@@ -636,7 +635,7 @@ model = Walker{Discrete, FixedTime}(n, m, d,
 			  idx_ψ,
 			  idx_η,
 			  idx_s,
-			  joint_friction)
+			  0.0 * joint_friction)
 
 #NOTE: if a new model is instantiated, re-run the lines below
 @variables z_sym[1:model.n]
@@ -658,11 +657,14 @@ function C_func(model::Walker, q, q̇)
 	ddLq̇q([q; q̇]) * q̇ - dLq([q; q̇])
 end
 
+norm(M_func(model, ones(nq)))
+C_func(model, ones(nq), ones(nq))
 
-qq = rand(model.nq)
-vv = rand(model.nq)
-norm(C_func(model, qq, vv) - _C_func(model, qq, vv))
-dL(qq)
+
+# qq = rand(model.nq)
+# vv = rand(model.nq)
+# norm(C_func(model, qq, vv) - _C_func(model, qq, vv))
+# dL(qq)
 
 # visualization
 function visualize!(vis, model::Walker, q;

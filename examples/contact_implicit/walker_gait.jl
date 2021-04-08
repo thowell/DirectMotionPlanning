@@ -82,11 +82,11 @@ function ellipse_traj(x_start, x_goal, z, T)
 end
 
 # Horizon
-T = 51
-Tm = 26 #convert(Int, floor(0.5 * T))
+T = 101
+Tm = 51 #convert(Int, floor(0.5 * T))
 
 # Time step
-tf = 0.5
+tf = 1.0
 h = tf / (T - 1)
 
 # Configurations
@@ -138,8 +138,18 @@ function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2
     return q1
 end
 
+# q1 = initial_configuration(model, 0.0, pi / 75.0, 0.0, -pi / 100.0)
+q1 = initial_configuration(model, -pi / 100.0, pi / 20.0, pi / 50.0, -pi / 40.0)
 pf1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
+
+strd = 2 * (pf1 - pf2)[1]
+
+qT = copy(q1)
+qT[1] += strd
+q_ref = linear_interpolation(q1, qT, T+1)
+x_ref = configuration_to_state(q_ref)
+visualize!(vis, model, q_ref, Δt = h)
 
 # pt1 = kinematics_3(model, q1, body = :foot_1, mode = :toe)
 # ph1 = kinematics_3(model, q1, body = :foot_1, mode = :heel)
@@ -147,28 +157,22 @@ pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 # pt2 = kinematics_3(model, q1, body = :foot_2, mode = :toe)
 # ph2 = kinematics_3(model, q1, body = :foot_2, mode = :heel)
 
-strd = 2 * (pf1 - pf2)[1]
+T_fix = 20
+zh = 0.05
+xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm - T_fix)
+xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm - T_fix)
 
-zh = 0.075
-xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm)
-xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm)
-
-zf2 = [zf2_el..., [zf2_el[end] for t = 1:Tm-1]...]
-xf2 = [xf2_el..., [xf2_el[end] for t = 1:Tm-1]...]
-zf1 = [[zf1_el[1] for t = 1:Tm-1]..., zf1_el...]
-xf1 = [[xf1_el[1] for t = 1:Tm-1]..., xf1_el...]
+zf2 = [[zf2_el[1] for t = 1:T_fix]..., zf2_el..., [zf2_el[end] for t = 1:Tm-1]...]
+xf2 = [[xf2_el[1] for t = 1:T_fix]..., xf2_el..., [xf2_el[end] for t = 1:Tm-1]...]
+zf1 = [[zf1_el[1] for t = 1:Tm-1 + T_fix]..., zf1_el...]
+xf1 = [[xf1_el[1] for t = 1:Tm-1 + T_fix]..., xf1_el...]
 
 p1_ref = [[xf1[t]; zf1[t]] for t = 1:T]
 p2_ref = [[xf2[t]; zf2[t]] for t = 1:T]
 
 plot(hcat(p1_ref...)', legend = :topleft)
-plot(hcat(p2_ref...)')
+plot!(hcat(p2_ref...)')
 
-qT = copy(q1)
-qT[1] += strd
-q_ref = linear_interpolation(q1, qT, T+1)
-x_ref = configuration_to_state(q_ref)
-visualize!(vis, model, q_ref, Δt = h)
 
 # Control
 # u = (τ1..7, λ1..4, β1..8, ψ1..4, η1...8, s1)
@@ -183,10 +187,10 @@ visualize!(vis, model, q_ref, Δt = h)
 # ul <= u <= uu
 # u1 = initial_torque(model, q1, h)[model.idx_u] # gravity compensation for current q
 _uu = Inf * ones(model.m)
-_uu[model.idx_u] .= 25.0
+_uu[model.idx_u] .= Inf
 _uu[end] = 2.0 * h
 _ul = zeros(model.m)
-_ul[model.idx_u] .= -25.0
+_ul[model.idx_u] .= -Inf
 _ul[end] = 0.25 * h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
@@ -213,11 +217,12 @@ include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 x0 = configuration_to_state(q_ref)
 
 # penalty on slack variable
-obj_penalty = PenaltyObjective(1.0e4, model.m-1)
+obj_penalty = PenaltyObjective(1.0e5, model.m-1)
 
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
-q_penalty = 1.0e-5 * ones(model.nq)
+q_penalty = 0.0 * ones(model.nq)
+# q_penalty[1] = 1.0
 # q_penalty[1] = 1.0
 # q_penalty[2] = 1.0
 # q_penalty[3] = 10.0
@@ -226,15 +231,15 @@ q_penalty = 1.0e-5 * ones(model.nq)
 x_penalty = [q_penalty; q_penalty]
 obj_control = quadratic_time_tracking_objective(
     [Diagonal(x_penalty) for t = 1:T],
-    [Diagonal([1.0e-5 * ones(model.nu)..., 1.0e-8 * ones(model.m - model.nu)...]) for t = 1:T-1],
+    [Diagonal([1.0e-1 * ones(model.nu)..., 1.0e-1 * ones(model.nc)..., 1.0e-1 * ones(model.nb)..., 1.0e-8 * ones(model.m - model.nu - model.nc - model.nb - 1)..., 0.0]) for t = 1:T-1],
     [x_ref[end] for t = 1:T],
     [[zeros(model.nu); zeros(model.m - model.nu)] for t = 1:T-1],
 	1.0)
 
-obj_ctrl_vel = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu); zeros(model.m - model.nu)]))
+obj_ctrl_vel = control_velocity_objective(Diagonal([10.0 * ones(model.nu); 1.0 * ones(model.nc + model.nb); zeros(model.m - model.nu - model.nc - model.nb)]))
 
 # quadratic velocity penalty
-q_v = 1.0e-3 * ones(model.nq)
+q_v = 1.0e-1 * ones(model.nq)
 # q_v[3] = 100.0
 # q_v[3:7] .= 1.0e-3
 # q_v[8:9] .= 100.0
@@ -252,18 +257,22 @@ function l_foot_height(x, u, t)
 		pq1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		pq2 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		v = (pq2 - pq1) ./ h
+		p_avg = 0.5 * (pq1[1] + pq2[1])
 		J += 1000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
 		J += 1000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
+		J += 1000.0 * (p_avg - q1[1])^2.0
 	end
 
 	if t <= Tm
 		pq1 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
 		v = (pq2 - pq1) ./ h
+		p_avg = 0.5 * (pq1[1] + pq2[1])
 		J += 1000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
 		J += 1000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
+		J += 1000.0 * (p_avg - q1[1])^2.0
 	end
 
 	if t < T
@@ -306,14 +315,13 @@ end
 # pinned!(cc, xx, uuu, 1)
 # p1_ref[1]
 n_stage = 2
-t_idx1 = [t for t = 1:Tm]
-t_idx2 = [t for t = Tm:T]
+t_idx1 = vcat([t for t = 1:Tm+T_fix]..., T)
+t_idx2 = vcat([1:T_fix + 1]..., [t for t = Tm:T]...)
 
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
 # constraints!(zeros(con_pinned.n), zeros(prob.num_var), con_pinned, model, prob.prob.idx, h, T)
-
 con_loop = loop_constraints(model, collect([(2:9)...,(11:18)...]), 1, T)
 con_contact = contact_constraints(model, T)
 con_free_time = free_time_constraints(T)
@@ -321,11 +329,7 @@ con = multiple_constraints([con_contact,
 	con_free_time,
 	con_loop,
 	con_pinned1,
-	con_pinned2])#,
-	# con_pinned2])#,
-	# con_pinned2])#,
-	# con_pinned1,
-	# con_pinned2])
+	con_pinned2])
 
 # con = multiple_constraints([con_free_time, con_contact, con_pinned1])
 
@@ -351,8 +355,8 @@ z0 = pack(x0, u0, prob)
 # include_snopt()
 @time z̄, info = solve(prob, copy(z0),
     nlp = :ipopt,
-	max_iter = 1000,
-    tol = 1.0e-1, c_tol = 1.0e-3, mapl = 5,
+	max_iter = 2000,
+    tol = 1.0e-3, c_tol = 1.0e-3, mapl = 5,
     time_limit = 60 * 3)
 
 # @time z̄, info = solve(prob, copy(z̄ .+ 0.01 * randn(prob.num_var)),
@@ -365,60 +369,98 @@ z0 = pack(x0, u0, prob)
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
 _tf, _t, h̄ = get_time(ū)
+h̄
 q = state_to_configuration(x̄)
 u = [u[model.idx_u] for u in ū]
 γ = [u[model.idx_λ] for u in ū]
 b = [u[model.idx_b] for u in ū]
+ψ = [u[model.idx_ψ] for u in ū]
+η = [u[model.idx_η] for u in ū]
 h̄ = mean(h̄)
+
+t = 1
+ψ[t] .* friction_cone(model, γ[t], b[t])
+model.idx_ψ
+γ[t]
+b[t]
+ψ[t]
+friction_cone(model, γ[t], b[t])
+
+norm(hcat([γ[t] .* ϕ_func(model, q[t+2]) for t = 1:T-1]...),Inf)
+norm(hcat([b[t] .* η[t] for t = 1:T-1]...), Inf)
+function friction_cone(model::Walker, λ, b)
+	@show model.μ
+	return @SVector [model.μ * λ[1] - sum(b[1:2]),
+					 model.μ * λ[2] - sum(b[3:4]),
+					 model.μ * λ[3] - sum(b[5:6]),
+					 model.μ * λ[4] - sum(b[7:8])]
+end
+norm(hcat([ψ[t] .* friction_cone(model, γ[t], b[t]) for t = 1:T-1]...), Inf)
+
+
 @save joinpath(@__DIR__, "biped_gait.jld2") z̄ x̄ ū h̄ q u γ b
 # @load joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
-[norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄, t)) for t = 1:T-1]
-(q̄[end][1] - q̄[1][1]) / tf_
+maximum([norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄, t)) for t = 1:T-1])
+(q[end][1] - q[1][1]) / _tf
 vis = Visualizer()
 render(vis)
 visualize!(vis, model,
 	[[x̄[1][1:model.nq] for i = 1:10]...,
 	 state_to_configuration(x̄)...,
 	 [x̄[end][model.nq .+ (1:model.nq)] for i = 1:10]...], Δt = h̄[1])
-visualize!(vis, model,
- 	[q̄[T+1]], Δt = h̄[1])
-#
-#
-# plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
-# _pf1 = [kinematics_3(model, q, body = :foot_1, mode = :com) for q in q̄]
-# _pf2 = [kinematics_3(model, q, body = :foot_2, mode = :com) for q in q̄]
-#
+# visualize!(vis, model,
+#  	[q̄[T+1]], Δt = h̄[1])
+# #
+
+plot(hcat(u...)', linetype = :steppost)
+plot(hcat([γt[1:2] for γt in γ]...)', linetype = :steppost)
+plot!(hcat([γt[3:4] for γt in γ]...)', linetype = :steppost)
+
+plot!(hcat([bt[1:2] for bt in b]...)', linetype = :steppost)
+plot!(hcat([bt[3:4] for bt in b]...)', linetype = :steppost)
+plot!(hcat([bt[5:6] for bt in b]...)', linetype = :steppost)
+plot!(hcat([bt[7:8] for bt in b]...)', linetype = :steppost)
+
+_pf1 = [kinematics_3(model, qt, body = :foot_1, mode = :com) for qt in q]
+_pf2 = [kinematics_3(model, qt, body = :foot_2, mode = :com) for qt in q]
+
 # using Plots
 
-# plot(hcat(_pf1...)', title = "foot 1", legend = :topleft, label = ["x" "z"])
-# plot(hcat(_pf2...)', title = "foot 2", legend = :bottomright, label = ["x" "z"])
-# #
+plot(hcat(_pf1...)', title = "foot 1",
+ 	legend = :topleft, label = ["x" "z"], color = :black, width = 2.0)
+plot!(hcat(p1_ref...)', legend = :topleft, color = :red, width = 1.0)
+
+plot(hcat(p2_ref...)', title = "foot 2",
+	legend = :topleft, label = ["x" "z"], color = :black, width = 2.0)
+plot!(hcat(_pf2...)', title = "foot 2", legend = :bottomright,
+	color = :red, width = 1.0)
+
 # # # # @save joinpath(pwd(), "examples/trajectories/walker_steps.jld2") z̄
 # # # plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
-# function get_q_viz(q̄; N = 4)
-# 	q_viz = [q̄...]
-# 	shift_vec = zeros(model.nq)
-# 	shift_vec[1] = q̄[end][1]
-# 	for i = 1:N
-# 		# println(shift)
-# 		# shift_vec[1] = strd
-# 		#
-# 		q_update = [q + shift_vec for q in q̄[2:end]]
-# 		push!(q_viz, q_update...)
-# 		shift_vec[1] = q_update[end][1]
-# 	end
-#
-# 	return q_viz
-# end
-#
-# q_viz = get_q_viz(q̄)
-# open(vis)
-# visualize!(vis, model,
-# 	q_viz,
-# 	Δt = h̄[1])
-#
-#
+function get_q_viz(q̄; N = 4)
+	q_viz = [q̄...]
+	shift_vec = zeros(model.nq)
+	shift_vec[1] = q̄[end][1]
+	for i = 1:N
+		# println(shift)
+		# shift_vec[1] = strd
+		#
+		q_update = [q + shift_vec for q in q̄[2:end]]
+		push!(q_viz, q_update...)
+		shift_vec[1] = q_update[end][1]
+	end
+
+	return q_viz
+end
+
+q_viz = get_q_viz(q)
+render(vis)
+visualize!(vis, model,
+	q_viz,
+	Δt = h̄[1])
+
+model
 # function traj_concat(q̄, ū; N = 3)
 # 	u_viz = [ū...]
 # 	q_viz = [q̄...]
@@ -465,43 +507,45 @@ visualize!(vis, model,
 # #
 # # h̄[1]
 # #
-# # model_sim = Walker{Discrete, FixedTime}(n, m, d,
-# # 			  g, μ,
-# # 			  l_torso, d_torso, m_torso, J_torso,
-# # 			  l_thigh, d_thigh, m_thigh, J_thigh,
-# # 			  l_calf, d_calf, m_calf, J_calf,
-# # 			  l_foot, d_foot, m_foot, J_foot,
-# # 			  l_thigh, d_thigh, m_thigh, J_thigh,
-# # 			  l_calf, d_calf, m_calf, J_calf,
-# # 			  l_foot, d_foot, m_foot, J_foot,
-# # 			  qL, qU,
-# # 			  uL, uU,
-# # 			  nq,
-# # 			  nu,
-# # 			  nc,
-# # 			  nf,
-# # 			  nb,
-# # 			  ns,
-# # 			  idx_u,
-# # 			  idx_λ,
-# # 			  idx_b,
-# # 			  idx_ψ,
-# # 			  idx_η,
-# # 			  idx_s,
-# # 			  joint_friction)
-# #
-# # x_sim = [x̄[1]]
-# # q_sim = [x̄[1][1:model.nq], x̄[2][model.nq .+ (1:model.nq)]]
-# # include(joinpath(pwd(), "src/contact_simulator/simulator.jl"))
-# # for t = 1:T-1
-# # 	_x = step_contact(model_sim, x_sim[end], ū[t][1:model.nu], zeros(model.d), h̄[t],
-# # 	        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
-# # 	push!(x_sim, _x)
-# # 	push!(q_sim, x_sim[end][model.nq .+ (1:model.nq)])
-# # end
-# # plot(hcat(q̄...)')
-# # plot(hcat(q_sim...)')
-# # vis = Visualizer()
-# # render(vis)
-# # # open(vis)
-# # visualize!(vis, model, q_sim, Δt = h̄[1])
+# model_sim = Walker{Discrete, FixedTime}(n, m, d,
+# 			  g_world, μ_world,
+# 			  l_torso, d_torso, m_torso, J_torso,
+# 			  l_thigh, d_thigh, m_thigh, J_thigh,
+# 			  l_calf, d_calf, m_calf, J_calf,
+# 			  l_foot, d_foot, m_foot, J_foot,
+# 			  l_thigh, d_thigh, m_thigh, J_thigh,
+# 			  l_calf, d_calf, m_calf, J_calf,
+# 			  l_foot, d_foot, m_foot, J_foot,
+# 			  qL, qU,
+# 			  uL, uU,
+# 			  nq,
+# 			  nu,
+# 			  nc,
+# 			  nf,
+# 			  nb,
+# 			  ns,
+# 			  idx_u,
+# 			  idx_λ,
+# 			  idx_b,
+# 			  idx_ψ,
+# 			  idx_η,
+# 			  idx_s,
+# 			  joint_friction)
+#
+# x_sim = [x̄[1]]
+# q_sim = [x̄[1][1:model.nq], x̄[2][model.nq .+ (1:model.nq)]]
+# include(joinpath(pwd(), "src/contact_simulator/simulator.jl"))
+#
+# for t = 1:T-1
+# 	_x = step_contact(model_sim, x_sim[end], ū[t][1:model.nu], zeros(model.d), h̄,
+# 	        tol_c = 1.0e-5, tol_opt = 1.0e-5, tol_s = 1.0e-4, nlp = :ipopt)
+# 	push!(x_sim, _x)
+# 	push!(q_sim, x_sim[end][model.nq .+ (1:model.nq)])
+# end
+#
+# plot(hcat(q...)[:, 1:length(q_sim)]', color = :black, width = 2.0)
+# plot!(hcat(q_sim...)', color = :red, width = 1.0)
+# vis = Visualizer()
+# render(vis)
+# # open(vis)
+# visualize!(vis, model, q_sim, Δt = h̄[1])

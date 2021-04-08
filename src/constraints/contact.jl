@@ -8,7 +8,7 @@ struct ContactConstraints <: Constraints
 end
 
 function contact_constraints(model, T)
-	n = model.nc * (T + 1) + model.nc * (T - 1) + model.nb * (T - 1) + 3 * (T - 1)
+	n = model.nc * (T + 1) + model.nc * (T - 1) + model.nb * (T - 1) + (nc + nc + nb) * (T - 1)
 	ineq = con_ineq_contact(model, T)
 
 	return ContactConstraints(n, ineq)
@@ -59,10 +59,10 @@ function constraints!(c, Z, con::ContactConstraints, model, idx, h, T)
 		s = view(u, model.idx_s)
 		λ = view(u, model.idx_λ)
 
-		c[shift + (t-1) * 1 + 1] = s[1] - (λ' * ϕ_func(model, q))[1]
+		c[shift + (t-1) * model.nc .+ (1:model.nc)] = s[1] .- (λ .* ϕ_func(model, q))
 	end
 
-	shift += (T - 1)
+	shift += model.nc * (T - 1)
 
 	# friction cone complementarity
 	for t = 1:T-1
@@ -71,10 +71,10 @@ function constraints!(c, Z, con::ContactConstraints, model, idx, h, T)
 		s = view(u, model.idx_s)
 		ψ = view(u, model.idx_ψ)
 
-		c[shift + (t-1) * 1 + 1] = s[1] - (ψ' * friction_cone(model, u))[1]
+		c[shift + (t-1) * model.nc .+ (1:model.nc)] = s[1] .- (ψ .* friction_cone(model, u))
 	end
 
-	shift += (T - 1)
+	shift += model.nc * (T - 1)
 
 	# friction parameter complementarity
 	for t = 1:T-1
@@ -84,10 +84,10 @@ function constraints!(c, Z, con::ContactConstraints, model, idx, h, T)
 		b = view(u, model.idx_b)
 		η = view(u, model.idx_η)
 
-		c[shift + (t-1) * 1 + 1] = s[1] - (η' * b)[1]
+		c[shift + (t-1) * model.nb .+ (1:model.nb)] = s[1] .- (η .* b)
 	end
 
-	shift += (T - 1)
+	shift += model.nb * (T - 1)
 
     return nothing
 end
@@ -165,11 +165,10 @@ function constraints_jacobian!(∇c, Z, con::ContactConstraints, model, idx, h, 
 		s = view(u, model.idx_s)
 		λ = view(u, model.idx_λ)
 
-		cq(y) = s - [λ' * ϕ_func(model, y)]
-		cu(y) = y[model.idx_s] - [y[model.idx_λ]' * ϕ_func(model, q)]
+		cq(y) = s[1] .- λ .* ϕ_func(model, y)
+		cu(y) = y[model.idx_s][1] .- y[model.idx_λ] .* ϕ_func(model, q)
 
-		print()
-		r_idx = c_shift + (t-1) * 1 + 1
+		r_idx = c_shift + (t-1) * model.nc .+ (1:model.nc)
 		c_idx = idx.x[t + 1][model.nq .+ (1:model.nq)]
 		len = length(r_idx) * length(c_idx)
 		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(cq, q))
@@ -181,7 +180,7 @@ function constraints_jacobian!(∇c, Z, con::ContactConstraints, model, idx, h, 
 		shift += len
 	end
 
-	c_shift += (T - 1)
+	c_shift += model.nc * (T - 1)
 
 	# friction cone complementarity
 	for t = 1:T-1
@@ -190,16 +189,16 @@ function constraints_jacobian!(∇c, Z, con::ContactConstraints, model, idx, h, 
 		s = view(u, model.idx_s)
 		ψ = view(u, model.idx_ψ)
 
-		cu(y) = y[model.idx_s] - [y[model.idx_ψ]' * friction_cone(model, y)]
+		cu(y) = y[model.idx_s][1] .- y[model.idx_ψ] .* friction_cone(model, y)
 
-		r_idx = c_shift + (t-1) * 1 + 1
+		r_idx = c_shift + (t-1) * model.nc .+ (1:model.nc)
 		c_idx = idx.u[t]
 		len = length(r_idx) * length(c_idx)
 		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(cu, u))
 		shift += len
 	end
 
-	c_shift += (T - 1)
+	c_shift += model.nc * (T - 1)
 
 	# friction parameter complementarity
 	for t = 1:T-1
@@ -209,16 +208,16 @@ function constraints_jacobian!(∇c, Z, con::ContactConstraints, model, idx, h, 
 		b = view(u, model.idx_b)
 		η = view(u, model.idx_η)
 
-		cu(y) = y[model.idx_s] - [y[model.idx_η]' * y[model.idx_b]]
+		cu(y) = y[model.idx_s][1] .- y[model.idx_η] .* y[model.idx_b]
 
-		r_idx = c_shift + (t-1) * 1 + 1
+		r_idx = c_shift + (t-1) * model.nb .+ (1:model.nb)
 		c_idx = idx.u[t]
 		len = length(r_idx) * length(c_idx)
 		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(cu, u))
 		shift += len
 	end
 
-	c_shift += (T - 1)
+	c_shift += model.nb * (T - 1)
 
 	return nothing
 end
@@ -270,7 +269,7 @@ function constraints_sparsity(con::ContactConstraints, model, idx, T;
 
 	# impact complementarity
 	for t = 1:T-1
-		r_idx = shift_row + con_shift + (t-1) * 1 + 1
+		r_idx = shift_row + con_shift + (t-1) * model.nc .+ (1:model.nc)
 		c_idx = shift_col .+ idx.x[t + 1][model.nq .+ (1:model.nq)]
 		row_col!(row, col, r_idx, c_idx)
 
@@ -278,20 +277,20 @@ function constraints_sparsity(con::ContactConstraints, model, idx, T;
 		row_col!(row, col, r_idx, c_idx)
 	end
 
-	con_shift += (T - 1)
+	con_shift += model.nc * (T - 1)
 
 	# friction cone complementarity
 	for t = 1:T-1
-		r_idx = shift_row + con_shift + (t-1) * 1 + 1
+		r_idx = shift_row + con_shift + (t-1) * model.nc .+ (1:model.nc)
 		c_idx = shift_col .+ idx.u[t]
 		row_col!(row, col, r_idx, c_idx)
 	end
 
-	con_shift += (T - 1)
+	con_shift += model.nc * (T - 1)
 
 	# friction parameter complementarity
 	for t = 1:T-1
-		r_idx = shift_row + con_shift + (t-1) * 1 + 1
+		r_idx = shift_row + con_shift + (t-1) * model.nb .+ (1:model.nb)
 		c_idx = shift_col .+ idx.u[t]
 		row_col!(row, col, r_idx, c_idx)
 	end
@@ -317,16 +316,16 @@ function con_ineq_contact(model, T)
 	shift += model.nb * (T - 1)
 
 	# impact complementarity
-	push!(con_ineq, [i for i = shift .+ (1:(T - 1))])
-	shift += (T - 1)
+	push!(con_ineq, [i for i = shift .+ (1:model.nc * (T - 1))])
+	shift += model.nc * (T - 1)
 
 	# friction cone complementarity
-	push!(con_ineq, [i for i = shift .+ (1:(T - 1))])
-	shift += (T - 1)
+	push!(con_ineq, [i for i = shift .+ (1:model.nc * (T - 1))])
+	shift += model.nc * (T - 1)
 
 	# friction parameter complementarity
-	push!(con_ineq, [i for i = shift .+ (1:(T - 1))])
-	shift += (T - 1)
+	push!(con_ineq, [i for i = shift .+ (1:model.nb * (T - 1))])
+	shift += model.nb * (T - 1)
 
     return vcat(con_ineq...)
 end

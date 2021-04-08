@@ -1,3 +1,4 @@
+using Plots
 # Model
 include_model("particle")
 model = Particle{Discrete, FixedTime}(n, m, d,
@@ -15,15 +16,15 @@ model = Particle{Discrete, FixedTime}(n, m, d,
 				 idx_η,
 				 idx_s)
 # Horizon
-T = 51
+T = 101
 
 # Time step
 tf = 1.0
 h = tf / (T-1)
 
 # Path
-px = range(0.0, stop = tf, length = T+1)
-py = 0.5 * sin.(2 * π * px)
+px = range(-h, stop = tf, length = T+1)
+py = 0.05 * sin.(2 * π * px)
 
 plot(px, py, aspect_ratio = :equal)
 q_ref = [[px[t]; py[t]; 1.0] for t = 1:length(px)]
@@ -95,7 +96,7 @@ q = state_to_configuration(x̄)
 u = [u[model.idx_u] for u in ū]
 γ = [u[model.idx_λ] for u in ū]
 b = [u[model.idx_b] for u in ū]
-h̄ = mean(h̄)
+h̄ = h
 @save joinpath(@__DIR__, "particle_sinusoidal.jld2") z̄ x̄ ū h̄ q u γ b
 
 include(joinpath(pwd(), "models/visualize.jl"))
