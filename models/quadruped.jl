@@ -99,11 +99,11 @@ g = 9.81     # gravity
 
 # ~Unitree A1
 # Model parameters
-m_torso = 4.713
+m_torso = 4.713 + 4 * 0.696
 m_thigh = 1.013
 m_leg = 0.166
 
-J_torso = 0.01683
+J_torso = 0.01683 + 4 * 0.696 * 0.183^2.0
 J_thigh = 0.00552
 J_leg = 0.00299
 
@@ -111,9 +111,9 @@ l_torso = 0.267
 l_thigh = 0.2
 l_leg = 0.2
 
-d_torso = 0.0127
-d_thigh = 0.00323
-d_leg = 0.006435
+d_torso = 0.5 * l_torso - 0.0127
+d_thigh = 0.5 * l_thigh - 0.00323
+d_leg = 0.5 * l_leg - 0.006435
 
 n = 2 * nq
 m = nu + nc + nb + nc + nb + ns

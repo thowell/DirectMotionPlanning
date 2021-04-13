@@ -76,8 +76,8 @@ struct Walker{I, T} <: Model{I, T}
 end
 
 # Dimensions
-nq = 2 + 5 + 2            # configuration dimension
-nu = 7                    # control dimension
+nq = 2 + 5            # configuration dimension
+nu = 2                   # control dimension
 nc = 4                    # number of contact points
 nf = 2                    # number of parameters for friction cone
 nb = nc * nf              # number of friction parameters
@@ -242,83 +242,83 @@ function jacobian_2(model::Walker, q; body = :calf_1, mode = :ee)
 
 	return jac
 end
-
-function kinematics_3(model::Walker, q; body = :foot_1, mode = :ee)
-
-	if body == :foot_1
-		p = kinematics_2(model, q, body = :calf_1, mode = :ee)
-
-		θb = q[8]
-
-		lb = model.l_foot1
-		db = model.d_foot1
-		cb = 0.5 * (model.l_foot1 - model.d_foot1)
-	elseif body == :foot_2
-		p = kinematics_2(model, q, body = :calf_2, mode = :ee)
-
-		θb = q[9]
-
-		lb = model.l_foot2
-		db = model.d_foot2
-		cb = 0.5 * (model.l_foot2 - model.d_foot2)
-	else
-		@error "incorrect body specification"
-	end
-
-	if mode == :toe
-		return p + [lb * sin(θb); -1.0 * lb * cos(θb)]
-	elseif mode == :heel
-		return p + [-db * sin(θb); 1.0 * db * cos(θb)]
-	elseif mode == :com
-		return p + [cb * sin(θb); -1.0 * cb * cos(θb)]
-	else
-		@error "incorrect mode specification"
-	end
-end
-
-function jacobian_3(model::Walker, q; body = :foot_1, mode = :ee)
-
-	if body == :foot_1
-		jac = jacobian_2(model, q, body = :calf_1, mode = :ee)
-
-		θb = q[8]
-
-		if mode == :toe
-			r = model.l_foot1
-		elseif mode == :heel
-			r = -1.0 * model.d_foot1
-		elseif mode == :com
-			r = 0.5 * (model.l_foot1 - model.d_foot1)
-		else
-			@error "incorrect mode specification"
-		end
-
-		jac[1, 8] += r * cos(θb)
-		jac[2, 8] += r * sin(θb)
-
-	elseif body == :foot_2
-		jac = jacobian_2(model, q, body = :calf_2, mode = :ee)
-
-		θb = q[9]
-
-		if mode == :toe
-			r = model.l_foot2
-		elseif mode == :heel
-			r = -1.0 * model.d_foot2
-		elseif mode == :com
-			r = 0.5 * (model.l_foot2 - model.d_foot2)
-		else
-			@error "incorrect mode specification"
-		end
-		jac[1, 9] += r * cos(θb)
-		jac[2, 9] += r * sin(θb)
-
-	else
-		@error "incorrect body specification"
-	end
-
-	return jac
-end
+#
+# function kinematics_3(model::Walker, q; body = :foot_1, mode = :ee)
+#
+# 	if body == :foot_1
+# 		p = kinematics_2(model, q, body = :calf_1, mode = :ee)
+#
+# 		θb = q[8]
+#
+# 		lb = model.l_foot1
+# 		db = model.d_foot1
+# 		cb = 0.5 * (model.l_foot1 - model.d_foot1)
+# 	elseif body == :foot_2
+# 		p = kinematics_2(model, q, body = :calf_2, mode = :ee)
+#
+# 		θb = q[9]
+#
+# 		lb = model.l_foot2
+# 		db = model.d_foot2
+# 		cb = 0.5 * (model.l_foot2 - model.d_foot2)
+# 	else
+# 		@error "incorrect body specification"
+# 	end
+#
+# 	if mode == :toe
+# 		return p + [lb * sin(θb); -1.0 * lb * cos(θb)]
+# 	elseif mode == :heel
+# 		return p + [-db * sin(θb); 1.0 * db * cos(θb)]
+# 	elseif mode == :com
+# 		return p + [cb * sin(θb); -1.0 * cb * cos(θb)]
+# 	else
+# 		@error "incorrect mode specification"
+# 	end
+# end
+#
+# function jacobian_3(model::Walker, q; body = :foot_1, mode = :ee)
+#
+# 	if body == :foot_1
+# 		jac = jacobian_2(model, q, body = :calf_1, mode = :ee)
+#
+# 		θb = q[8]
+#
+# 		if mode == :toe
+# 			r = model.l_foot1
+# 		elseif mode == :heel
+# 			r = -1.0 * model.d_foot1
+# 		elseif mode == :com
+# 			r = 0.5 * (model.l_foot1 - model.d_foot1)
+# 		else
+# 			@error "incorrect mode specification"
+# 		end
+#
+# 		jac[1, 8] += r * cos(θb)
+# 		jac[2, 8] += r * sin(θb)
+#
+# 	elseif body == :foot_2
+# 		jac = jacobian_2(model, q, body = :calf_2, mode = :ee)
+#
+# 		θb = q[9]
+#
+# 		if mode == :toe
+# 			r = model.l_foot2
+# 		elseif mode == :heel
+# 			r = -1.0 * model.d_foot2
+# 		elseif mode == :com
+# 			r = 0.5 * (model.l_foot2 - model.d_foot2)
+# 		else
+# 			@error "incorrect mode specification"
+# 		end
+# 		jac[1, 9] += r * cos(θb)
+# 		jac[2, 9] += r * sin(θb)
+#
+# 	else
+# 		@error "incorrect body specification"
+# 	end
+#
+# 	return jac
+# end
 
 # Lagrangian
 
@@ -352,14 +352,14 @@ function lagrangian(model::Walker, q, q̇)
 	L += 0.5 * model.J_calf1 * q̇[5]^2.0
 	L -= model.m_calf1 * model.g * p_calf_1[2]
 
-	# foot 1
-	p_foot_1 = kinematics_3(model, q, body = :foot_1, mode = :com)
-	J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :com)
-	v_foot_1 = J_foot_1 * q̇
-
-	L += 0.5 * model.m_foot1 * transpose(v_foot_1) * v_foot_1
-	L += 0.5 * model.J_foot1 * q̇[8]^2.0
-	L -= model.m_foot1 * model.g * p_foot_1[2]
+	# # foot 1
+	# p_foot_1 = kinematics_3(model, q, body = :foot_1, mode = :com)
+	# J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :com)
+	# v_foot_1 = J_foot_1 * q̇
+	#
+	# L += 0.5 * model.m_foot1 * transpose(v_foot_1) * v_foot_1
+	# L += 0.5 * model.J_foot1 * q̇[8]^2.0
+	# L -= model.m_foot1 * model.g * p_foot_1[2]
 
 	# thigh 2
 	p_thigh_2 = kinematics_1(model, q, body = :thigh_2, mode = :com)
@@ -379,14 +379,14 @@ function lagrangian(model::Walker, q, q̇)
 	L += 0.5 * model.J_calf2 * q̇[7]^2.0
 	L -= model.m_calf2 * model.g * p_calf_2[2]
 
-	# foot 2
-	p_foot_2 = kinematics_3(model, q, body = :foot_2, mode = :com)
-	J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :com)
-	v_foot_2 = J_foot_2 * q̇
-
-	L += 0.5 * model.m_foot2 * transpose(v_foot_2) * v_foot_2
-	L += 0.5 * model.J_foot2 * q̇[9]^2.0
-	L -= model.m_foot2 * model.g * p_foot_2[2]
+	# # foot 2
+	# p_foot_2 = kinematics_3(model, q, body = :foot_2, mode = :com)
+	# J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :com)
+	# v_foot_2 = J_foot_2 * q̇
+	#
+	# L += 0.5 * model.m_foot2 * transpose(v_foot_2) * v_foot_2
+	# L += 0.5 * model.J_foot2 * q̇[9]^2.0
+	# L -= model.m_foot2 * model.g * p_foot_2[2]
 
 	return L
 end
@@ -413,8 +413,8 @@ function M_func(model::Walker, q)
 	M = Diagonal([0.0, 0.0,
 		model.J_torso,
 		model.J_thigh1, model.J_calf1,
-		model.J_thigh2, model.J_calf2,
-		model.J_foot1, model.J_foot2])
+		model.J_thigh2, model.J_calf2])#,
+		# model.J_foot1, model.J_foot2])
 
 	# torso
 	J_torso = jacobian_1(model, q, body = :torso, mode = :com)
@@ -428,9 +428,9 @@ function M_func(model::Walker, q)
 	J_calf_1 = jacobian_2(model, q, body = :calf_1, mode = :com)
 	M += model.m_calf1 * transpose(J_calf_1) * J_calf_1
 
-	# foot 1
-	J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :com)
-	M += model.m_foot1 * transpose(J_foot_1) * J_foot_1
+	# # foot 1
+	# J_foot_1 = jacobian_3(model, q, body = :foot_1, mode = :com)
+	# M += model.m_foot1 * transpose(J_foot_1) * J_foot_1
 
 	# thigh 2
 	J_thigh_2 = jacobian_1(model, q, body = :thigh_2, mode = :com)
@@ -440,9 +440,9 @@ function M_func(model::Walker, q)
 	J_calf_2 = jacobian_2(model, q, body = :calf_2, mode = :com)
 	M += model.m_calf2 * transpose(J_calf_2) * J_calf_2
 
-	# foot 2
-	J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :com)
-	M += model.m_foot2 * transpose(J_foot_2) * J_foot_2
+	# # foot 2
+	# J_foot_2 = jacobian_3(model, q, body = :foot_2, mode = :com)
+	# M += model.m_foot2 * transpose(J_foot_2) * J_foot_2
 
 	return M
 end
@@ -457,13 +457,12 @@ function ϕ_func(model::Walker, q)
 end
 
 function B_func(model::Walker, q)
-	@SMatrix [0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0;
-			  0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
-			  0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
-			  0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
-			  0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0;
-			  0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0;
-			  0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0]
+	@SMatrix [0.0 0.0 1.0 0.0 0.0 0.0 0.0;
+			  0.0 0.0 0.0 1.0 0.0 0.0 0.0;
+			  0.0 0.0 0.0 0.0 1.0 0.0 0.0;
+			  0.0 0.0 0.0 0.0 0.0 1.0 0.0;
+			  0.0 0.0 0.0 0.0 0.0 0.0 1.0]
+
 end
 
 function N_func(model::Walker, q)

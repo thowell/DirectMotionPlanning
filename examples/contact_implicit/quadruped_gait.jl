@@ -10,8 +10,9 @@ vis = Visualizer()
 render(vis)
 
 # Horizon
-T = 60
-Tm = 30
+T = 61
+Tm = 31
+T_fix = 5
 
 # Time step
 tf = 0.75
@@ -70,25 +71,23 @@ qT[1] += strd
 pt = kinematics_1(model, q1, body = :torso, mode = :com)
 
 zh = 0.05
-xr1_el, zr1_el = ellipse_traj(pr1[1], pr1[1] + strd, zh, Tm+1)
-xr1 = [[xr1_el[1] for t = 1:Tm-1]..., xr1_el...]
-zr1 = [[zr1_el[1] for t = 1:Tm-1]..., zr1_el...]
+xr1_el, zr1_el = ellipse_traj(pr1[1], pr1[1] + strd, zh, Tm - T_fix)
+xr1 = [[xr1_el[1] for t = 1:Tm-1 + T_fix]..., xr1_el..., [xr1_el[end] for t = 1:0]...]
+zr1 = [[zr1_el[1] for t = 1:Tm-1 + T_fix]..., zr1_el..., [zr1_el[end] for t = 1:0]...]
 pr1_ref = [[xr1[t]; zr1[t]] for t = 1:T]
-pr1_ref[Tm+1]
-xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm+1)
-xf1 = [[xf1_el[1] for t = 1:Tm-1]..., xf1_el...]
-zf1 = [[zf1_el[1] for t = 1:Tm-1]..., zf1_el...]
+xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm - T_fix)
+xf1 = [[xf1_el[1] for t = 1:Tm-1 + T_fix]..., xf1_el..., [xf1_el[end] for t = 1:0]...]
+zf1 = [[zf1_el[1] for t = 1:Tm-1 + T_fix]..., zf1_el..., [zf1_el[end] for t = 1:0]...]
 pf1_ref = [[xf1[t]; zf1[t]] for t = 1:T]
 
-
-xr2_el, zr2_el = ellipse_traj(pr2[1], pr2[1] + strd, zh, Tm)
-xr2 = [xr2_el..., [xr2_el[end] for t = 1:Tm]...]
-zr2 = [zr2_el..., [zr2_el[end] for t = 1:Tm]...]
+xr2_el, zr2_el = ellipse_traj(pr2[1], pr2[1] + strd, zh, Tm - T_fix)
+xr2 = [[xr2_el[1] for t = 1:T_fix]..., xr2_el..., [xr2_el[end] for t = 1:Tm-1]...]
+zr2 = [[zr2_el[1] for t = 1:T_fix]..., zr2_el..., [zr2_el[end] for t = 1:Tm-1]...]
 pr2_ref = [[xr2[t]; zr2[t]] for t = 1:T]
 
-xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm)
-xf2 = [xf2_el..., [xf2_el[end] for t = 1:Tm]...]
-zf2 = [zf2_el..., [zf2_el[end] for t = 1:Tm]...]
+xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm - T_fix)
+xf2 = [[xf2_el[1] for t = 1:T_fix]..., xf2_el..., [xf2_el[end] for t = 1:Tm-1]...]
+zf2 = [[zf2_el[1] for t = 1:T_fix]..., zf2_el..., [zf2_el[end] for t = 1:Tm-1]...]
 pf2_ref = [[xf2[t]; zf2[t]] for t = 1:T]
 
 tr = range(0, stop = tf, length = T)
@@ -225,8 +224,8 @@ function pinned2!(c, x, u, t)
 end
 
 n_stage = 4
-t_idx1 = [t for t = 1:Tm]
-t_idx2 = [t for t = Tm:T]
+t_idx1 = vcat([t for t = 1:Tm + T_fix]..., T)
+t_idx2 = vcat([1:T_fix + 1]..., [t for t = Tm:T]...)
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
@@ -295,11 +294,17 @@ _pr2_ref = [kinematics_2(model, q, body = :calf_2, mode = :ee) for q in q̄]
 _pf2_ref = [kinematics_3(model, q, body = :calf_4, mode = :ee) for q in q̄]
 
 using Plots
-plot(hcat(_pr1_ref...)')
-plot(hcat(_pf1_ref...)')
+plot(hcat(pr1_ref...)', width = 2.0, color = :black)
+plot!(hcat(_pr1_ref...)', color = :red)
 
-plot(hcat(_pr2_ref...)')
-plot(hcat(_pf2_ref...)')
+plot(hcat(pf1_ref...)', width = 2.0, color = :black)
+plot!(hcat(_pf1_ref...)', color = :red)
+
+plot(hcat(pr2_ref...)', width = 2.0, color = :black)
+plot!(hcat(_pr2_ref...)', color = :red)
+
+plot(hcat(pf2_ref...)', width = 2.0, color = :black)
+plot!(hcat(_pf2_ref...)', color = :red)
 
 plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
 
@@ -308,7 +313,7 @@ u = [u[model.idx_u] for u in ū]
 γ = [u[model.idx_λ] for u in ū]
 b = [u[model.idx_b] for u in ū]
 h̄ = mean(h̄)
-@save joinpath(@__DIR__, "quadruped_gait2.jld2") z̄ x̄ ū h̄ q u γ b
+@save joinpath(@__DIR__, "quadruped_gait3.jld2") z̄ x̄ ū h̄ q u γ b
 
 function get_q_viz(q̄)
 	q_viz = [q̄...]

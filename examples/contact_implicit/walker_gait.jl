@@ -82,8 +82,8 @@ function ellipse_traj(x_start, x_goal, z, T)
 end
 
 # Horizon
-T = 101
-Tm = 51 #convert(Int, floor(0.5 * T))
+T = 61
+Tm = 31 #convert(Int, floor(0.5 * T))
 
 # Time step
 tf = 1.0
@@ -139,7 +139,7 @@ function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2
 end
 
 # q1 = initial_configuration(model, 0.0, pi / 75.0, 0.0, -pi / 100.0)
-q1 = initial_configuration(model, -pi / 100.0, pi / 20.0, pi / 50.0, -pi / 40.0)
+q1 = initial_configuration(model, -pi / 100.0, pi / 20.0, -pi / 20.0, -pi / 40.0)
 pf1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
 
@@ -150,6 +150,7 @@ qT[1] += strd
 q_ref = linear_interpolation(q1, qT, T+1)
 x_ref = configuration_to_state(q_ref)
 visualize!(vis, model, q_ref, Δt = h)
+visualize!(vis, model, [q_ref[1]], Δt = h)
 
 # pt1 = kinematics_3(model, q1, body = :foot_1, mode = :toe)
 # ph1 = kinematics_3(model, q1, body = :foot_1, mode = :heel)
@@ -157,7 +158,7 @@ visualize!(vis, model, q_ref, Δt = h)
 # pt2 = kinematics_3(model, q1, body = :foot_2, mode = :toe)
 # ph2 = kinematics_3(model, q1, body = :foot_2, mode = :heel)
 
-T_fix = 20
+T_fix = 10
 zh = 0.05
 xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm - T_fix)
 xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm - T_fix)
@@ -217,7 +218,7 @@ include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 x0 = configuration_to_state(q_ref)
 
 # penalty on slack variable
-obj_penalty = PenaltyObjective(1.0e5, model.m-1)
+obj_penalty = PenaltyObjective(1.0e4, model.m-1)
 
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
@@ -236,10 +237,10 @@ obj_control = quadratic_time_tracking_objective(
     [[zeros(model.nu); zeros(model.m - model.nu)] for t = 1:T-1],
 	1.0)
 
-obj_ctrl_vel = control_velocity_objective(Diagonal([10.0 * ones(model.nu); 1.0 * ones(model.nc + model.nb); zeros(model.m - model.nu - model.nc - model.nb)]))
+obj_ctrl_vel = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu); 1.0e-2 * ones(model.nc + model.nb); zeros(model.m - model.nu - model.nc - model.nb)]))
 
 # quadratic velocity penalty
-q_v = 1.0e-1 * ones(model.nq)
+q_v = 1.0e-2 * ones(model.nq)
 # q_v[3] = 100.0
 # q_v[3:7] .= 1.0e-3
 # q_v[8:9] .= 100.0
@@ -258,10 +259,11 @@ function l_foot_height(x, u, t)
 		pq2 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 		v = (pq2 - pq1) ./ h
 		p_avg = 0.5 * (pq1[1] + pq2[1])
+		p_max = max(pq1[1], pq2[1])
 		J += 1000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
 		J += 1000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
-		J += 1000.0 * (p_avg - q1[1])^2.0
+		# J += 1000.0 * (x_ref[end][1] - q1[1])^2.0
 	end
 
 	if t <= Tm
@@ -269,15 +271,17 @@ function l_foot_height(x, u, t)
 		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
 		v = (pq2 - pq1) ./ h
 		p_avg = 0.5 * (pq1[1] + pq2[1])
+		p_max = max(pq1[1], pq2[1])
+
 		J += 1000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
 		J += 1000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
 		# J += 1000.0 * v' * v
-		J += 1000.0 * (p_avg - q1[1])^2.0
+		# J += 1000.0 * (x_ref[end][1] - q1[1])^2.0
 	end
-
-	if t < T
-		J += 1.0e-3 * ((q2[1] - q1[1]) / max(1.0e-6, u[model.m]) - 1.0)^2.0
-	end
+	#
+	# if t < T
+	# 	J += 1.0e-3 * ((q2[1] - q1[1]) / max(1.0e-6, u[model.m]) - 1.0)^2.0
+	# end
 
 	return J
 end
@@ -369,7 +373,6 @@ z0 = pack(x0, u0, prob)
 @show check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
 _tf, _t, h̄ = get_time(ū)
-h̄
 q = state_to_configuration(x̄)
 u = [u[model.idx_u] for u in ū]
 γ = [u[model.idx_λ] for u in ū]
@@ -379,17 +382,17 @@ b = [u[model.idx_b] for u in ū]
 h̄ = mean(h̄)
 
 t = 1
-ψ[t] .* friction_cone(model, γ[t], b[t])
-model.idx_ψ
-γ[t]
-b[t]
-ψ[t]
-friction_cone(model, γ[t], b[t])
+# ψ[t] .* friction_cone(model, γ[t], b[t])
+# model.idx_ψ
+# γ[t]
+# b[t]
+# ψ[t]
+# friction_cone(model, γ[t], b[t])
 
 norm(hcat([γ[t] .* ϕ_func(model, q[t+2]) for t = 1:T-1]...),Inf)
 norm(hcat([b[t] .* η[t] for t = 1:T-1]...), Inf)
 function friction_cone(model::Walker, λ, b)
-	@show model.μ
+	# @show model.μ
 	return @SVector [model.μ * λ[1] - sum(b[1:2]),
 					 model.μ * λ[2] - sum(b[3:4]),
 					 model.μ * λ[3] - sum(b[5:6]),
@@ -460,7 +463,6 @@ visualize!(vis, model,
 	q_viz,
 	Δt = h̄[1])
 
-model
 # function traj_concat(q̄, ū; N = 3)
 # 	u_viz = [ū...]
 # 	q_viz = [q̄...]
