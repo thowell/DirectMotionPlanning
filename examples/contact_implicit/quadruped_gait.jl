@@ -12,10 +12,10 @@ render(vis)
 # Horizon
 T = 61
 Tm = 31
-T_fix = 2
+T_fix = 5
 
 # Time step
-tf = 1.0
+tf = 1.25
 h = tf / (T - 1)
 
 function ellipse_traj(x_start, x_goal, z, T)

@@ -34,7 +34,7 @@ T = 61
 Tm = 31 #convert(Int, floor(0.5 * T))
 
 # Time step
-tf = 1.0
+tf = 1.25
 h = tf / (T - 1)
 
 # Configurations
@@ -45,8 +45,7 @@ h = tf / (T - 1)
 # 5: calf 1 (rel. to downward vertical)
 # 6: thigh 2 (rel. to downward vertical)
 # 7: calf 2 (rel. to downward vertical)
-# 8: foot 1 (rel. to downward vertical)
-# 9: foot 2 (rel. to downward vertical)
+
 function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2)
     q1 = zeros(model.nq)
     q1[3] = θ_torso
@@ -85,7 +84,7 @@ function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2
 end
 
 # q1 = initial_configuration(model, 0.0, pi / 75.0, 0.0, -pi / 100.0)
-q1 = initial_configuration(model, -pi / 100.0, pi / 20.0, -pi / 20.0, -pi / 40.0)
+q1 = initial_configuration(model, -pi / 100.0, pi / 25.0, -pi / 75.0, -pi / 40.0)
 pf1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
 pf2 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
 
@@ -104,7 +103,7 @@ visualize!(vis, model, q_ref, Δt = h)
 # ph2 = kinematics_3(model, q1, body = :foot_2, mode = :heel)
 
 T_fix = 10
-zh = 0.05
+zh = 0.025
 xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm - T_fix)
 xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm - T_fix)
 
@@ -137,7 +136,7 @@ _uu[model.idx_u] .= Inf
 _uu[end] = 2.0 * h
 _ul = zeros(model.m)
 _ul[model.idx_u] .= -Inf
-_ul[end] = 0.25 * h
+_ul[end] = 0.75 * h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
 qL = [-Inf; -Inf; q1[3] - pi / 50.0; q1[4:end] .- pi / 6.0; -Inf; -Inf; q1[3] - pi / 50.0; q1[4:end] .- pi / 6.0]
@@ -168,7 +167,7 @@ q_penalty = 0.0 * ones(model.nq)
 x_penalty = [q_penalty; q_penalty]
 obj_control = quadratic_time_tracking_objective(
     [Diagonal(x_penalty) for t = 1:T],
-    [Diagonal([1.0e-1 * ones(model.nu)..., 1.0e-1 * ones(model.nc)..., 1.0e-1 * ones(model.nb)..., 1.0e-8 * ones(model.m - model.nu - model.nc - model.nb - 1)..., 0.0]) for t = 1:T-1],
+    [Diagonal([1.0e-1 * ones(model.nu)..., 1.0 * ones(model.nc)..., 1.0 * ones(model.nb)..., 1.0e-8 * ones(model.m - model.nu - model.nc - model.nb - 1)..., 0.0]) for t = 1:T-1],
     [x_ref[end] for t = 1:T],
     [[zeros(model.nu); zeros(model.m - model.nu)] for t = 1:T-1],
 	1.0)
@@ -176,7 +175,7 @@ obj_control = quadratic_time_tracking_objective(
 obj_ctrl_vel = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu); 1.0e-2 * ones(model.nc + model.nb); zeros(model.m - model.nu - model.nc - model.nb)]))
 
 # quadratic velocity penalty
-q_v = 1.0e-2 * ones(model.nq)
+q_v = 1.0e-1 * ones(model.nq)
 # q_v[3] = 100.0
 # q_v[3:7] .= 1.0e-3
 # q_v[8:9] .= 100.0
@@ -190,7 +189,7 @@ function l_foot_height(x, u, t)
 	q1 = view(x, 1:7)
 	q2 = view(x, 7 .+ (1:7))
 
-	if t >= Tm
+	if t >= Tm || t <= T_fix + 1
 		pq1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
 		pq2 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
 		v = (pq2 - pq1) ./ h
@@ -202,7 +201,7 @@ function l_foot_height(x, u, t)
 		# J += 1000.0 * (x_ref[end][1] - q1[1])^2.0
 	end
 
-	if t <= Tm
+	if t <= Tm + T_fix || t == T
 		pq1 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
 		pq2 = kinematics_2(model, q2, body = :calf_2, mode = :ee)
 		v = (pq2 - pq1) ./ h
@@ -361,9 +360,9 @@ _pf2 = [kinematics_2(model, qt, body = :calf_2, mode = :ee) for qt in q]
 
 # using Plots
 
-plot(hcat(_pf1...)', title = "foot 1",
+plot(hcat(p1_ref...)', title = "foot 1",
  	legend = :topleft, label = ["x" "z"], color = :black, width = 2.0)
-plot!(hcat(p1_ref...)', legend = :topleft, color = :red, width = 1.0)
+plot!(hcat(_pf1...)', legend = :topleft, color = :red, width = 1.0)
 
 plot(hcat(p2_ref...)', title = "foot 2",
 	legend = :topleft, label = ["x" "z"], color = :black, width = 2.0)
