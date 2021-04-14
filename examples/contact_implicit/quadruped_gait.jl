@@ -12,10 +12,10 @@ render(vis)
 # Horizon
 T = 61
 Tm = 31
-T_fix = 5
+T_fix = 2
 
 # Time step
-tf = 0.75
+tf = 1.0
 h = tf / (T - 1)
 
 function ellipse_traj(x_start, x_goal, z, T)
@@ -72,12 +72,12 @@ pt = kinematics_1(model, q1, body = :torso, mode = :com)
 
 zh = 0.05
 xr1_el, zr1_el = ellipse_traj(pr1[1], pr1[1] + strd, zh, Tm - T_fix)
-xr1 = [[xr1_el[1] for t = 1:Tm-1 + T_fix]..., xr1_el..., [xr1_el[end] for t = 1:0]...]
-zr1 = [[zr1_el[1] for t = 1:Tm-1 + T_fix]..., zr1_el..., [zr1_el[end] for t = 1:0]...]
+xr1 = [[xr1_el[1] for t = 1:Tm-1 + T_fix]..., xr1_el...]
+zr1 = [[zr1_el[1] for t = 1:Tm-1 + T_fix]..., zr1_el...]
 pr1_ref = [[xr1[t]; zr1[t]] for t = 1:T]
 xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm - T_fix)
-xf1 = [[xf1_el[1] for t = 1:Tm-1 + T_fix]..., xf1_el..., [xf1_el[end] for t = 1:0]...]
-zf1 = [[zf1_el[1] for t = 1:Tm-1 + T_fix]..., zf1_el..., [zf1_el[end] for t = 1:0]...]
+xf1 = [[xf1_el[1] for t = 1:Tm-1 + T_fix]..., xf1_el...]
+zf1 = [[zf1_el[1] for t = 1:Tm-1 + T_fix]..., zf1_el...]
 pf1_ref = [[xf1[t]; zf1[t]] for t = 1:T]
 
 xr2_el, zr2_el = ellipse_traj(pr2[1], pr2[1] + strd, zh, Tm - T_fix)
@@ -108,7 +108,7 @@ _uu[model.idx_u] .= 33.5 * h
 _uu[end] = 2.0 * h
 _ul = zeros(model.m)
 _ul[model.idx_u] .= -33.5 * h
-_ul[end] = 0.25 * h
+_ul[end] = 0.75 * h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
 xl, xu = state_bounds(model, T,
@@ -129,7 +129,7 @@ obj_penalty = PenaltyObjective(1.0e4, model.m - 1)
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
 obj_control = quadratic_time_tracking_objective(
     [1.0 * Diagonal(1.0e-5 * ones(model.n)) for t = 1:T],
-    [1.0 * Diagonal([1.0e-5 * ones(model.nu)..., zeros(model.m - model.nu)...]) for t = 1:T-1],
+    [1.0 * Diagonal([1.0e-3 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]) for t = 1:T-1],
     [[qT; qT] for t = 1:T],
     [zeros(model.m) for t = 1:T],
     1.0)
@@ -143,7 +143,7 @@ obj_velocity = velocity_objective(
     h = h,
     idx_angle = collect([3, 4, 5, 6, 7, 8, 9, 10, 11]))
 
-obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-3 * ones(model.nu); 0.0 * ones(model.m - model.nu)]))
+obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-3 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]))
 
 function l_stage(x, u, t)
 	q1 = view(x, 1:11)
@@ -158,7 +158,7 @@ function l_stage(x, u, t)
 	J += 100.0 * (q2[2] - x0[1][2])^2.0
 
 	# feet height
-    if t >= Tm
+    if t >= Tm || t < T_fix + 1
 		# pr1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
 		# pr2 = kinematics_2(model, q2, body = :calf_1, mode = :ee)
 		# vr = (pr2 - pr1) ./ h
@@ -175,7 +175,7 @@ function l_stage(x, u, t)
 		# J += 1.0 * vf' * vf
 	end
 
-    if t <= Tm
+    if t <= Tm + T_fix || t == T
 		# pr1 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
 		# pr2 = kinematics_2(model, q2, body = :calf_2, mode = :ee)
 		# vr = (pr2 - pr1) ./ h
@@ -313,7 +313,7 @@ u = [u[model.idx_u] for u in ū]
 γ = [u[model.idx_λ] for u in ū]
 b = [u[model.idx_b] for u in ū]
 h̄ = mean(h̄)
-@save joinpath(@__DIR__, "quadruped_gait3.jld2") z̄ x̄ ū h̄ q u γ b
+@save joinpath(@__DIR__, "quadruped_gait_slow.jld2") z̄ x̄ ū h̄ q u γ b
 
 function get_q_viz(q̄)
 	q_viz = [q̄...]

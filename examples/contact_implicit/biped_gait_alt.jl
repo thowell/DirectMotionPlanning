@@ -1,7 +1,7 @@
 using Plots
 
 # Model
-include_model("walker")
+include_model("biped")
 
 model = free_time_model(model)
 
@@ -10,58 +10,6 @@ model = free_time_model(model)
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
-
-"""
-Useful methods
-
-joint-space inertia matrix:
-	M_func(model, q)
-
-position (px, pz) of foot 1 heel:
-	kinematics_2(model,
-		get_q⁺(x), body = :calf_1, mode = :ee)
-
-position (px, pz) of foot 2 heel:
-	kinematics_2(model,
-		get_q⁺(x), body = :calf_2, mode = :ee)
-
-position (px, pz) of foot 1 toe:
-		kinematics_3(model,
-	        get_q⁺(x), body = :foot_1, mode = :ee)
-
-position (px, pz) of foot 2 toe:
-		kinematics_3(model,
-	        get_q⁺(x), body = :foot_2, mode = :ee)
-
-jacobian to foot 1 heel
-	jacobian_2(model, get_q⁺(x), body = :calf_1, mode = :ee)
-
-jacobian to foot 2 heel
-	jacobian_2(model, get_q⁺(x), body = :calf_2, mode = :ee)
-
-jacobian to foot 1 toe
-	jacobian_3(model, get_q⁺(x), body = :foot_1, mode = :ee)
-
-jacobian to foot 2 toe
-	jacobian_3(model, get_q⁺(x), body = :foot_2, mode = :ee)
-
-gravity compensating torques
-	initial_torque(model, q, h)[model.idx_u] # returns torques for system
-	initial_torque(model, q, h) # returns torques for system and contact forces
-
-	-NOTE: this method is iterative and is not differentiable (yet)
-		-TODO: implicit function theorem to compute derivatives
-
-contact models
-	- maximum-dissipation principle:
-		contact_constraints(model, T)
-	- no slip:
-		contact_no_slip_constraints(T)
-
-loop constraint
-	- constrain variables at two indices to be the same:
-		loop_constraints(model, x_idx, t1_idx, t2_idx)
-"""
 
 function get_q⁺(x)
 	view(x, model.nq .+ (1:model.nq))
@@ -110,8 +58,6 @@ function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2
 	# q1[6] = θ_thigh_1
 	# q1[7] = θ_leg_1
 	q1[2] = z1
-	q1[8] = pi / 2.0
-	q1[9] = pi / 2.0
 
     # p1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
     # p2 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
@@ -140,8 +86,8 @@ end
 
 # q1 = initial_configuration(model, 0.0, pi / 75.0, 0.0, -pi / 100.0)
 q1 = initial_configuration(model, -pi / 100.0, pi / 20.0, -pi / 20.0, -pi / 40.0)
-pf1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
-pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
+pf1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
+pf2 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
 
 strd = 2 * (pf1 - pf2)[1]
 
@@ -150,7 +96,6 @@ qT[1] += strd
 q_ref = linear_interpolation(q1, qT, T+1)
 x_ref = configuration_to_state(q_ref)
 visualize!(vis, model, q_ref, Δt = h)
-visualize!(vis, model, [q_ref[1]], Δt = h)
 
 # pt1 = kinematics_3(model, q1, body = :foot_1, mode = :toe)
 # ph1 = kinematics_3(model, q1, body = :foot_1, mode = :heel)
@@ -197,15 +142,6 @@ ul, uu = control_bounds(model, T, _ul, _uu)
 
 qL = [-Inf; -Inf; q1[3] - pi / 50.0; q1[4:end] .- pi / 6.0; -Inf; -Inf; q1[3] - pi / 50.0; q1[4:end] .- pi / 6.0]
 qU = [Inf; q1[2] + 0.001; 0.0; q1[4:end] .+ pi / 6.0; Inf; Inf; q1[3:end] .+ pi / 6.0]
-qL[8] = q1[8] - pi / 10.0
-qL[9] = q1[9] - pi / 10.0
-qL[9 + 8] = q1[8] - pi / 10.0
-qL[9 + 9] = q1[9] - pi / 10.0
-
-qU[8] = q1[8] + pi / 10.0
-qU[9] = q1[9] + pi / 10.0
-qU[9 + 8] = q1[8] + pi / 10.0
-qU[9 + 9] = q1[9] + pi / 10.0
 
 xl, xu = state_bounds(model, T,
     qL, qU,
@@ -251,30 +187,30 @@ obj_velocity = velocity_objective(
 
 function l_foot_height(x, u, t)
 	J = 0.0
-	q1 = view(x, 1:9)
-	q2 = view(x, 9 .+ (1:9))
+	q1 = view(x, 1:7)
+	q2 = view(x, 7 .+ (1:7))
 
 	if t >= Tm
-		pq1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
-		pq2 = kinematics_3(model, q1, body = :foot_1, mode = :com)
+		pq1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
+		pq2 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
 		v = (pq2 - pq1) ./ h
 		p_avg = 0.5 * (pq1[1] + pq2[1])
 		p_max = max(pq1[1], pq2[1])
-		J += 1000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
-		J += 1000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :heel)).^2.0)
+		J += 1000.0 * sum((p1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)).^2.0)
+		J += 1000.0 * sum((p1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)).^2.0)
 		# J += 1000.0 * v' * v
 		# J += 1000.0 * (x_ref[end][1] - q1[1])^2.0
 	end
 
 	if t <= Tm
-		pq1 = kinematics_3(model, q1, body = :foot_2, mode = :com)
-		pq2 = kinematics_3(model, q2, body = :foot_2, mode = :com)
+		pq1 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
+		pq2 = kinematics_2(model, q2, body = :calf_2, mode = :ee)
 		v = (pq2 - pq1) ./ h
 		p_avg = 0.5 * (pq1[1] + pq2[1])
 		p_max = max(pq1[1], pq2[1])
 
-		J += 1000.0 * sum((p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :toe)).^2.0)
-		J += 1000.0 * sum((p2_ref[t] - kinematics_3(model, q2, body = :foot_2, mode = :heel)).^2.0)
+		J += 1000.0 * sum((p2_ref[t] - kinematics_2(model, q1, body = :calf_2, mode = :ee)).^2.0)
+		J += 1000.0 * sum((p2_ref[t] - kinematics_2(model, q2, body = :calf_2, mode = :ee)).^2.0)
 		# J += 1000.0 * v' * v
 		# J += 1000.0 * (x_ref[end][1] - q1[1])^2.0
 	end
@@ -299,17 +235,17 @@ obj = MultiObjective([obj_penalty,
 include_constraints(["contact", "loop", "free_time", "stage"])
 
 function pinned1!(c, x, u, t)
-    q1 = view(x, 1:9)
+    q1 = view(x, 1:7)
 	# q2 = view(x, 9 .+ (1:9))
-    c[1:2] = p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :com)
+    c[1:2] = p1_ref[t] - kinematics_2(model, q1, body = :calf_1, mode = :ee)
 	# c[3:4] = p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :com)
 	nothing
 end
 
 function pinned2!(c, x, u, t)
-    q1 = view(x, 1:9)
+    q1 = view(x, 1:7)
     # c[1:2] = p1_ref[t] - kinematics_3(model, q, body = :foot_1, mode = :com)
-	c[1:2] = p2_ref[t] - kinematics_3(model, q1, body = :foot_2, mode = :com)
+	c[1:2] = p2_ref[t] - kinematics_2(model, q1, body = :calf_2, mode = :ee)
 	nothing
 end
 
@@ -326,7 +262,7 @@ con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
 # constraints!(zeros(con_pinned.n), zeros(prob.num_var), con_pinned, model, prob.prob.idx, h, T)
-con_loop = loop_constraints(model, collect([(2:9)...,(11:18)...]), 1, T)
+con_loop = loop_constraints(model, collect([(2:7)...,(9:14)...]), 1, T)
 con_contact = contact_constraints(model, T)
 con_free_time = free_time_constraints(T)
 con = multiple_constraints([con_contact,
@@ -391,17 +327,15 @@ t = 1
 
 norm(hcat([γ[t] .* ϕ_func(model, q[t+2]) for t = 1:T-1]...),Inf)
 norm(hcat([b[t] .* η[t] for t = 1:T-1]...), Inf)
-function friction_cone(model::Walker, λ, b)
+function friction_cone(model::Biped, λ, b)
 	# @show model.μ
 	return @SVector [model.μ * λ[1] - sum(b[1:2]),
-					 model.μ * λ[2] - sum(b[3:4]),
-					 model.μ * λ[3] - sum(b[5:6]),
-					 model.μ * λ[4] - sum(b[7:8])]
+					 model.μ * λ[2] - sum(b[3:4])]
 end
 norm(hcat([ψ[t] .* friction_cone(model, γ[t], b[t]) for t = 1:T-1]...), Inf)
 
 
-@save joinpath(@__DIR__, "biped_gait.jld2") z̄ x̄ ū h̄ q u γ b
+@save joinpath(@__DIR__, "biped_gait_alt.jld2") z̄ x̄ ū h̄ q u γ b
 # @load joinpath(@__DIR__, "walker_gait.jld2") z̄ x̄ ū q̄ τ̄ λ̄ b̄ h̄
 
 maximum([norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄, t)) for t = 1:T-1])
@@ -418,15 +352,12 @@ visualize!(vis, model,
 
 plot(hcat(u...)', linetype = :steppost)
 plot(hcat([γt[1:2] for γt in γ]...)', linetype = :steppost)
-plot!(hcat([γt[3:4] for γt in γ]...)', linetype = :steppost)
 
 plot!(hcat([bt[1:2] for bt in b]...)', linetype = :steppost)
 plot!(hcat([bt[3:4] for bt in b]...)', linetype = :steppost)
-plot!(hcat([bt[5:6] for bt in b]...)', linetype = :steppost)
-plot!(hcat([bt[7:8] for bt in b]...)', linetype = :steppost)
 
-_pf1 = [kinematics_3(model, qt, body = :foot_1, mode = :com) for qt in q]
-_pf2 = [kinematics_3(model, qt, body = :foot_2, mode = :com) for qt in q]
+_pf1 = [kinematics_2(model, qt, body = :calf_1, mode = :ee) for qt in q]
+_pf2 = [kinematics_2(model, qt, body = :calf_2, mode = :ee) for qt in q]
 
 # using Plots
 

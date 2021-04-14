@@ -59,19 +59,22 @@ struct Biped{I, T} <: Model{I, T}
     idx_ψ
     idx_η
     idx_s
+
+	joint_friction
 end
 
 # Dimensions
 nq = 2 + 5                # configuration dimension
-nu = 4                    # control dimension
+nu = 5                    # control dimension
 nc = 2                    # number of contact points
 nf = 2                    # number of parameters for friction cone
 nb = nc * nf
 ns = 1
 
 # World parameters
-μ = 1.0      # coefficient of friction
-g = 9.81     # gravity
+μ_world = 0.1      # coefficient of friction
+joint_friction = 0.1
+g_world = 9.81     # gravity
 
 # Model parameters
 m_torso = 0.5 + 0.48 * 2.0
@@ -328,7 +331,8 @@ function ϕ_func(model::Biped, q)
 end
 
 function B_func(model::Biped, q)
-	@SMatrix [0.0 0.0 0.0 1.0 0.0 0.0 0.0;
+	@SMatrix [0.0 0.0 1.0 0.0 0.0 0.0 0.0;
+			  0.0 0.0 0.0 1.0 0.0 0.0 0.0;
 			  0.0 0.0 0.0 0.0 1.0 0.0 0.0;
 			  0.0 0.0 0.0 0.0 0.0 1.0 0.0;
 			  0.0 0.0 0.0 0.0 0.0 0.0 1.0]
@@ -402,6 +406,12 @@ function no_slip(model::Biped{Discrete, FreeTime}, x⁺, u, h)
 	return s[1] - (λ' * _P_func(model, q3) * (q3 - q2) / h)[1]
 end
 
+function lagrangian_derivatives(model, q, v)
+	D1L = -1.0 * C_func(model, q, v)
+    D2L = M_func(model, q) * v
+	return D1L, D2L
+end
+
 function fd(model::Biped{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	q3 = view(x⁺, model.nq .+ (1:model.nq))
 	q2⁺ = view(x⁺, 1:model.nq)
@@ -411,14 +421,23 @@ function fd(model::Biped{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	λ = view(u, model.idx_λ)
 	b = view(u, model.idx_b)
 
-    SVector{14}([q2⁺ - q2⁻;
-    ((1.0 / h) * (M_func(model, q1) * (SVector{7}(q2⁺) - SVector{7}(q1))
-    - M_func(model, q2⁺) * (SVector{7}(q3) - SVector{7}(q2⁺)))
-    + h * (transpose(B_func(model, q3)) * SVector{4}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{2}(λ)
-    + transpose(P_func(model, q3)) * SVector{4}(b))
-    - h * C_func(model, q3, (q3 - q2⁺) / h)
-	+ h * w)])
+	qm1 = 0.5 * (q1 + q2⁺)
+    vm1 = (q2⁺ - q1) / h
+    qm2 = 0.5 * (q2⁺ + q3)
+    vm2 = (q3 - q2⁺) / h
+
+	joint_friction = model.joint_friction * vm2
+	joint_friction[1:3] .= 0.0
+
+	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
+	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
+
+	[q2⁺ - q2⁻;
+     (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
+     + transpose(B_func(model, qm2)) * SVector{5}(u_ctrl)
+     + transpose(N_func(model, q3)) * SVector{2}(λ)
+     + transpose(P_func(model, q3)) * SVector{4}(b)
+     - h * joint_friction)]
 end
 
 function fd(model::Biped{Discrete, FreeTime}, x⁺, x, u, w, h, t)
@@ -431,18 +450,27 @@ function fd(model::Biped{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	b = view(u, model.idx_b)
 	h = u[end]
 
-    SVector{14}([q2⁺ - q2⁻;
-    ((1.0 / h) * (M_func(model, q1) * (SVector{7}(q2⁺) - SVector{7}(q1))
-    - M_func(model, q2⁺) * (SVector{7}(q3) - SVector{7}(q2⁺)))
-    + h * (transpose(B_func(model, q3)) * SVector{4}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{2}(λ)
-    + transpose(P_func(model, q3)) * SVector{4}(b))
-    - h * C_func(model, q3, (q3 - q2⁺) / h)
-	+ h * w)])
+	qm1 = 0.5 * (q1 + q2⁺)
+    vm1 = (q2⁺ - q1) / h
+    qm2 = 0.5 * (q2⁺ + q3)
+    vm2 = (q3 - q2⁺) / h
+
+	joint_friction = model.joint_friction * vm2
+	joint_friction[1:3] .= 0.0
+
+	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
+	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
+
+	[q2⁺ - q2⁻;
+     (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
+     + transpose(B_func(model, qm2)) * SVector{5}(u_ctrl)
+     + transpose(N_func(model, q3)) * SVector{2}(λ)
+     + transpose(P_func(model, q3)) * SVector{4}(b)
+     - h * joint_friction)]
 end
 
 model = Biped{Discrete, FixedTime}(n, m, d,
-			  g, μ,
+			  g_world, μ_world,
 			  l_torso, d_torso, m_torso, J_torso,
 			  l_thigh, d_thigh, m_thigh, J_thigh,
 			  l_calf, d_calf, m_calf, J_calf,
@@ -461,7 +489,8 @@ model = Biped{Discrete, FixedTime}(n, m, d,
 			  idx_b,
 			  idx_ψ,
 			  idx_η,
-			  idx_s)
+			  idx_s,
+			  0.0 * joint_friction)
 
 #NOTE: if a new model is instantiated, re-run the lines below
 @variables z_sym[1:model.n]
@@ -581,39 +610,4 @@ function visualize!(vis, model::Biped, q;
 	   compose(Translation(0.0 , 1.0 , -1.0), LinearMap(RotZ(-pi / 2.0))))
 
 	MeshCat.setanimation!(vis, anim)
-end
-
-function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2)
-    q1 = zeros(model.nq)
-    q1[3] = θ_torso
-    q1[4] = θ_thigh_1
-    q1[5] = θ_leg_1
-    z1 = model.l_thigh1 * cos(q1[4]) + model.l_calf1 * cos(q1[5])
-    q1[6] = θ_thigh_2
-    q1[7] = -1.0 * acos((z1 - model.l_thigh2 * cos(q1[6])) / model.l_calf2)
-    q1[2] = z1
-
-    p1 = kinematics_2(model, q1, body = :calf_1, mode = :ee)
-    p2 = kinematics_2(model, q1, body = :calf_2, mode = :ee)
-    @show stride = abs(p1[1] - p2[1])
-
-    q1[1] = -1.0 * p1[1]
-
-    qM = copy(q1)
-    qM[4] = q1[6]
-    qM[5] = q1[7]
-    qM[6] = q1[4]
-    qM[7] = q1[5]
-    qM[1] = abs(p2[1])
-
-    pM_1 = kinematics_2(model, qM, body = :calf_1, mode = :ee)
-    pM_2 = kinematics_2(model, qM, body = :calf_2, mode = :ee)
-
-    qT = copy(q1)
-    qT[1] = 2 * stride
-
-    pT_1 = kinematics_2(model, qT, body = :calf_1, mode = :ee)
-    pT_2 = kinematics_2(model, qT, body = :calf_2, mode = :ee)
-
-    return q1, qM, qT
 end
