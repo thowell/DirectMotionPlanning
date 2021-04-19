@@ -8,12 +8,14 @@ struct LoopConstraints <: Constraints
 	idx
 	idx_t1
 	idx_t2
+	perm
 end
 
-function loop_constraints(model, idx, idx_t1, idx_t2)
+function loop_constraints(model, idx, idx_t1, idx_t2;
+	perm = Diagonal(ones(model.n)))
 	n = length(idx)
 	ineq = (1:0)
-	return LoopConstraints(n, ineq, idx, idx_t1, idx_t2)
+	return LoopConstraints(n, ineq, idx, idx_t1, idx_t2, perm)
 end
 
 function constraints!(c, Z, con::LoopConstraints, model, idx, h, T)
@@ -21,7 +23,7 @@ function constraints!(c, Z, con::LoopConstraints, model, idx, h, T)
 	a = view(Z, idx.x[con.idx_t1][con.idx])
 	b = view(Z, idx.x[con.idx_t2][con.idx])
 
-	c[1:n] = b - a
+	c[1:n] = con.perm[con.idx, con.idx] * b - a
 
     return nothing
 end
@@ -33,7 +35,7 @@ function constraints_jacobian!(∇c, Z, con::LoopConstraints, model, idx, h, T)
 	r_idx = 1:n
 	c_idx = idx.x[con.idx_t2][con.idx]
 	len = length(r_idx) * length(c_idx)
-	∇c[shift .+ (1:len)] = vec(Diagonal(ones(n)))
+	∇c[shift .+ (1:len)] = vec(con.perm[con.idx, con.idx])
 	shift += len
 
 	c_idx = idx.x[con.idx_t1][con.idx]
