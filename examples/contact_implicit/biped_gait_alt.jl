@@ -272,7 +272,8 @@ con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 con_loop = loop_constraints(model, collect([(2:7)...,(9:14)...]), 1, T)
 con_contact = contact_constraints(model, T)
 con_free_time = free_time_constraints(T)
-con = multiple_constraints([con_contact,
+con = multiple_constraints([
+	con_contact,
 	con_free_time,
 	con_loop,
 	con_pinned1,
