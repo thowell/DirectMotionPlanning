@@ -89,25 +89,25 @@ g_world = 9.81     # gravity
 joint_friction = 0.1
 
 # Model parameters
-m_torso = 0.5 + 0.48 * 2.0
-m_thigh = 0.8112
-m_calf = 0.3037
-m_foot = 0.4 * m_calf
+m_torso = 12.0
+m_thigh = 0.4598
+m_calf = 0.306
+m_foot = 0.3466
 
-l_torso = 0.15 + 0.15
-l_thigh = 0.2755
-l_calf = 0.308
-l_foot = 0.4 * l_calf
+l_torso = 0.385
+l_thigh = 0.42
+l_calf = 0.45
+l_foot = 0.1725 # distance ankle-toe
 
-d_torso = 0.0342
-d_thigh = 0.2176
-d_calf = 0.1445
-d_foot = 0.4 * d_calf
+d_torso = 0.20
+d_thigh = l_thigh/2
+d_calf = l_calf/2
+d_foot = 0.0525 # distance ankle-heel
 
-J_torso = 0.0029
-J_thigh = 0.00709
-J_calf = 0.00398
-J_foot = 0.4 * J_calf # 1.0 / 12.0 * m_foot * (l_foot + d_foot)^2.0
+J_torso = 0.10
+J_thigh = 0.01256
+J_calf = 0.00952
+J_foot = 0.0015
 
 n = 2 * nq
 m = nu + nc + nb + nc + nb + ns

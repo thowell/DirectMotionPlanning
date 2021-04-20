@@ -275,16 +275,27 @@ b = [u[model.idx_b] for u in ū]
 hm = mean(h̄)
 μm = model.μ
 
-perm4 = perm[end-3:end, end-3:end]
-perm8 = perm[end-7:end, end-7:end]
+perm4 = [0.0 1.0 0.0 0.0;
+         1.0 0.0 0.0 0.0;
+		 0.0 0.0 0.0 1.0;
+		 0.0 0.0 1.0 0.0]
+
+perm8 = [0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
+         0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
+		 1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
+		 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0;
+		 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0;
+		 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0;
+		 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
+		 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0]
 
 function mirror_gait(q, u, γ, b, ψ, η, T)
 	qm = [deepcopy(q)...]
 	um = [deepcopy(u)...]
 	γm = [deepcopy(γ)...]
 	bm = [deepcopy(b)...]
-	ψm = [deepcopy(γ)...]
-	ηm = [deepcopy(b)...]
+	ψm = [deepcopy(ψ)...]
+	ηm = [deepcopy(η)...]
 
 	stride = zero(qm[1])
 	stride[1] = q[T][1] - q[2][1]
