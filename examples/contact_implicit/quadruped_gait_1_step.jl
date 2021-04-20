@@ -298,7 +298,8 @@ function mirror_gait(q, u, γ, b, ψ, η, T)
 	ηm = [deepcopy(η)...]
 
 	stride = zero(qm[1])
-	stride[1] = q[T][1] - q[2][1]
+	@show stride[1] = q[T+1][1] - q[2][1]
+	@show 0.5 * strd
 
 	for t = 1:T-1
 		push!(qm, Array(perm) * q[t+2] + stride)
