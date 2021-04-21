@@ -641,7 +641,6 @@ function maximum_dissipation(model::Quadruped{Discrete, FreeTime}, x⁺, u, h)
 	return P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
 end
 
-model
 model = Quadruped{Discrete, FixedTime}(n, m, d,
 			  g, μ,
 			  l_torso, d_torso, m_torso, J_torso,

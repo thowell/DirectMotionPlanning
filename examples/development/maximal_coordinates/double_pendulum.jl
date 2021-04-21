@@ -146,7 +146,7 @@ function simulated_pinned_dynamics()
       q_hist = [q1, q2]
       λ_hist = []
 
-      for t = 1:500
+      for t = 1:1000
             println("t = $t")
             # pinned dynamics
             function pinned_dynamics(x)
@@ -170,7 +170,7 @@ function simulated_pinned_dynamics()
                                     h);
                                    kinematics(model, view(q, 1:nq))[3:4] - [0.0; 1.5];
                                    kinematics(model, view(q, 1:nq))[1:2] -
-                                    kinematics(model, view(q, nq .+ (1:nq)))[3:4]])
+                                   kinematics(model, view(q, nq .+ (1:nq)))[3:4]])
             end
 
             # step
@@ -195,6 +195,7 @@ plot(hcat([q[nq .+ (1:nq)] for q in q_hist]...)', labels = ["y2" "z2" "t2"])
 plot(hcat(λ_hist...)')
 
 # Visualize
+using MeshCat
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
