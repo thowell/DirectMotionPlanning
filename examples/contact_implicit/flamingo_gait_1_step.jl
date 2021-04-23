@@ -100,8 +100,6 @@ perm = @SMatrix [1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
 				 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0;
 				 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0]
 
-
-
 # Configurations
 # 1: x pos
 # 2: z pos
@@ -154,19 +152,9 @@ p2_ref = [[xf2[t]; zf2[t]] for t = 1:T]
 plot(hcat(p1_ref...)', legend = :topleft)
 plot!(hcat(p2_ref...)')
 
-
 # Control
-# u = (τ1..7, λ1..4, β1..8, ψ1..4, η1...8, s1)
-# τ1: torso angle
-# τ2: thigh 1 angle
-# τ3: calf 1
-# τ4: thigh 2
-# τ5: calf 2
-# τ6: foot 1
-# τ7: foot 2
 
 # ul <= u <= uu
-# u1 = initial_torque(model, q1, h)[model.idx_u] # gravity compensation for current q
 _uu = Inf * ones(model.m)
 _uu[model.idx_u] .= Inf
 _uu[end] = 2.0 * h
@@ -198,7 +186,7 @@ include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 x0 = configuration_to_state(q_ref)
 
 # penalty on slack variable
-obj_penalty = PenaltyObjective(1.0e5, model.m-1)
+obj_penalty = PenaltyObjective(1.0e5, model.m - 1)
 
 # quadratic tracking objective
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
@@ -207,7 +195,7 @@ q_penalty = 1.0e-2 * ones(model.nq)
 x_penalty = [q_penalty; q_penalty]
 obj_control = quadratic_time_tracking_objective(
     [Diagonal(x_penalty) for t = 1:T],
-    [Diagonal([1.0e-4 * ones(model.nu)..., 1.0e-3 * ones(model.nc)..., 1.0e-3 * ones(model.nb)..., 1.0e-8 * ones(model.m - model.nu - model.nc - model.nb - 1)..., 0.0]) for t = 1:T-1],
+    [Diagonal([1.0e-2 * ones(model.nu)..., 1.0e-3 * ones(model.nc)..., 1.0e-3 * ones(model.nb)..., 1.0e-8 * ones(model.m - model.nu - model.nc - model.nb - 1)..., 0.0]) for t = 1:T-1],
     [x_ref[end] for t = 1:T],
     [[zeros(model.nu); zeros(model.m - model.nu)] for t = 1:T-1],
 	1.0)
@@ -224,7 +212,6 @@ obj_velocity = velocity_objective(
 function l_foot_height(x, u, t)
 	J = 0.0
 	q1 = view(x, 1:9)
-	# q2 = view(x, 9 .+ (1:9))
 
 	if true
 		J += 10000.0 * sum((p1_ref[t] - kinematics_3(model, q1, body = :foot_1, mode = :toe)).^2.0)
@@ -287,7 +274,6 @@ prob = trajectory_optimization_problem(model,
 # trajectory initialization
 u0 = [[1.0e-2 * randn(model.nu); 0.01 * randn(model.m - model.nu - 1); h] for t = 1:T-1] # random controls
 
-
 # Pack trajectories into vector
 z0 = pack(x0, u0, prob)
 
@@ -303,7 +289,6 @@ z0 = pack(x0, u0, prob)
 x̄, ū = unpack(z̄, prob)
 _tf, _t, h̄ = get_time(ū)
 
-
 q = state_to_configuration(x̄)
 u = [u[model.idx_u] for u in ū]
 γ = [u[model.idx_λ] for u in ū]
@@ -311,38 +296,9 @@ b = [u[model.idx_b] for u in ū]
 ψ = [u[model.idx_ψ] for u in ū]
 η = [u[model.idx_η] for u in ū]
 h̄ = mean(h̄)
-#
-# norm(hcat([γ[t] .* ϕ_func(model, q[t+2]) for t = 1:T-1]...),Inf)
-# norm(hcat([b[t] .* η[t] for t = 1:T-1]...), Inf)
-# function friction_cone(model::Flamingo, λ, b)
-# 	# @show model.μ
-# 	return @SVector [model.μ * λ[1] - sum(b[1:2]),
-# 					 model.μ * λ[2] - sum(b[3:4]),
-# 					 model.μ * λ[3] - sum(b[5:6]),
-# 					 model.μ * λ[4] - sum(b[7:8])]
-# end
-# norm(hcat([ψ[t] .* friction_cone(model, γ[t], b[t]) for t = 1:T-1]...), Inf)
-#
-# maximum([norm(fd(model, x̄[t+1], x̄[t], ū[t], zeros(model.d), h̄, t)) for t = 1:T-1])
-# (q[end][1] - q[1][1]) / _tf
-#
-# vis = Visualizer()
-# render(vis)
-# visualize!(vis, model,
-# 	[[x̄[1][1:model.nq] for i = 1:10]...,
-# 	 state_to_configuration(x̄)...,
-# 	 [x̄[end][model.nq .+ (1:model.nq)] for i = 1:10]...], Δt = h̄[1])
-#
-#
-# plot(hcat(u...)', linetype = :steppost)
-# plot(hcat([γt[1:2] for γt in γ]...)', linetype = :steppost)
-# plot!(hcat([γt[3:4] for γt in γ]...)', linetype = :steppost)
-#
-# plot!(hcat([bt[1:2] for bt in b]...)', linetype = :steppost)
-# plot!(hcat([bt[3:4] for bt in b]...)', linetype = :steppost)
-# plot!(hcat([bt[5:6] for bt in b]...)', linetype = :steppost)
-# plot!(hcat([bt[7:8] for bt in b]...)', linetype = :steppost)
-#
+
+plot(hcat(u...)', linetype = :steppost)
+
 _pf1 = [kinematics_3(model, qt, body = :foot_1, mode = :com) for qt in q]
 _pf2 = [kinematics_3(model, qt, body = :foot_2, mode = :com) for qt in q]
 
@@ -354,35 +310,18 @@ plot(hcat(p2_ref...)', title = "foot 2",
 	legend = :topleft, label = ["x" "z"], color = :black, width = 2.0)
 plot!(hcat(_pf2...)', title = "foot 2", legend = :bottomright,
 	color = :red, width = 1.0)
-#
-# # function get_q_viz(q̄; N = 4)
-# # 	q_viz = [q̄...]
-# # 	shift_vec = zeros(model.nq)
-# # 	shift_vec[1] = q̄[end][1]
-# # 	for i = 1:N
-# # 		q_update = [q + shift_vec for q in q̄[2:end]]
-# # 		push!(q_viz, q_update...)
-# # 		shift_vec[1] = q_update[end][1]
-# # 	end
-# #
-# # 	return q_viz
-# # end
-#
-# # q_viz = get_q_viz(q)
-#
-#
+
 perm4 = [0.0 0.0 1.0 0.0;
          0.0 0.0 0.0 1.0;
 		 1.0 0.0 0.0 0.0;
 		 0.0 1.0 0.0 0.0]
 
-perm7 = [1.0 0.0 0.0 0.0 0.0 0.0 0.0;
-		 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
-		 0.0 0.0 0.0 0.0 1.0 0.0 0.0;
-		 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
-		 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
-		 0.0 0.0 0.0 0.0 0.0 0.0 1.0;
-		 0.0 0.0 0.0 0.0 0.0 1.0 0.0]
+perm7 = [0.0 0.0 1.0 0.0 0.0 0.0;
+		 0.0 0.0 0.0 1.0 0.0 0.0;
+		 1.0 0.0 0.0 0.0 0.0 0.0;
+		 0.0 1.0 0.0 0.0 0.0 0.0;
+		 0.0 0.0 0.0 0.0 0.0 1.0;
+		 0.0 0.0 0.0 0.0 1.0 0.0]
 
 perm8 = [0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
          0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0;
@@ -421,39 +360,9 @@ hm = h̄
 qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
 
 @save joinpath(@__DIR__, "flamingo_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
-#
-# plot(hcat(q...)', color = :black, width = 2.0, label = "")
-# plot!(hcat(qm...)', color = :red, width = 1.0, label = "")
-#
-# plot(hcat(u...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-# plot!(hcat(um...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-#
-# plot(hcat(γ...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-# plot!(hcat(γm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-#
-# plot(hcat(b...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-# plot!(hcat(bm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-#
+
 vis = Visualizer()
 render(vis)
 visualize!(vis, model,
 	qm,
 	Δt = h̄[1])
-
-
-xm = configuration_to_state(qm)
-Tm = length(um) + 1
-norm(hcat([γm[t] .* ϕ_func(model, qm[t+2]) for t = 1:T-1]...),Inf)
-norm(hcat([bm[t] .* ηm[t] for t = 1:Tm-1]...), Inf)
-function friction_cone(model::Flamingo, λ, b)
-	# @show model.μ
-	return @SVector [model.μ * λ[1] - sum(b[1:2]),
-					 model.μ * λ[2] - sum(b[3:4]),
-					 model.μ * λ[3] - sum(b[5:6]),
-					 model.μ * λ[4] - sum(b[7:8])]
-end
-norm(hcat([ψm[t] .* friction_cone(model, γm[t], bm[t]) for t = 1:Tm-1]...), Inf)
-
-maximum([norm(fd(model, xm[t+1], xm[t], [um[t]; γm[t]; bm[t]; ψm[t]; ηm[t]; 0.0; hm], zeros(model.d), hm, t)) for t = 1:Tm-1])
-
-open(vis)

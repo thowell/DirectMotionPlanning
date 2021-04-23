@@ -342,7 +342,8 @@ function get_q_viz(q̄)
 	return q_viz
 end
 
-q_viz = get_q_viz(q̄)
+vis = Visualizer()
+render(vis)
 visualize!(vis, model,
 	qm,
 	Δt = h̄[1])

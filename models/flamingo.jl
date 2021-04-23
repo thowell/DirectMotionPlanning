@@ -77,7 +77,7 @@ end
 
 # Dimensions
 nq = 2 + 5 + 2            # configuration dimension
-nu = 7                    # control dimension
+nu = 6                    # control dimension
 nc = 4                    # number of contact points
 nf = 2                    # number of parameters for friction cone
 nb = nc * nf              # number of friction parameters
@@ -457,13 +457,12 @@ function ϕ_func(model::Flamingo, q)
 end
 
 function B_func(model::Flamingo, q)
-	@SMatrix [0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0;
-			  0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
-			  0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
-			  0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
-			  0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0;
-			  0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0;
-			  0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0]
+	@SMatrix [0.0  0.0 -1.0  1.0  0.0  0.0  0.0  0.0  0.0;
+			  0.0  0.0  0.0 -1.0  1.0  0.0  0.0  0.0  0.0;
+			  0.0  0.0 -1.0  0.0  0.0  1.0  0.0  0.0  0.0;
+			  0.0  0.0  0.0  0.0  0.0 -1.0  1.0  0.0  0.0;
+			  0.0  0.0  0.0  0.0 -1.0  0.0  0.0  1.0  0.0;
+			  0.0  0.0  0.0  0.0  0.0  0.0 -1.0  0.0  1.0]
 end
 
 function N_func(model::Flamingo, q)
@@ -577,7 +576,7 @@ function fd(model::Flamingo{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 
 	[q2⁺ - q2⁻;
      (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
-     + transpose(B_func(model, qm2)) * SVector{7}(u_ctrl)
+     + transpose(B_func(model, qm2)) * SVector{6}(u_ctrl)
      + transpose(N_func(model, q3)) * SVector{4}(λ)
      + transpose(P_func(model, q3)) * SVector{8}(b)
      - h * joint_friction)]
@@ -606,7 +605,7 @@ function fd(model::Flamingo{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 
 	[q2⁺ - q2⁻;
      (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
-     + transpose(B_func(model, qm2)) * SVector{7}(u_ctrl)
+     + transpose(B_func(model, qm2)) * SVector{6}(u_ctrl)
      + transpose(N_func(model, q3)) * SVector{4}(λ)
      + transpose(P_func(model, q3)) * SVector{8}(b)
      - h * joint_friction)]
