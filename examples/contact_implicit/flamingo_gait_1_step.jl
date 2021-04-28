@@ -10,7 +10,7 @@ model = free_time_model(model)
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
-
+open(vis)
 """
 Useful methods
 
@@ -74,19 +74,31 @@ function ellipse_traj(x_start, x_goal, z, T)
 
 	z̄ = 0.0
 
-	x = range(x_start, stop = x_goal, length = T)
+	x = circular_projection_range(x_start, stop = x_goal, length = T)
+	# x = range(x_start, stop = x_goal, length = T)
 
 	z = sqrt.(max.(0.0, (b^2) * (1.0 .- ((x .- (x_start + a)).^2.0) / (a^2.0))))
 
 	return x, z
 end
 
+function circular_projection_range(start; stop=1.0, length=10)
+	dist = stop - start
+	θr = range(π, stop=0, length=length)
+	r = start .+ dist * ((1 .+ cos.(θr))./2)
+	return r
+end
+
+
 # Horizon
-T = 31
-T_fix = 7
+# T = 31
+T = 36 #CHANGED
+# T_fix = 7
+T_fix = 10 #CHANGED
 
 # Time step
 tf = 0.5
+# tf = 0.9 #CHANGED
 h = tf / (T - 1)
 
 # Permutation matrix
@@ -125,9 +137,16 @@ function initial_configuration(model, θ_torso, θ_thigh_1, θ_leg_1, θ_thigh_2
     return q1
 end
 
-q1 = initial_configuration(model, -π / 50.0, -π / 6.5, π / 10.0 , -π / 10.0)
+# q1 = initial_configuration(model, -π / 50.0, -π / 6.5, π / 10.0 , -π / 10.0)
+# q1 = initial_configuration(model, -0.00*π / 50.0, -π / 5.6, π / 25.0 , -π / 7.0)
+q1 = initial_configuration(model, -0.00*π / 50.0, -π / 5.6, π / 15.0 , -π / 7.0)
 pf1 = kinematics_3(model, q1, body = :foot_1, mode = :com)
 pf2 = kinematics_3(model, q1, body = :foot_2, mode = :com)
+
+ph1 = kinematics_3(model, q1, body = :foot_1, mode = :heel)
+ph2 = kinematics_3(model, q1, body = :foot_2, mode = :heel)[1]
+ph2 = kinematics_2(model, q1, body = :calf_2, mode = :ee)[1]
+q1[1]
 
 strd = 2 * (pf2 - pf1)[1]
 
@@ -149,6 +168,8 @@ xf2 = [xf2_el[1] for t = 1:T]
 p1_ref = [[xf1[t]; zf1[t]] for t = 1:T]
 p2_ref = [[xf2[t]; zf2[t]] for t = 1:T]
 
+plot(hcat(p1_ref...)'[:,1:1], legend = :topleft)
+plot(hcat(p1_ref...)'[:,2:2], legend = :topleft)
 plot(hcat(p1_ref...)', legend = :topleft)
 plot!(hcat(p2_ref...)')
 
@@ -163,8 +184,8 @@ _ul[model.idx_u] .= -Inf
 _ul[end] = 0.25 * h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
-qL = [-Inf; -Inf; q1[3] - pi / 50.0; q1[4:end] .- pi / 6.0; -Inf; -Inf; q1[3] - pi / 50.0; q1[4:end] .- pi / 6.0]
-qU = [Inf; q1[2] + 0.001; 0.0; q1[4:end] .+ pi / 6.0; Inf; Inf; q1[3:end] .+ pi / 6.0]
+qL = [-Inf; -Inf; q1[3] - pi / 750.0; q1[4:end] .- pi / 6.0; -Inf; -Inf; q1[3] - pi / 50.0; q1[4:end] .- pi / 6.0]
+qU = [Inf; q1[2] + 0.001; q1[3] + pi / 750.0; q1[4:end] .+ pi / 6.0; Inf; Inf; q1[3:end] .+ pi / 6.0]
 qL[8] = q1[8] - pi / 10.0
 qL[9] = q1[9] - pi / 10.0
 qL[9 + 8] = q1[8] - pi / 10.0
@@ -363,6 +384,7 @@ qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
 
 vis = Visualizer()
 render(vis)
+open(vis)
 visualize!(vis, model,
 	qm,
 	Δt = h̄[1])

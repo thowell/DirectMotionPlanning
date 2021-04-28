@@ -21,7 +21,7 @@ q1 = initial_configuration(model_ft,  θ)
 q1_high = initial_configuration(model_ft,  π / 3.5)
 
 qM = copy(q1)
-qM[2] += 0.5
+qM[2] += 1.0
 # qM[3] += pi
 # qM[4] += pi
 # qM[5] += pi
@@ -32,7 +32,7 @@ qM[2] += 0.5
 # qM[10] += pi
 # qM[11] += pi
 qT = copy(q1_high)
-qT[1] -= model_ft.l_torso
+qT[1] -= 2 * model_ft.l_torso
 # qT[3] += 2.0 * pi
 # qT[4] += 2.0 * pi
 # qT[5] += 2.0 * pi
@@ -82,7 +82,7 @@ obj_penalty = PenaltyObjective(1.0e4, model_ft.m - 1)
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
 obj_control = quadratic_time_tracking_objective(
     [Diagonal(ones(2 * model.nq)) for t = 1:T],
-    [Diagonal([1.0 * ones(model_ft.nu)..., zeros(model_ft.m - model_ft.nu)...]) for t = 1:T-1],
+    [Diagonal([1.0e-3 * ones(model_ft.nu)..., 1.0e-2 * ones(model_ft.nc + model_ft.nb)..., zeros(model_ft.m - model_ft.nu - model_ft.nc - model_ft.nb)...]) for t = 1:T-1],
     [deepcopy(x0[t]) for t = 1:T],
     [zeros(model_ft.m) for t = 1:T],
     1.0)
@@ -90,7 +90,7 @@ obj_control = quadratic_time_tracking_objective(
 # quadratic velocity penalty
 # Σ v' Q v
 obj_velocity = velocity_objective(
-    [Diagonal(1.0 * ones(model_ft.nq)) for t = 1:T-1],
+    [Diagonal(1.0e-3 * ones(model_ft.nq)) for t = 1:T-1],
     model_ft.nq,
     h = h,
     idx_angle = collect([3, 4, 5, 6, 7, 8, 9, 10, 11]))
@@ -104,7 +104,7 @@ function l_stage(x, u, t)
 	q = view(x, 1:11)
 
 	J += 10000.0 * (kinematics_1(model_ft, q, body = :torso, mode = :com)[2] - t_h)^2.0
-	# J += 10000.0 * (q[3] - θ_range[t])^2.0
+	J += 10000.0 * (q[3] - θ_range[t])^2.0
 
 	return J
 end
@@ -138,8 +138,8 @@ obj_stage = nonlinear_stage_objective(l_stage, l_stage)
 # obj_fh4 = nonlinear_stage_objective(l_stage_fh4, l_terminal_fh4)
 
 obj = MultiObjective([obj_penalty,#,
-                      # obj_control,
-                      obj_velocity,
+                      obj_control,
+                      # obj_velocity,
                       obj_stage])
                       # # obj_torso_lat,
                       # obj_fh1,
@@ -193,6 +193,6 @@ visualize!(vis, model_ft,
 	[[state_to_configuration(x̄)[1] for i = 1:10]..., state_to_configuration(x̄)..., [state_to_configuration(x̄)[end] for i = 1:10]...],
 	Δt = ū[1][end])
 
-using Plots
-plot(t[1:end-1], hcat(ū...)[model_ft.idx_u, :]', linetype = :steppost,
-	width = 2.0, label = "", xlabel= "time (s)", ylabel = "control")
+# using Plots
+# plot(t[1:end-1], hcat(ū...)[model_ft.idx_u, :]', linetype = :steppost,
+# 	width = 2.0, label = "", xlabel= "time (s)", ylabel = "control")
