@@ -2,7 +2,7 @@ using Random, Plots
 include_ddp()
 
 # Model
-include_model("satellite")
+include_model("satellite_inertia")
 
 # Time
 T = 26
@@ -26,12 +26,11 @@ mrpT = MRP(RotXYZ(0.0, 0.0, 0.0))
 x1 = [mrp1.x, mrp1.y, mrp1.z, 0.0, 0.0, 0.0]
 xT = [mrpT.x, mrpT.y, mrpT.z, 0.0, 0.0, 0.0]
 
-ū = [1.0e-1 * rand(model.m) for t = 1:T-1]
+ū = [[1.0e-1 * rand(3); 1.0; 2.0; 3.0] for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
 x̄ = rollout(model, x1, ū, w, h, T)
-
 
 obj = StageCosts([NonlinearCost() for t = 1:T], T)
 
@@ -39,28 +38,29 @@ function g(obj::StageCosts, x, u, t)
 	T = obj.T
 	ω = view(x, 4:6)
 
+	#
 	J = 0.0
 
 	# tracking
 	p = kinematics(model, x)
-	J += transpose(p - pf[t]) * Diagonal(10000.0 * [0.0; 1.0; 1.0]) * (p - pf[t])
+	J += transpose(p - pf[t]) * Diagonal(100000.0 * [1.0; 1.0; 1.0]) * (p - pf[t])
 
 	# control limits
 	if t < T
 		# energy
-		J += 0.5 * transpose(ω) * model.J * ω
+		θ = Diagonal(view(u, 4:6))
+		J += 0.5 * transpose(ω) * θ * ω
 
-		J += 1.0e-3 * transpose(u[1:3]) * u[1:3]
+		J += 1.0e-5 * transpose(u[1:3]) * u[1:3]
 	end
 
-	return J / T
+	return J
 end
 
-
 # Constraints
-p_con = [t == T ? model.n : 0 for t = 1:T]
+p_con = [t == T ? model.n : 2 * model.m for t = 1:T]
 
-info_t = Dict()
+info_t = Dict(:JL => [0.5; 1.0; 1.5], :JU => [2.0; 4.0; 6.0])
 info_T = Dict(:xT => xT)
 
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
@@ -68,6 +68,11 @@ con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
 function c!(c, cons::StageConstraints, x, u, t)
 	T = cons.T
 	n = model.n
+
+	if t < T
+		c[1:3] .= cons.con[t].info[:JL] - u[4:6]
+		c[4:6] .= u[4:6] - cons.con[t].info[:JU]
+	end
 
 	if t == T
 		c[1:n] .= x - cons.con[T].info[:xT]

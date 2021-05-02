@@ -18,6 +18,14 @@ function objective(obj::StageCosts, x, u)
 end
 
 """
+    nonlinear stage cost
+"""
+struct NonlinearCost <: StageCost
+end
+
+NonlinearCosts = Vector{NonlinearCost}
+
+"""
     quadratic stage cost
 """
 struct QuadraticCost <: StageCost
