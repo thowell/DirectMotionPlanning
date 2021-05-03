@@ -64,7 +64,6 @@ n, m, d = 12, 4, 12
 mass = 0.5
 J = Diagonal(@SVector[0.0023, 0.0023, 0.004])
 Jinv = Diagonal(@SVector[1.0 / 0.0023, 1.0 / 0.0023, 1.0 / 0.004])
-g = @SVector[0.0, 0.0, -9.81]
 L = 0.175
 kf = 1.0
 km = 0.0245
@@ -73,7 +72,7 @@ model = Quadrotor{Midpoint, FixedTime}(n, m, d,
                   mass,
                   J,
                   Jinv,
-                  g,
+                  @SVector[0.0, 0.0, -9.81],
                   L,
                   kf,
                   km)

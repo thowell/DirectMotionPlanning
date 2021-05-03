@@ -114,7 +114,7 @@ p_con = [t == T ? model.n : ((t == 10 || t == 20 || t == 30) ? 3 + 6 : (t == 1 ?
 uL = -10.0 * ones(model.m)
 uU = 10.0 * ones(model.m)
 # info_1 = Dict(:uL => uL, :uU => uU, :JL => [0.9; 1.8; 2.7], :JU => [1.1; 2.2; 3.3], :inequality => (1:12))
-info_1 = Dict(:uL => uL, :uU => uU, :JL => [0.9; 1.8; 2.7], :JU => [1.1; 2.2; 3.3], :inequality => (1:12))
+info_1 = Dict(:uL => uL, :uU => uU, :JL => [0.8; 1.5; 2.25], :JU => [1.2; 2.5; 3.75], :inequality => (1:12))
 info_p = Dict(:uL => uL, :uU => uU, :x1 => ref1, :x2 => ref2, :x3 => ref3, :inequality => (4:9))
 info_t = Dict(:uL => uL, :uU => uU, :inequality => (1:6))
 
