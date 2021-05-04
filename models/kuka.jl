@@ -1,4 +1,4 @@
-using MeshCat, MeshCatMechanisms, RigidBodyDynamics
+using MeshCat, MeshCatMechanisms#, RigidBodyDynamics
 
 include(joinpath(pwd(),"models/kuka/kuka_utils.jl"))
 urdf_path = joinpath(pwd(), "models/kuka/temp/kuka.urdf")
@@ -12,7 +12,27 @@ result_cache = DynamicsResultCache(kuka)
 
 vis = Visualizer()
 mvis = MechanismVisualizer(kuka, kuka_visuals, vis[:base])
-open(vis)
+render(vis)
+
+vis_el = visual_elements(kuka, kuka_visuals)
+set_alpha!(vis_el, 0.5)
+
+mvis2 = MechanismVisualizer(kuka, vis[Symbol("shadow")])
+MeshCatMechanisms._set_mechanism!(mvis2, vis_el)
+MeshCatMechanisms._render_state!(mvis2)
+
+setvisible!(vis[:base], false)
+setvisible!(vis[:shadow], true)
+
+function set_alpha!(visuals::Vector{VisualElement}, α)
+    for el in visuals
+        c = el.color
+        c_new = RGBA(red(c),green(c),blue(c),α)
+        el.color = c_new
+    end
+end
+
+
 
 # Kuka iiwa arm parsed from URDF using RigidBodyDynamics.jl
 struct Kuka{I, T} <: Model{I, T}

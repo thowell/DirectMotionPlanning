@@ -55,7 +55,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_0.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_0.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
@@ -93,7 +93,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_1.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_1.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
@@ -125,7 +125,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_2.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_2.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
@@ -157,7 +157,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_3.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_3.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
@@ -189,7 +189,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_4.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_4.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
@@ -221,7 +221,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_5.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_5.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
@@ -253,14 +253,14 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_6.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_6.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
 <!--     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_6.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_6.obj"/>
       </geometry>
       <material name="Orange"/>
     </collision> -->
@@ -286,14 +286,14 @@
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <!-- <box size = "0.1 0.1 0.3" /> -->
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_7.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_7.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/home/taylor/.julia/dev/motion_planning/models/kuka/meshes/link_7.obj"/>
+        <mesh filename="/home/taylor/Research/motion_planning/models/kuka/meshes/link_7.obj"/>
       </geometry>
       <material name="Grey"/>
     </collision>

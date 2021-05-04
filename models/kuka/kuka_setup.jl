@@ -1,5 +1,5 @@
-using MeshCat, MeshCatMechanisms, RigidBodyDynamics
-using FileIO, MeshIO, GeometryTypes, CoordinateTransformations, Rotations
+using MeshCat, MeshCatMechanisms#, RigidBodyDynamics
+using FileIO, MeshIO, GeometryBasics, CoordinateTransformations, Rotations
 
 urdf_original = joinpath(pwd(),"models/kuka/kuka.urdf")
 urdf_new = joinpath(pwd(),"models/kuka/temp/kuka.urdf")

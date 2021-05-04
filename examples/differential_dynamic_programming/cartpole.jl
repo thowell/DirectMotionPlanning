@@ -5,8 +5,8 @@ include_ddp()
 include_model("cartpole")
 
 # Time
-T = 26
-h = 0.1
+T = 201
+h = 0.0125
 tf = h * (T - 1)
 
 # Initial conditions, controls, disturbances
@@ -24,7 +24,7 @@ Q = [(t < T ? Diagonal(h * [1.0; 1.0; 1.0; 1.0])
         : Diagonal(1.0 * ones(model.n))) for t = 1:T]
 q = [-2.0 * Q[t] * xT for t = 1:T]
 
-R = [h * Diagonal(1.0e-1 * ones(model.m)) for t = 1:T-1]
+R = [h * Diagonal(1.0 * ones(model.m)) for t = 1:T-1]
 r = [zeros(model.m) for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -48,9 +48,11 @@ function g(obj::StageCosts, x, u, t)
 end
 
 # Constraints
-p_con = [t == T ? model.n : 0 for t = 1:T]
+p_con = [t == T ? model.n : 2 * model.m for t = 1:T]
 
-info_t = Dict()
+uL = -10.0 * ones(model.m)
+uU = 10.0 * ones(model.m)
+info_t = Dict(:uL => uL, :uU => uU, :inequality => collect(1:2 * model.m))
 info_T = Dict(:xT => xT)
 
 con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
@@ -58,6 +60,12 @@ con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
 function c!(c, cons::StageConstraints, x, u, t)
 	T = cons.T
 	n = model.n
+	m = model.m
+
+	if t < T
+		c[1:m] = cons.con[t].info[:uL] - u
+		c[m .+ (1:m)] = u - cons.con[t].info[:uU]
+	end
 
 	if t == T
 		c[1:n] .= x - cons.con[T].info[:xT]
@@ -87,7 +95,7 @@ plot(hcat(ū..., ū[end])',
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
-visualize!(vis, model, x_sim[1], Δt = dt_sim)
+visualize!(vis, model, x, Δt = h)
 
 # Simulate policy
 include(joinpath(@__DIR__, "simulate.jl"))
@@ -105,21 +113,22 @@ dt_sim = tf / (T_sim - 1)
 
 # Policy
 K = [K for K in prob.p_data.K]
-# plot(vcat(K...))
+plot(vcat(K...))
+# K = [K[end] for k in K]
 # K = [prob.p_data.K[t] for t = 1:T-1]
-K, _ = tvlqr(model, x̄, ū, h, Q, R)
+# K, _ = tvlqr(model, x̄, ū, h, Q, R)
 # # # K = [-k for k in K]
-K = [-K[t] for t = 1:T-1]
+# K = [-K[t] for t = 1:T-1]
 # plot(vcat(K...))
 
 # Simulate
-N_sim = 10
+N_sim = 1
 x_sim = []
 u_sim = []
 J_sim = []
 Random.seed!(1)
 for k = 1:N_sim
-	wi_sim = rand(range(-1.0, stop = 1.0, length = 1000))
+	wi_sim = 0.0 * rand(range(-1.0, stop = 1.0, length = 1000))
 
 	println("sim: $k")#- w = $(wi_sim[1])")
 

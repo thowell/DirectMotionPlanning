@@ -231,14 +231,15 @@ end
 # Constraints
 ns = models.N * models.model.n
 ms = models.N * models.model.m
-p_con = [t == T ? ns : ms for t = 1:T]
-ul = [-Inf]
-uu = [Inf]
-info_t = Dict()
-info_T = Dict(:xT => _xT)
+p_con = [t == T ? (ns + 2 * ms) : (t == 1 ? ms : (ms + 2 * ms)) for t = 1:T]
+uL = -10.0 * ones(model.m)
+uU = 10.0 * ones(model.m)
+info_1 = Dict()
+info_t = Dict(:uL => uL, :uU => uU, :inequality => collect(ms .+ (1:2 * ms)))
+info_T = Dict(:xT => _xT, :uL => uL, :uU => uU, :inequality => collect(ns .+ (1:2 * ms)))
 
-con_set = [StageConstraint(p_con[t], t < T ? info_t : info_T) for t = 1:T]
-
+con_set = [StageConstraint(p_con[t], t < T ? (t == 1 ? info_1 : info_t) : info_T) for t = 1:T]
+con_set[2].p
 function c!(c, cons::StageConstraints, x, u, t)
 	T = cons.T
 	N = models.N
@@ -251,11 +252,25 @@ function c!(c, cons::StageConstraints, x, u, t)
 
 	if t < T
 		c[1:ms] = view(u, 1:ms)
+
+		if t > 1
+			for i = 1:N
+				up = view(x, ns + (i - 1) * m .+ (1:m))
+				c[ms + (i - 1) * 2 * m .+ (1:m)] = cons.con[t].info[:uL] - up
+				c[ms + (i - 1) * 2 * m + m .+ (1:m)] = up - cons.con[t].info[:uU]
+			end
+		end
 	end
 
 	if t == T
 		for i = 1:N
 			c[(i - 1) * n .+ (1:n)] .= view(x, (i - 1) * n .+ (1:n)) - cons.con[T].info[:xT]
+		end
+
+		for i = 1:N
+			up = view(x, ns + (i - 1) * m .+ (1:m))
+			c[ns + (i - 1) * 2 * m .+ (1:m)] = cons.con[T].info[:uL] - up
+			c[ns + (i - 1) * 2 * m + m .+ (1:m)] = up - cons.con[T].info[:uU]
 		end
 	end
 end
