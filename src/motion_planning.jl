@@ -11,7 +11,7 @@ using Colors
 using CoordinateTransformations
 using FileIO
 using GeometryBasics
-using MeshCat, MeshIO
+using MeshCat, MeshIO, Meshing
 using Rotations
 # using RigidBodyDynamics, MeshCatMechanisms
 include("indices.jl")

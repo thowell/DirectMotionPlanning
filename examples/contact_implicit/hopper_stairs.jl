@@ -48,7 +48,7 @@ _uu = Inf * ones(model_ft.m)
 _uu[model_ft.idx_u] .= Inf #model_ft.uU
 _uu[end] = 2.0 * h
 _ul = zeros(model_ft.m)
-_ul[model_ft.idx_u] .= -Inf# model_ft.uL
+_ul[model_ft.idx_u] .= -Inf # model_ft.uL
 _ul[end] = 0.5 * h
 ul, uu = control_bounds(model_ft, T, _ul, _uu)
 

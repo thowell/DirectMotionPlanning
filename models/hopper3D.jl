@@ -33,6 +33,8 @@ struct Hopper3D{I, T} <: Model{I, T}
     idx_η
     idx_s
 
+	surf
+	surf_grad
 end
 
 # Dimensions
@@ -66,7 +68,7 @@ Jl = 0.025 # leg inertia
 function kinematics(::Hopper3D, q)
 	p = view(q, 1:3)
 	R = MRP(view(q, 4:6)...)
-	p + R*[0.0; 0.0; -1.0 * q[7]]
+	p + R * [0.0; 0.0; -1.0 * q[7]]
 end
 
 # Methods
@@ -98,13 +100,22 @@ function N_func(model::Hopper3D, q)
 end
 
 function P_func(model::Hopper3D, q)
-    map = [1.0 0.0;
-           0.0 1.0;
-           -1.0 0.0;
-           0.0 -1.0]
+
 
     k(z) = kinematics(model, z)[1:2]
     map * ForwardDiff.jacobian(k, q)
+end
+
+function J_func(model::Hopper3D, q)
+	k(z) = kinematics(model, z)
+	ForwardDiff.jacobian(k, q)
+end
+
+function friction_map()
+	map = [1.0 0.0;
+           0.0 1.0;
+           -1.0 0.0;
+           0.0 -1.0]
 end
 
 function friction_cone(model::Hopper3D,u)
@@ -114,7 +125,46 @@ function friction_cone(model::Hopper3D,u)
     @SVector [model.μ * λ[1] - sum(b[1:4])]
 end
 
-function maximum_dissipation(model::Hopper3D, x⁺, u, h)
+
+function skew(x)
+	SMatrix{3,3}([0.0 -x[3] x[2];
+	               x[3] 0.0 -x[1];
+				   -x[2] x[1] 0.0])
+end
+
+function rot(a, b)
+	v = cross(a, b)
+	s = sqrt(transpose(v) * v)
+	c = transpose(a) * b
+
+	R = Diagonal(@SVector ones(3)) + skew(v) + 1.0 / (1.0 + c) * skew(v) * skew(v)
+end
+
+function rotation(model, q)
+	# unit surface normal (3D)
+	n = [-1.0 * model.surf_grad(q[1:2]); 1.0]
+	ns = n ./ sqrt(transpose(n) * n)
+
+	# world-frame normal
+	nw = @SVector [0.0, 0.0, 1.0]
+
+	rot(ns, nw)
+end
+
+function contact_forces(model::Hopper3D, γ1, b1, q2, k)
+	m = friction_map()
+	SVector{3}(transpose(rotation(model, k)) * [m' * b1; γ1])
+end
+
+function velocity_stack(model::Hopper3D, q1, q2, k, h)
+	v = J_func(model, q2) * (q2 - q1) / h[1]
+
+	v1_surf = rotation(model, k) * v
+
+	SVector{4}([v1_surf[1:2]; -v1_surf[1:2]])
+end
+
+function maximum_dissipation(model::Hopper3D{Discrete, FixedTime}, x⁺, u, h)
     q3 = x⁺[model.nq .+ (1:model.nq)]
 	q2 = x⁺[1:model.nq]
 
@@ -122,7 +172,23 @@ function maximum_dissipation(model::Hopper3D, x⁺, u, h)
     ψ_stack = ψ[1] * ones(4)
     η = u[model.idx_η]
 
-    P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
+	k = kinematics(model, q3)
+
+    velocity_stack(model, q2, q3, k, h) + ψ_stack - η
+end
+
+function maximum_dissipation(model::Hopper3D{Discrete, FreeTime}, x⁺, u, h)
+    q3 = x⁺[model.nq .+ (1:model.nq)]
+	q2 = x⁺[1:model.nq]
+
+    ψ = u[model.idx_ψ]
+    ψ_stack = ψ[1] * ones(4)
+    η = u[model.idx_η]
+
+	k = kinematics(model, q3)
+	h = u[end]
+
+    velocity_stack(q2, q3, k, h) + ψ_stack - η
 end
 
 function lagrangian_derivatives(model, q, v)
@@ -149,11 +215,13 @@ function fd(model::Hopper3D{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
 	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
 
+	k = kinematics(model, q3)
+	cf = contact_forces(model, λ, b, q3, k)
+
     [q2⁺ - q2⁻;
     (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
     + transpose(B_func(model, qm2)) * SVector{3}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{1}(λ)
-    + transpose(P_func(model, q3)) * SVector{4}(b))]
+    + transpose(J_func(model, q3)) * SVector{3}(cf))]
 end
 
 function fd(model::Hopper3D{Discrete, FreeTime}, x⁺, x, u, w, h, t)
@@ -175,11 +243,13 @@ function fd(model::Hopper3D{Discrete, FreeTime}, x⁺, x, u, w, h, t)
 	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
 	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
 
+	k = kinematics(model, q3)
+	cf = contact_forces(model, λ, b, q3, k)
+
     [q2⁺ - q2⁻;
     (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
-    + transpose(B_func(model, q3)) * SVector{3}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{1}(λ)
-    + transpose(P_func(model, q3)) * SVector{4}(b))]
+    + transpose(B_func(model, qm2)) * SVector{3}(u_ctrl)
+    + transpose(J_func(model, q3)) * SVector{3}(cf))]
 end
 
 r = 0.5
@@ -199,7 +269,9 @@ model = Hopper3D{Discrete, FixedTime}(n, m, d,
             idx_b,
             idx_ψ,
             idx_η,
-            idx_s)
+            idx_s,
+			x -> 0.0,
+			x -> zeros(2))
 
 function visualize!(vis, model::Hopper3D, q;
 	Δt = 0.1)
