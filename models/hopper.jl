@@ -282,8 +282,10 @@ function visualize!(vis, model::Hopper, q;
         end
     end
 
-	settransform!(vis["/Cameras/default"],
-		compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
+	if scenario == :vertical
+		settransform!(vis["/Cameras/default"],
+			compose(Translation(0.0, 0.5, -1.0),LinearMap(RotZ(-pi / 2.0))))
+	end
 
     MeshCat.setanimation!(vis, anim)
 end
