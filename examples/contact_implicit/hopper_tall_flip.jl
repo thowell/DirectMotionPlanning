@@ -8,7 +8,7 @@ Jl = 0.075 # leg inertia
 
 model = Hopper{Discrete, FixedTime}(n, m, d,
 			   mb, ml, Jb, Jl,
-			   0.1, g,
+			   0.25, g,
 			   qL, qU,
 			   uL, uU,
 			   nq,
@@ -32,7 +32,7 @@ model_ft = free_time_model(model)
 # Stair
 function ϕ_func(model::Hopper, q)
 	k = kinematics(model, q)
-	if k[1] < 0.25
+	if k[1] < 0.125
     	return @SVector [k[2] - 3 * 0.25]
 	else
 		return @SVector [k[2]]
@@ -40,10 +40,10 @@ function ϕ_func(model::Hopper, q)
 end
 
 # Horizon
-T = 26
+T = 80
 
 # Time step
-tf = 0.75
+# tf = 0.75
 h = hm #tf / (T - 1)
 
 # Bounds
@@ -61,19 +61,16 @@ z_h = 3 * 0.25
 q1 = [0.0, 0.5 + z_h, 0.0, 0.5]
 q11 = [0.0, 0.5 + z_h + 0.125, 0.0, 0.5]
 qm1 = [0.25, 0.5 + z_h + 0.25, -0.5 * π, 0.5]
-
 qm2 = [0.5, 0.5 + z_h + 0.5, -1.0 * π, 0.5]
-
 qm3 = [0.75, 0.5 + z_h + 0.25, -1.5 * π, 0.5]
-
 qT = [1.0, 0.5, -2.0 * π, 0.5]
 
-ql1 = linear_interpolation(q1, q11, 5)
-ql2 = linear_interpolation(q11, qm1, 6)
-ql3 = linear_interpolation(qm1, qm2, 6)
-ql4 = linear_interpolation(qm2, qm3, 5)
-ql5 = linear_interpolation(qm3, qT, 5)
-ql6 = linear_interpolation(qT, qT, 5)
+ql1 = linear_interpolation(q1, q11, 14)
+ql2 = linear_interpolation(q11, qm1, 15)
+ql3 = linear_interpolation(qm1, qm2, 15)
+ql4 = linear_interpolation(qm2, qm3, 15)
+ql5 = linear_interpolation(qm3, qT, 14)
+ql6 = linear_interpolation(qT, qT, 14)
 
 q_ref = [ql1...,
 		 ql2[2:end]...,
@@ -109,7 +106,7 @@ obj_velocity = velocity_objective(
     h = h,
     idx_angle = collect([3]))
 
-obj_ctrl_vel = control_velocity_objective(Diagonal([1.0e-1 * ones(model_ft.nu);
+obj_ctrl_vel = control_velocity_objective(Diagonal([1.0e-3 * ones(model_ft.nu);
 	1.0e-3 * ones(model_ft.nc + model_ft.nb);
 	zeros(model_ft.m - model_ft.nu - model_ft.nc - model_ft.nb)]))
 
@@ -124,11 +121,11 @@ function l_stage(x, u, t)
 
 	v = (p2 - p1) ./ h
 
-	if t < 9
+	if t < 40
 		J += 10000.0 * v[1]^2.0
 	end
 
-	if t > 20
+	if t > 60
 		J += 10000.0 * v[1]^2.0
 	end
 
@@ -168,7 +165,7 @@ function pinnedT!(c, x, u, t)
 	nothing
 end
 
-T_fix = 3
+T_fix = 15
 n_stage = 2
 t_idx1 = vcat([t for t = 1:T_fix]...)
 t_idxT = vcat([(T - T_fix + 1):T]...)
@@ -223,8 +220,8 @@ visualize!(vis, model_ft,
 	scenario = :vertical)
 
 setobject!(vis["box"], GeometryBasics.HyperRectangle(Vec(0.0, 0.0, 0.0),
-	Vec(0.5, 1.0, 3 * 0.25)), MeshPhongMaterial(color = RGBA(0.5, 0.5, 0.5, 1.0)))
-settransform!(vis["box"], Translation(-0.25, -0.25, 0))
+	Vec(0.25, 0.5, 3 * 0.25)), MeshPhongMaterial(color = RGBA(0.5, 0.5, 0.5, 1.0)))
+settransform!(vis["box"], Translation(-0.125, -0.25, 0))
 
 using Plots
 plot(hcat(q...)')
@@ -272,16 +269,16 @@ qm, um, γm, bm, ψm, ηm = step_repeat(qm, um, γm, bm, ψm, ηm, T, steps = 3)
 # @load joinpath(@__DIR__, "hopper_stairs_3.jld2") qm um γm bm ψm ηm μm hm
 
 setobject!(vis["box1"], GeometryBasics.HyperRectangle(Vec(0.0, 0.0, 0.0),
-	Vec(0.5, 0.5, 0.25)), MeshPhongMaterial(color = RGBA(0.5, 0.5, 0.5, 1.0)))
-settransform!(vis["box1"], Translation(0.25, -0.25, 0))
+	Vec(0.25, 0.5, 0.25)), MeshPhongMaterial(color = RGBA(0.5, 0.5, 0.5, 1.0)))
+settransform!(vis["box1"], Translation(0.125, -0.25, 0))
 
 setobject!(vis["box2"], GeometryBasics.HyperRectangle(Vec(0.0, 0.0, 0.0),
-	Vec(0.5, 0.5, 2 * 0.25)), MeshPhongMaterial(color = RGBA(0.5, 0.5, 0.5, 1.0)))
-settransform!(vis["box2"], Translation(0.25 + 0.5, -0.25, 0))
+	Vec(0.25, 0.5, 2 * 0.25)), MeshPhongMaterial(color = RGBA(0.5, 0.5, 0.5, 1.0)))
+settransform!(vis["box2"], Translation(0.125 + 0.25, -0.25, 0))
 
 setobject!(vis["box3"], GeometryBasics.HyperRectangle(Vec(0.0, 0.0, 0.0),
-	Vec(0.5, 0.5, 3 * 0.25)), MeshPhongMaterial(color = RGBA(0.5, 0.5, 0.5, 1.0)))
-settransform!(vis["box3"], Translation(0.25 + 2 * 0.5, -0.25, 0))
+	Vec(0.25, 0.5, 3 * 0.25)), MeshPhongMaterial(color = RGBA(0.5, 0.5, 0.5, 1.0)))
+settransform!(vis["box3"], Translation(0.125 + 2 * 0.25, -0.25, 0))
 
 tall_flip = load(joinpath(@__DIR__, "hopper_tall_flip.jld2"))
 

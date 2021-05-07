@@ -188,7 +188,7 @@ function maximum_dissipation(model::Hopper3D{Discrete, FreeTime}, x⁺, u, h)
 	k = kinematics(model, q3)
 	h = u[end]
 
-    velocity_stack(q2, q3, k, h) + ψ_stack - η
+    velocity_stack(model, q2, q3, k, h) + ψ_stack - η
 end
 
 function lagrangian_derivatives(model, q, v)
