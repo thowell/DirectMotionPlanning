@@ -181,7 +181,7 @@ h̄ = mean(h̄)
 # vis = Visualizer()
 # render(vis)
 visualize!(vis, model_ft,
-	state_to_configuration(x̄),
+	# state_to_configuration(x̄),
 	q,
 	Δt = h̄)
 

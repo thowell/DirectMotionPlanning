@@ -32,7 +32,7 @@ model_ft = free_time_model(model)
 # Stair
 function ϕ_func(model::Hopper, q)
 	k = kinematics(model, q)
-	if k[1] < 0.125
+	if k[1] < 0.5
     	return @SVector [k[2] - 3 * 0.25]
 	else
 		return @SVector [k[2]]
@@ -48,10 +48,10 @@ h = hm #tf / (T - 1)
 
 # Bounds
 _uu = Inf * ones(model_ft.m)
-_uu[model_ft.idx_u] .= Inf#10.0#model_ft.uU
+_uu[model_ft.idx_u] .= 10.0#model_ft.uU
 _uu[end] = h#3.0 * h
 _ul = zeros(model_ft.m)
-_ul[model_ft.idx_u] .= -Inf#10.0 #model_ft.uL
+_ul[model_ft.idx_u] .= -10.0 #model_ft.uL
 _ul[end] = h#0.2 * h
 ul, uu = control_bounds(model_ft, T, _ul, _uu)
 
@@ -60,10 +60,10 @@ z_h = 3 * 0.25
 
 q1 = [0.0, 0.5 + z_h, 0.0, 0.5]
 q11 = [0.0, 0.5 + z_h + 0.125, 0.0, 0.25]
-qm1 = [0.125, 0.5 + z_h + 0.25, -0.5 * π, 0.25]
-qm2 = [0.25, 0.5 + z_h + 0.125, -1.5 * π, 0.25]
-qm3 = [0.375, 0.5 + z_h + 0.0625, -2.0 * π, 0.5]
-qT = [0.5, 0.5, -2.0 * π, 0.5]
+qm1 = [0.0, 0.5 + z_h + 0.25, -0.5 * π, 0.25]
+qm2 = [0.0, 0.5 + z_h + 0.375, -1.5 * π, 0.25]
+qm3 = [0.0, 0.5 + z_h + 0.25, -2.0 * π, 0.5]
+qT = [0.0, 0.5, -2.0 * π, 0.5]
 
 ql1 = linear_interpolation(q1, q11, 14)
 ql2 = linear_interpolation(q11, qm1, 15)
@@ -96,7 +96,7 @@ qp = 0.0 * [0.01; 0.01; 1.0; 1.0]
 obj_tracking = quadratic_time_tracking_objective(
     [Diagonal([qp; qp]) for t = 1:T],
     [Diagonal([1.0e-1, 1.0e-2,
-		1.0e-5 * ones(model_ft.nc)..., 1.0e-5 * ones(model_ft.nb)...,
+		1.0e-3 * ones(model_ft.nc)..., 1.0e-3 * ones(model_ft.nb)...,
 		zeros(model_ft.m - model_ft.nu - model_ft.nc - model_ft.nb - 1)..., 0.0])
 		for t = 1:T-1],
     [[qT; qT] for t = 1:T],
@@ -106,7 +106,7 @@ obj_tracking = quadratic_time_tracking_objective(
 obj_contact_penalty = PenaltyObjective(1.0e5, model_ft.m - 1)
 
 obj_velocity = velocity_objective(
-    [(t > 20 && t < 60) ? Diagonal(1.0e-2 * [1.0; 1.0; 100.0; 100.0]) : Diagonal(1.0e-2 * [1.0; 1.0; 1.0; 1.0]) for t = 1:T-1],
+    [Diagonal(1.0e-1 * ones(model_ft.nq)) for t = 1:T-1],
     model_ft.nq,
     h = h,
     idx_angle = collect([3]))
@@ -126,16 +126,16 @@ function l_stage(x, u, t)
 
 	v = (p2 - p1) ./ h
 
-	if t < 40
-		J += 1000.0 * v[1]^2.0
+	if t < 20
+		J += 10000.0 * v[1]^2.0
 	end
 
 	if t > 60
-		J += 1000.0 * v[1]^2.0
+		J += 10000.0 * v[1]^2.0
 	end
 
 	if true#t > 5 #|| (t > 20 && t < T)
-		J += (_q1 - q_ref[t])' * Diagonal([100.0; 100.0; 1000.0; 1000.0]) * (_q1 - q_ref[t])
+		J += (_q1 - q_ref[t])' * Diagonal([10000.0; 100.0; 10000.0; 10000.0]) * (_q1 - q_ref[t])
 	end
 
 	return J
@@ -170,11 +170,11 @@ function pinnedT!(c, x, u, t)
 	nothing
 end
 
-function no_foot_slip!(c, x, u, t)
-	q = view(x, 1:4)
-
-	c[1] = kinematics(model, q)[1]
-end
+# function no_foot_slip!(c, x, u, t)
+# 	q = view(x, 1:4)
+#
+# 	c[1] = kinematics(model, q)[1]
+# end
 
 n_stage = 2
 t_idx1 = vcat([t for t = 1:10]...)
@@ -184,7 +184,7 @@ con_pinned1 = stage_constraints(pinned1!, 2, (1:0), t_idx1)
 con_pinnedT = stage_constraints(pinnedT!, 2, (1:0), t_idxT)
 con_no_slip = stage_constraints(no_foot_slip!, 1, (1:1), collect(1:40))
 
-con = multiple_constraints([con_free_time, con_contact, con_pinned1, con_pinnedT, con_no_slip])#, con_loop])
+con = multiple_constraints([con_free_time, con_contact, con_pinned1, con_pinnedT])#, con_no_slip])#, con_loop])
 
 # Problem
 prob = trajectory_optimization_problem(model_ft,
@@ -236,8 +236,8 @@ setobject!(vis["box"], GeometryBasics.HyperRectangle(Vec(0.0, 0.0, 0.0),
 settransform!(vis["box"], Translation(-0.125, -0.25, 0))
 
 using Plots
-plot(hcat(q_ref...)[1:4, :]', color = :black , width = 2.0)
-plot!(hcat(q...)[1:4, :]', color = :red, width = 1.0)
+plot(hcat(q_ref...)[2:2, :]', color = :black , width = 2.0)
+plot!(hcat(q...)[2:2, :]', color = :red, width = 1.0)
 
 plot(hcat(u...)', linetype = :steppost)
 
