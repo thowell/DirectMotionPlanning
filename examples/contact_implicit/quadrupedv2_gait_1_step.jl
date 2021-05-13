@@ -16,19 +16,6 @@ T_fix = 5
 tf = 1.5
 h = tf / (T - 1)
 
-# Permutation matrix
-# perm = @SMatrix [1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
-#                  0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
-# 				 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
-# 				 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
-# 				 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
-# 				 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
-# 				 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0;
-# 				 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0;
-# 				 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0;
-# 				 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
-# 				 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0]
-
 function ellipse_traj(x_start, x_goal, z, T)
 	dist = x_goal - x_start
 	a = 0.5 * dist
@@ -70,10 +57,13 @@ pf4 = q1[15 .+ (1:3)]
 
 
 strd = 2 * (pf1 - pf2)[1]
-qT = copy(q1)
-qT[1] += 0.5 * strd
-qT[9 + 1] += strd
-qT[12 + 1] += strd
+
+q_shift = zeros(model.nq)
+q_shift[1] = 0.5 * strd
+q_shift[10] = strd
+q_shift[13] = strd
+
+qT = copy(q1) + q_shift
 
 visualize!(vis, model, linear_interpolation(q1, qT, 10))
 
@@ -116,8 +106,7 @@ _ul[end] = h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
 xl, xu = state_bounds(model, T,
-    x1 = [q1; q1],
-    xT = [qT; qT])
+    x1 = [Inf * ones(model.nq); q1])
 
 # Objective
 include_objective(["velocity", "nonlinear_stage", "control_velocity"])
@@ -204,10 +193,9 @@ con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
 con_contact = contact_constraints(model, T)
 con_free_time = free_time_constraints(T)
-con_loop = loop_constraints(model, collect([(2:model.nq)...,
-	(nq .+ (2:model.nq))...]), 1, T, perm = Array(cat(perm, perm, dims = (1,2))))
+con_loop = loop_constraints(model, collect(1:2model.nq), 1, T, shift = [q_shift; q_shift])
 
-con = multiple_constraints([con_contact, #con_loop,
+con = multiple_constraints([con_contact, con_loop,
     con_free_time, con_pinned1, con_pinned2])
 
 # Problem
@@ -278,76 +266,76 @@ b = [u[model.idx_b] for u in ū]
 η = [u[model.idx_η] for u in ū]
 hm = mean(h̄)
 μm = model.μ
-
-perm4 = [0.0 1.0 0.0 0.0;
-         1.0 0.0 0.0 0.0;
-		 0.0 0.0 0.0 1.0;
-		 0.0 0.0 1.0 0.0]
-
-perm8 = [0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
-         0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
-		 1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
-		 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0;
-		 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0;
-		 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0;
-		 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
-		 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0]
-
-function mirror_gait(q, u, γ, b, ψ, η, T)
-	qm = [deepcopy(q)...]
-	um = [deepcopy(u)...]
-	γm = [deepcopy(γ)...]
-	bm = [deepcopy(b)...]
-	ψm = [deepcopy(ψ)...]
-	ηm = [deepcopy(η)...]
-
-	stride = zero(qm[1])
-	@show stride[1] = q[T+1][1] - q[2][1]
-	@show 0.5 * strd
-
-	for t = 1:T-1
-		push!(qm, Array(perm) * q[t+2] + stride)
-		push!(um, perm8 * u[t])
-		push!(γm, perm4 * γ[t])
-		push!(bm, perm8 * b[t])
-		push!(ψm, perm4 * ψ[t])
-		push!(ηm, perm8 * η[t])
-	end
-
-	return qm, um, γm, bm, ψm, ηm
-end
-
-qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
-
-@save joinpath(@__DIR__, "quadruped_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
-
-plot(hcat(q...)', color = :black, width = 2.0, label = "")
-plot!(hcat(qm...)', color = :red, width = 1.0, label = "")
-
-plot(hcat(u...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-plot!(hcat(um...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-
-plot(hcat(γ...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-plot!(hcat(γm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-
-plot(hcat(b...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-plot!(hcat(bm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-
-function get_q_viz(q̄)
-	q_viz = [q̄...]
-	shift_vec = zeros(model.nq)
-	shift_vec[1] = q̄[end][1]
-	for i = 1:5
-		q_update = [q + shift_vec for q in q̄[2:end]]
-		push!(q_viz, q_update...)
-		shift_vec[1] = q_update[end][1]
-	end
-
-	return q_viz
-end
-
-vis = Visualizer()
-render(vis)
-visualize!(vis, model,
-	qm,
-	Δt = h̄[1])
+#
+# perm4 = [0.0 1.0 0.0 0.0;
+#          1.0 0.0 0.0 0.0;
+# 		 0.0 0.0 0.0 1.0;
+# 		 0.0 0.0 1.0 0.0]
+#
+# perm8 = [0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
+#          0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
+# 		 1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
+# 		 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0;
+# 		 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0;
+# 		 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0;
+# 		 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
+# 		 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0]
+#
+# function mirror_gait(q, u, γ, b, ψ, η, T)
+# 	qm = [deepcopy(q)...]
+# 	um = [deepcopy(u)...]
+# 	γm = [deepcopy(γ)...]
+# 	bm = [deepcopy(b)...]
+# 	ψm = [deepcopy(ψ)...]
+# 	ηm = [deepcopy(η)...]
+#
+# 	stride = zero(qm[1])
+# 	@show stride[1] = q[T+1][1] - q[2][1]
+# 	@show 0.5 * strd
+#
+# 	for t = 1:T-1
+# 		push!(qm, Array(perm) * q[t+2] + stride)
+# 		push!(um, perm8 * u[t])
+# 		push!(γm, perm4 * γ[t])
+# 		push!(bm, perm8 * b[t])
+# 		push!(ψm, perm4 * ψ[t])
+# 		push!(ηm, perm8 * η[t])
+# 	end
+#
+# 	return qm, um, γm, bm, ψm, ηm
+# end
+#
+# qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
+#
+# @save joinpath(@__DIR__, "quadruped_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
+#
+# plot(hcat(q...)', color = :black, width = 2.0, label = "")
+# plot!(hcat(qm...)', color = :red, width = 1.0, label = "")
+#
+# plot(hcat(u...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+# plot!(hcat(um...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+#
+# plot(hcat(γ...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+# plot!(hcat(γm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+#
+# plot(hcat(b...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+# plot!(hcat(bm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+#
+# function get_q_viz(q̄)
+# 	q_viz = [q̄...]
+# 	shift_vec = zeros(model.nq)
+# 	shift_vec[1] = q̄[end][1]
+# 	for i = 1:5
+# 		q_update = [q + shift_vec for q in q̄[2:end]]
+# 		push!(q_viz, q_update...)
+# 		shift_vec[1] = q_update[end][1]
+# 	end
+#
+# 	return q_viz
+# end
+#
+# vis = Visualizer()
+# render(vis)
+# visualize!(vis, model,
+# 	qm,
+# 	Δt = h̄[1])

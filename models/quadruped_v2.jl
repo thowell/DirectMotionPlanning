@@ -88,14 +88,14 @@ end
 
 # Methods
 function M_func(model::QuadrupedV2, q)
-	M = Diagonal([(model.mb + 4 * model.mf) * ones(3) ;
+	M = Diagonal([model.mb * ones(3) ;
 				  model.Ix; model.Iy; model.Iz;
 				  model.mf * ones(12)])
 	return M
 end
 
 function C_func(model::QuadrupedV2, q, q̇)
-	SVector{18}([0.0, 0.0, model.g * (model.mb + 4 * model.mf),
+	SVector{18}([0.0, 0.0, model.g * model.mb,
 				 cross(q̇[4:6], Diagonal([model.Ix, model.Iy, model.Iz]) * q̇[4:6])...,
 				 0.0, 0.0, model.g * model.mf,
 				 0.0, 0.0, model.g * model.mf,

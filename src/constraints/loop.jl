@@ -9,13 +9,15 @@ struct LoopConstraints <: Constraints
 	idx_t1
 	idx_t2
 	perm
+	shift
 end
 
 function loop_constraints(model, idx, idx_t1, idx_t2;
-	perm = Diagonal(ones(model.n)))
+	perm = Diagonal(ones(model.n)),
+	shift = zeros(model.n))
 	n = length(idx)
 	ineq = (1:0)
-	return LoopConstraints(n, ineq, idx, idx_t1, idx_t2, perm)
+	return LoopConstraints(n, ineq, idx, idx_t1, idx_t2, perm, shift)
 end
 
 function constraints!(c, Z, con::LoopConstraints, model, idx, h, T)
@@ -23,7 +25,7 @@ function constraints!(c, Z, con::LoopConstraints, model, idx, h, T)
 	a = view(Z, idx.x[con.idx_t1][con.idx])
 	b = view(Z, idx.x[con.idx_t2][con.idx])
 
-	c[1:n] = con.perm[con.idx, con.idx] * b - a
+	c[1:n] = con.perm[con.idx, con.idx] * b - (a + con.shift)
 
     return nothing
 end
