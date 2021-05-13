@@ -10,14 +10,14 @@ model = Particle(2 * 3, 3, 0, 1.0, 9.81, 0.5, 3, 3)
 joinpath(@__DIR__,"model.jl")
 
 # horizon
-T = 1001
+T = 101
 
 # time step
 h = 0.01
 t = range(0, stop = h * (T - 1), length = T)
 
 # initial conditions
-v1 = [10.0; 1.0; 10.0]
+v1 = [0.0; 0.0; 0.0]
 q1 = [0.0; 0.0; 1.0]
 
 v2 = v1 - gravity(model, q1) * h
@@ -26,6 +26,7 @@ q2 = q1 + 0.5 * (v1 + v2) * h
 # # simulate
 q_sol, y_sol, b_sol, Δq1, Δq2, Δu1 = simulate(q1, q2, T, h)
 
+plot(hcat(q_sol...)[:, 1:1:end]')
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)

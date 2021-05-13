@@ -184,7 +184,7 @@ end
 model = RRParticle{Discrete, FixedTime}(n, m, d,
 				   m1, J1, l1,
 				   m2, J2, l2,
-				   mp, μ, g,
+				   mp, μ, 9.81,
 				   nq,
 	  			   nu,
 	  			   nc,
@@ -246,7 +246,7 @@ function visualize!(vis, model::RRParticle, q;
             settransform!(vis["ee"], Translation(p_ee))
         end
     end
-	
+
 	settransform!(vis["/Cameras/default"],
 	    compose(Translation(1.0, 0.0, -1.0),LinearMap(RotZ(-pi / 2.0))))
 
