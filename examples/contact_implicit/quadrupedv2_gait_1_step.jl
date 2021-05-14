@@ -9,7 +9,8 @@ vis = Visualizer()
 render(vis)
 
 # Horizon
-T = 31
+T = 61
+Tm = 31
 T_fix = 5
 
 # Time step
@@ -57,38 +58,48 @@ pf4 = q1[15 .+ (1:3)]
 
 strd = 2 * (pf1 - pf2)[1]
 
-q_shift = zeros(model.nq)
-q_shift[1] = 0.5 * strd
-q_shift[10] = strd
-q_shift[13] = strd
+q_shift1 = zeros(model.nq)
+q_shift1[1] = 0.5 * strd
+q_shift1[10] = strd
+q_shift1[13] = strd
 
-qT = copy(q1) + q_shift
+qM = copy(q1) + q_shift1
 
-visualize!(vis, model, linear_interpolation(q1, qT, 10))
+q_shift2 = zeros(model.nq)
+q_shift2[1] = 0.5 * strd
+q_shift2[7] = strd
+q_shift2[16] = strd
+
+qT = copy(qM) + q_shift2
+
+visualize!(vis, model, [linear_interpolation(q1, qM, 31)..., linear_interpolation(qM, qT, 31)[2:end]...])
 
 zh = 0.05
-xf1 = [pf1[1] for t = 1:T]
-zf1 = [pf1[3] for t = 1:T]
+xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm - T_fix)
+xf1 = [[pf1[1] for t = 1:Tm + T_fix]..., xf1_el[2:end]...]
+zf1 = [[pf1[3] for t = 1:Tm + T_fix]..., zf1_el[2:end]...]
 pf1_ref = [[xf1[t]; pf1[2];  zf1[t]] for t = 1:T]
-xf4 = [pf4[1] for t = 1:T]
-zf4 = [pf4[3] for t = 1:T]
+
+xf4_el, zf4_el = ellipse_traj(pf4[1], pf4[1] + strd, zh, Tm - T_fix)
+xf4 = [[pf4[1] for t = 1:Tm + T_fix]..., xf4_el[2:end]...]
+zf4 = [[pf4[3] for t = 1:Tm + T_fix]..., zf4_el[2:end]...]
 pf4_ref = [[xf4[t]; pf4[2]; zf4[t]] for t = 1:T]
 
-xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, T - T_fix)
-xf2 = [[xf2_el[1] for t = 1:T_fix]..., xf2_el...]
-zf2 = [[zf2_el[1] for t = 1:T_fix]..., zf2_el...]
+xf2_el, zf2_el = ellipse_traj(pf2[1], pf2[1] + strd, zh, Tm - T_fix)
+xf2 = [[xf2_el[1] for t = 1:T_fix]..., xf2_el..., [xf2_el[end] for t = 1:Tm-1 + T_fix]...]
+zf2 = [[zf2_el[1] for t = 1:T_fix]..., zf2_el..., [zf2_el[end] for t = 1:Tm-1 + T_fix]...]
 pf2_ref = [[xf2[t]; pf2[2]; zf2[t]] for t = 1:T]
 
-xf3_el, zf3_el = ellipse_traj(pf3[1], pf3[1] + strd, zh, T - T_fix)
-xf3 = [[xf3_el[1] for t = 1:T_fix]..., xf3_el...]
-zf3 = [[zf3_el[1] for t = 1:T_fix]..., zf3_el...]
+xf3_el, zf3_el = ellipse_traj(pf3[1], pf3[1] + strd, zh, Tm - T_fix)
+xf3 = [[xf3_el[1] for t = 1:T_fix]..., xf3_el..., [xf3_el[end] for t = 1:Tm-1]...]
+zf3 = [[zf3_el[1] for t = 1:T_fix]..., zf3_el..., [zf3_el[end] for t = 1:Tm-1]...]
 pf3_ref = [[xf3[t]; pf3[2]; zf3[t]] for t = 1:T]
 
 tr = range(0, stop = tf, length = T)
 plot(tr, hcat(pf1_ref...)')
 plot!(tr, hcat(pf4_ref...)')
 
-plot(tr, hcat(pf2_ref...)')
+plot!(tr, hcat(pf2_ref...)')
 plot!(tr, hcat(pf3_ref...)')
 
 
@@ -143,7 +154,7 @@ function l_stage(x, u, t)
     J = 0.0
 
 	# torso height
-	J += 100.0 * (q2[3] - 0.2)^2.0
+	J += 1000.0 * (q2[3] - 0.2)^2.0
 
     if true
 		p1 = q2[6 .+ (1:3)]
@@ -151,10 +162,10 @@ function l_stage(x, u, t)
 		p3 = q2[12 .+ (1:3)]
 		p4 = q2[15 .+ (1:3)]
 
-		J += 1000.0 * sum((pf1_ref[t] - p1).^2.0)
-		J += 1000.0 * sum((pf2_ref[t] - p2).^2.0)
-		J += 1000.0 * sum((pf3_ref[t] - p3).^2.0)
-		J += 1000.0 * sum((pf4_ref[t] - p4).^2.0)
+		J += 10000.0 * sum((pf1_ref[t] - p1).^2.0)
+		J += 10000.0 * sum((pf2_ref[t] - p2).^2.0)
+		J += 10000.0 * sum((pf3_ref[t] - p3).^2.0)
+		J += 10000.0 * sum((pf4_ref[t] - p4).^2.0)
 	end
 
     return J
@@ -171,7 +182,7 @@ obj = MultiObjective([obj_penalty,
 # Constraints
 include_constraints(["stage", "contact", "free_time", "loop"])
 function pinned1!(c, x, u, t)
-    q = view(x, 1:18)
+    q = view(x, 18 .+ (1:18))
     c[1:3] = pf1_ref[t] - q[6 .+ (1:3)]
     c[4:6] = pf4_ref[t] - q[15 .+ (1:3)]
     nothing
@@ -185,16 +196,18 @@ function pinned2!(c, x, u, t)
 end
 
 n_stage = 6
-t_idx1 = vcat([t for t = 1:T])
-t_idx2 = vcat([1:T_fix]...)
+t_idx1 = vcat([t for t = 1:Tm + T_fix])
+t_idx2 = vcat([t for t = 1:T_fix]..., [t for t = Tm:T]...)
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
 con_contact = contact_constraints(model, T)
 con_free_time = free_time_constraints(T)
-con_loop = loop_constraints(model, collect(1:2model.nq), 1, T, shift = [q_shift; q_shift])
+con_loop1 = loop_constraints(model, collect(1:2model.nq), 1, Tm, shift = [q_shift1; q_shift1])
+con_loop2 = loop_constraints(model, collect(1:2model.nq), Tm, T, shift = [q_shift2; q_shift2])
 
-con = multiple_constraints([con_contact, con_loop,
+con = multiple_constraints([con_contact,
+	con_loop1, con_loop2,
     con_free_time, con_pinned1, con_pinned2])
 
 # Problem
@@ -263,6 +276,14 @@ b = [u[model.idx_b] for u in ū]
 hm = mean(h̄)
 μm = model.μ
 
+qm = q; um = u; γm = γ; bm = b; ψm = ψ; ηm = η;
+@save joinpath(@__DIR__, "quadruped_v2_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
+
+plot(hcat(q...)')
+plot(hcat(q...)')
+
+[norm(fd(model, [q[t+1]; q[t+2]], [q[t]; q[t+1]], [u[t]; γ[t]; b[t]; hm], zeros(model.d), hm, t)) for t = 1:T-1]
+
 function mirror_gait(q, u, γ, b, ψ, η, T)
 	qm = [deepcopy(q)...]
 	um = [deepcopy(u)...]
@@ -280,7 +301,9 @@ function mirror_gait(q, u, γ, b, ψ, η, T)
 	p30 = q[2][12 .+ (1:3)]
 	p40 = q[2][15 .+ (1:3)]
 
-	for t = 1:T-1
+	@show norm(fd(model, [qm[end-1]; qm[end]], [qm[end-2]; qm[end-1]], [um[end]; γm[end]; bm[end]], zeros(model.d), hm, 1))
+
+	for t = 1:1#T-1
 		# configuration
 		pt = q[t+2][1:3]
 		a = q[t+2][3 .+ (1:3)]
@@ -289,8 +312,8 @@ function mirror_gait(q, u, γ, b, ψ, η, T)
 		# p3 = q[t+2][12 .+ (1:3)]
 		p4 = q[t+2][15 .+ (1:3)]
 
-		p2_diff = q[t+1][9 .+ (1:3)] - p20
-		p3_diff = q[t+1][12 .+ (1:3)] - p30
+		p2_diff = q[t+2][9 .+ (1:3)] - p20
+		p3_diff = q[t+2][12 .+ (1:3)] - p30
 
 		push!(qm, [pt + [0.5 * strd; 0.0; 0.0]; a;
 			p10[1] + p2_diff[1]; q[t+2][8]; p10[3] + p2_diff[3]
@@ -298,6 +321,7 @@ function mirror_gait(q, u, γ, b, ψ, η, T)
 			q[end][12 .+ (1:3)];
 			p40[1] + p3_diff[1]; q[t+2][17]; p40[3] + p3_diff[3];
 			])
+		# push!(qm, q[t+2])
 
 		# control
 		u1 = u[t][1:3]
@@ -312,6 +336,7 @@ function mirror_gait(q, u, γ, b, ψ, η, T)
 		γ3 = γ[t][3]
 		γ4 = γ[t][4]
 		push!(γm, [γ2; γ1; γ4; γ3])
+		# push!(γm, γ[t])
 
 		# friction
 		b1 = b[t][1:4]
@@ -319,6 +344,7 @@ function mirror_gait(q, u, γ, b, ψ, η, T)
 		b3 = b[t][8 .+ (1:4)]
 		b4 = b[t][12 .+ (1:4)]
 		push!(bm, [b2; b1; b4; b3])
+		# push!(bm, b[t])
 
 		# dual
 		ψ1 = ψ[t][1]
@@ -326,6 +352,7 @@ function mirror_gait(q, u, γ, b, ψ, η, T)
 		ψ3 = ψ[t][3]
 		ψ4 = ψ[t][4]
 		push!(ψm, [ψ2; ψ1; ψ4; ψ3])
+		# push!(ψm, ψ[t])
 
 		# dual
 		η1 = η[t][1:4]
@@ -333,6 +360,9 @@ function mirror_gait(q, u, γ, b, ψ, η, T)
 		η3 = η[t][8 .+ (1:4)]
 		η4 = η[t][12 .+ (1:4)]
 		push!(ηm, [η2; η1; η4; η3])
+		# push!(ηm, η[t])
+
+		@show norm(fd(model, [qm[end-1]; qm[end]], [qm[end-2]; qm[end-1]], [um[end]; γm[end]; bm[end]], zeros(model.d), hm, 1))
 	end
 
 	return qm, um, γm, bm, ψm, ηm
@@ -340,7 +370,7 @@ end
 
 qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
 
-@save joinpath(@__DIR__, "quadruped_v2_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
+# @save joinpath(@__DIR__, "quadruped_v2_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
 
 plot(hcat(q...)', color = :black, width = 2.0, label = "")
 plot!(hcat(qm...)', color = :red, width = 1.0, label = "")
