@@ -14,7 +14,7 @@ end
 
 function loop_constraints(model, idx, idx_t1, idx_t2;
 	perm = Diagonal(ones(model.n)),
-	shift = zeros(model.n))
+	shift = zeros(length(idx)))
 	n = length(idx)
 	ineq = (1:0)
 	return LoopConstraints(n, ineq, idx, idx_t1, idx_t2, perm, shift)

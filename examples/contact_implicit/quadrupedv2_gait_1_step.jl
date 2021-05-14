@@ -13,7 +13,7 @@ T = 31
 T_fix = 5
 
 # Time step
-tf = 1.5
+tf = 1.0
 h = tf / (T - 1)
 
 function ellipse_traj(x_start, x_goal, z, T)
@@ -26,11 +26,11 @@ function ellipse_traj(x_start, x_goal, z, T)
 	return x, z
 end
 
-function initial_configuration(model::QuadrupedV2; offset = 0.1)
+function initial_configuration(model::QuadrupedV2; offset = 0.025)
 	q1 = zeros(model.nq)
 
 	# position
-	q1[3] = 0.5
+	q1[3] = 0.2
 
 	# orientation
 	mrp = MRP(RotZ(0.0))
@@ -55,7 +55,6 @@ pf2 = q1[9 .+ (1:3)]
 pf3 = q1[12 .+ (1:3)]
 pf4 = q1[15 .+ (1:3)]
 
-
 strd = 2 * (pf1 - pf2)[1]
 
 q_shift = zeros(model.nq)
@@ -67,7 +66,7 @@ qT = copy(q1) + q_shift
 
 visualize!(vis, model, linear_interpolation(q1, qT, 10))
 
-zh = 0.1
+zh = 0.05
 xf1 = [pf1[1] for t = 1:T]
 zf1 = [pf1[3] for t = 1:T]
 pf1_ref = [[xf1[t]; pf1[2];  zf1[t]] for t = 1:T]
@@ -144,7 +143,7 @@ function l_stage(x, u, t)
     J = 0.0
 
 	# torso height
-	J += 100.0 * (q2[3] - 0.5)^2.0
+	J += 100.0 * (q2[3] - 0.2)^2.0
 
     if true
 		p1 = q2[6 .+ (1:3)]
@@ -252,10 +251,7 @@ plot(hcat(pf4_ref...)', width = 2.0, color = :black)
 plot!(hcat(_pf4_ref...)', color = :red)
 
 # check control trajectory
-plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost)
-
-qT[15 .+ (1:3)]
-q̄[end][15 .+ (1:3)]
+plot(hcat(ū...)[1:model.nu, :]', linetype = :steppost, label = "")
 
 # unpack solution
 q = state_to_configuration(x̄)
@@ -266,60 +262,97 @@ b = [u[model.idx_b] for u in ū]
 η = [u[model.idx_η] for u in ū]
 hm = mean(h̄)
 μm = model.μ
-#
-# perm4 = [0.0 1.0 0.0 0.0;
-#          1.0 0.0 0.0 0.0;
-# 		 0.0 0.0 0.0 1.0;
-# 		 0.0 0.0 1.0 0.0]
-#
-# perm8 = [0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0;
-#          0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0;
-# 		 1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0;
-# 		 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0;
-# 		 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0;
-# 		 0.0 0.0 0.0 0.0 0.0 0.0 0.0 1.0;
-# 		 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0;
-# 		 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0]
-#
-# function mirror_gait(q, u, γ, b, ψ, η, T)
-# 	qm = [deepcopy(q)...]
-# 	um = [deepcopy(u)...]
-# 	γm = [deepcopy(γ)...]
-# 	bm = [deepcopy(b)...]
-# 	ψm = [deepcopy(ψ)...]
-# 	ηm = [deepcopy(η)...]
-#
-# 	stride = zero(qm[1])
-# 	@show stride[1] = q[T+1][1] - q[2][1]
-# 	@show 0.5 * strd
-#
-# 	for t = 1:T-1
-# 		push!(qm, Array(perm) * q[t+2] + stride)
-# 		push!(um, perm8 * u[t])
-# 		push!(γm, perm4 * γ[t])
-# 		push!(bm, perm8 * b[t])
-# 		push!(ψm, perm4 * ψ[t])
-# 		push!(ηm, perm8 * η[t])
-# 	end
-#
-# 	return qm, um, γm, bm, ψm, ηm
-# end
-#
-# qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
-#
-# @save joinpath(@__DIR__, "quadruped_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
-#
-# plot(hcat(q...)', color = :black, width = 2.0, label = "")
-# plot!(hcat(qm...)', color = :red, width = 1.0, label = "")
-#
-# plot(hcat(u...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-# plot!(hcat(um...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-#
-# plot(hcat(γ...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-# plot!(hcat(γm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-#
-# plot(hcat(b...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-# plot!(hcat(bm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+
+function mirror_gait(q, u, γ, b, ψ, η, T)
+	qm = [deepcopy(q)...]
+	um = [deepcopy(u)...]
+	γm = [deepcopy(γ)...]
+	bm = [deepcopy(b)...]
+	ψm = [deepcopy(ψ)...]
+	ηm = [deepcopy(η)...]
+
+	stride = zero(qm[1])
+	@show stride[1] = q[T+1][1] - q[2][1]
+	@show 0.5 * strd
+
+	p10 = q[2][6 .+ (1:3)]
+	p20 = q[2][9 .+ (1:3)]
+	p30 = q[2][12 .+ (1:3)]
+	p40 = q[2][15 .+ (1:3)]
+
+	for t = 1:T-1
+		# configuration
+		pt = q[t+2][1:3]
+		a = q[t+2][3 .+ (1:3)]
+		p1 = q[t+2][6 .+ (1:3)]
+		# p2 = q[t+2][9 .+ (1:3)]
+		# p3 = q[t+2][12 .+ (1:3)]
+		p4 = q[t+2][15 .+ (1:3)]
+
+		p2_diff = q[t+1][9 .+ (1:3)] - p20
+		p3_diff = q[t+1][12 .+ (1:3)] - p30
+
+		push!(qm, [pt + [0.5 * strd; 0.0; 0.0]; a;
+			p10[1] + p2_diff[1]; q[t+2][8]; p10[3] + p2_diff[3]
+			q[end][9 .+ (1:3)];
+			q[end][12 .+ (1:3)];
+			p40[1] + p3_diff[1]; q[t+2][17]; p40[3] + p3_diff[3];
+			])
+
+		# control
+		u1 = u[t][1:3]
+		u2 = u[t][3 .+ (1:3)]
+		u3 = u[t][6 .+ (1:3)]
+		u4 = u[t][9 .+ (1:3)]
+		push!(um, [u2; u1; u4; u3])
+
+		# impact
+		γ1 = γ[t][1]
+		γ2 = γ[t][2]
+		γ3 = γ[t][3]
+		γ4 = γ[t][4]
+		push!(γm, [γ2; γ1; γ4; γ3])
+
+		# friction
+		b1 = b[t][1:4]
+		b2 = b[t][4 .+ (1:4)]
+		b3 = b[t][8 .+ (1:4)]
+		b4 = b[t][12 .+ (1:4)]
+		push!(bm, [b2; b1; b4; b3])
+
+		# dual
+		ψ1 = ψ[t][1]
+		ψ2 = ψ[t][2]
+		ψ3 = ψ[t][3]
+		ψ4 = ψ[t][4]
+		push!(ψm, [ψ2; ψ1; ψ4; ψ3])
+
+		# dual
+		η1 = η[t][1:4]
+		η2 = η[t][4 .+ (1:4)]
+		η3 = η[t][8 .+ (1:4)]
+		η4 = η[t][12 .+ (1:4)]
+		push!(ηm, [η2; η1; η4; η3])
+	end
+
+	return qm, um, γm, bm, ψm, ηm
+end
+
+qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
+
+@save joinpath(@__DIR__, "quadruped_v2_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
+
+plot(hcat(q...)', color = :black, width = 2.0, label = "")
+plot!(hcat(qm...)', color = :red, width = 1.0, label = "")
+
+plot(hcat(u...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+plot!(hcat(um...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+
+plot(hcat(γ...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+plot!(hcat(γm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+
+plot(hcat(b...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+plot!(hcat(bm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
 #
 # function get_q_viz(q̄)
 # 	q_viz = [q̄...]
@@ -333,9 +366,13 @@ hm = mean(h̄)
 #
 # 	return q_viz
 # end
-#
-# vis = Visualizer()
-# render(vis)
-# visualize!(vis, model,
-# 	qm,
-# 	Δt = h̄[1])
+
+vis = Visualizer()
+render(vis)
+visualize!(vis, model,
+	qm,
+	Δt = h̄[1])
+
+settransform!(vis["/Cameras/default"],
+        compose(Translation(0.0, -25.0, -1.0), LinearMap(RotY(0.0 * π) * RotZ(-π / 2.0))))
+setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 20)

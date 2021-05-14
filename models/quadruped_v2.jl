@@ -53,14 +53,16 @@ ns = 1
 g = 9.81     # gravity
 
 # ~Unitree A1
-mb = 1.0
 mf = 0.01
-Ix = 0.1
-Iy = 0.1
-Iz = 0.1
 
-l_torso = 0.5
-w_torso = 0.25
+# TRUCK ONLY TODO: parallel axis theorem to add shoulders
+mb = 4.713
+Ix = 0.01683993
+Iy = 0.056579028
+Iz = 0.064713601
+
+l_torso = 0.5 * 0.267 # dimension from com
+w_torso = 0.5 * 0.194 # dimension from com
 
 n = 2 * nq
 m = nu + nc + nb + nc + nb + ns
@@ -107,18 +109,6 @@ function kinematics(model::QuadrupedV2, q)
 	p_torso = q[1:3]
 
 	rot = MRP(q[4:6]...)
-
-	# # feet positions in body frame
-	# pb1 = q[6 .+ (1:3)]
-	# pb2 = q[9 .+ (1:3)]
-	# pb3 = q[12 .+ (1:3)]
-	# pb4 = q[15 .+ (1:3)]
-	#
-	# # feet positions in world frame
-	# pw1 = p_torso + rot * pb1
-	# pw2 = p_torso + rot * pb2
-	# pw3 = p_torso + rot * pb3
-	# pw4 = p_torso + rot * pb4
 
 	pw1 = q[6 .+ (1:3)]
 	pw2 = q[9 .+ (1:3)]
@@ -327,7 +317,7 @@ model = QuadrupedV2{Discrete, FixedTime}(n, m, d,
 			  nothing)
 
 function visualize!(vis, model::QuadrupedV2, q;
-      r = 0.05, Δt = 0.1)
+      r = 0.025, Δt = 0.1)
 
 	default_background!(vis)
 
@@ -374,8 +364,8 @@ function visualize!(vis, model::QuadrupedV2, q;
 		end
 	end
 
-	settransform!(vis["/Cameras/default"],
-	    compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(-pi / 2.0))))
+	# settransform!(vis["/Cameras/default"],
+	#     compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(-pi / 2.0))))
 
 	MeshCat.setanimation!(vis, anim)
 end
@@ -398,10 +388,3 @@ function initial_configuration(model::QuadrupedV2)
 
 	return q1
 end
-
-# q_init = initial_configuration(model)
-#
-# include(joinpath(pwd(), "models/visualize.jl"))
-# vis = Visualizer()
-# render(vis)
-# visualize!(vis, model, [q_init], Δt = 0.1)
