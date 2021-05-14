@@ -46,6 +46,7 @@ function initial_configuration(model::QuadrupedV2; offset = 0.025)
 	return q1
 end
 
+
 q1 = initial_configuration(model)
 visualize!(vis, model, [q1])
 
@@ -72,7 +73,8 @@ q_shift2[16] = strd
 
 qT = copy(qM) + q_shift2
 
-visualize!(vis, model, [linear_interpolation(q1, qM, 31)..., linear_interpolation(qM, qT, 31)[2:end]...])
+q_ref = [q1, linear_interpolation(q1, qM, 30)..., linear_interpolation(qM, qT, 30)...]
+visualize!(vis, model, q_ref)
 
 zh = 0.05
 xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm - T_fix)
@@ -109,10 +111,10 @@ plot!(tr, hcat(pf3_ref...)')
 # ul <= u <= uu
 _uu = Inf * ones(model.m)
 _uu[model.idx_u] .= Inf
-_uu[end] = h
+_uu[end] = 1.0 * h
 _ul = zeros(model.m)
 _ul[model.idx_u] .= -Inf
-_ul[end] = h
+_ul[end] = 1.0 * h
 ul, uu = control_bounds(model, T, _ul, _uu)
 
 xl, xu = state_bounds(model, T,
@@ -156,16 +158,22 @@ function l_stage(x, u, t)
 	# torso height
 	J += 1000.0 * (q2[3] - 0.2)^2.0
 
+	# orientation
+	J += 1000.0 * sum((q2[4:6] - q_ref[t][4:6]).^2.0)
+
+	# forward velocity
+	J += 1000.0 * ((q2[1] - q1[1]) / h - strd / tf)^2.0
+
     if true
 		p1 = q2[6 .+ (1:3)]
 		p2 = q2[9 .+ (1:3)]
 		p3 = q2[12 .+ (1:3)]
 		p4 = q2[15 .+ (1:3)]
 
-		J += 10000.0 * sum((pf1_ref[t] - p1).^2.0)
-		J += 10000.0 * sum((pf2_ref[t] - p2).^2.0)
-		J += 10000.0 * sum((pf3_ref[t] - p3).^2.0)
-		J += 10000.0 * sum((pf4_ref[t] - p4).^2.0)
+		J += 10.0 * sum((pf1_ref[t] - p1).^2.0)
+		J += 10.0 * sum((pf2_ref[t] - p2).^2.0)
+		J += 10.0 * sum((pf3_ref[t] - p3).^2.0)
+		J += 10.0 * sum((pf4_ref[t] - p4).^2.0)
 	end
 
     return J
@@ -179,6 +187,7 @@ obj = MultiObjective([obj_penalty,
                       obj_velocity,
 					  obj_shaping,
 					  obj_ctrl_velocity])
+
 # Constraints
 include_constraints(["stage", "contact", "free_time", "loop"])
 function pinned1!(c, x, u, t)
@@ -229,7 +238,7 @@ z0 = pack(x0, u0, prob)
 # Solve
 @time z̄, info = solve(prob, copy(z0),
     nlp = :ipopt,
-    tol = 1.0e-3, c_tol = 1.0e-3,
+    tol = 1.0e-2, c_tol = 1.0e-2,
 	max_iter = 2000,
     time_limit = 60 * 2, mapl = 5)
 
@@ -284,106 +293,106 @@ plot(hcat(q...)')
 
 [norm(fd(model, [q[t+1]; q[t+2]], [q[t]; q[t+1]], [u[t]; γ[t]; b[t]; hm], zeros(model.d), hm, t)) for t = 1:T-1]
 
-function mirror_gait(q, u, γ, b, ψ, η, T)
-	qm = [deepcopy(q)...]
-	um = [deepcopy(u)...]
-	γm = [deepcopy(γ)...]
-	bm = [deepcopy(b)...]
-	ψm = [deepcopy(ψ)...]
-	ηm = [deepcopy(η)...]
-
-	stride = zero(qm[1])
-	@show stride[1] = q[T+1][1] - q[2][1]
-	@show 0.5 * strd
-
-	p10 = q[2][6 .+ (1:3)]
-	p20 = q[2][9 .+ (1:3)]
-	p30 = q[2][12 .+ (1:3)]
-	p40 = q[2][15 .+ (1:3)]
-
-	@show norm(fd(model, [qm[end-1]; qm[end]], [qm[end-2]; qm[end-1]], [um[end]; γm[end]; bm[end]], zeros(model.d), hm, 1))
-
-	for t = 1:1#T-1
-		# configuration
-		pt = q[t+2][1:3]
-		a = q[t+2][3 .+ (1:3)]
-		p1 = q[t+2][6 .+ (1:3)]
-		# p2 = q[t+2][9 .+ (1:3)]
-		# p3 = q[t+2][12 .+ (1:3)]
-		p4 = q[t+2][15 .+ (1:3)]
-
-		p2_diff = q[t+2][9 .+ (1:3)] - p20
-		p3_diff = q[t+2][12 .+ (1:3)] - p30
-
-		push!(qm, [pt + [0.5 * strd; 0.0; 0.0]; a;
-			p10[1] + p2_diff[1]; q[t+2][8]; p10[3] + p2_diff[3]
-			q[end][9 .+ (1:3)];
-			q[end][12 .+ (1:3)];
-			p40[1] + p3_diff[1]; q[t+2][17]; p40[3] + p3_diff[3];
-			])
-		# push!(qm, q[t+2])
-
-		# control
-		u1 = u[t][1:3]
-		u2 = u[t][3 .+ (1:3)]
-		u3 = u[t][6 .+ (1:3)]
-		u4 = u[t][9 .+ (1:3)]
-		push!(um, [u2; u1; u4; u3])
-
-		# impact
-		γ1 = γ[t][1]
-		γ2 = γ[t][2]
-		γ3 = γ[t][3]
-		γ4 = γ[t][4]
-		push!(γm, [γ2; γ1; γ4; γ3])
-		# push!(γm, γ[t])
-
-		# friction
-		b1 = b[t][1:4]
-		b2 = b[t][4 .+ (1:4)]
-		b3 = b[t][8 .+ (1:4)]
-		b4 = b[t][12 .+ (1:4)]
-		push!(bm, [b2; b1; b4; b3])
-		# push!(bm, b[t])
-
-		# dual
-		ψ1 = ψ[t][1]
-		ψ2 = ψ[t][2]
-		ψ3 = ψ[t][3]
-		ψ4 = ψ[t][4]
-		push!(ψm, [ψ2; ψ1; ψ4; ψ3])
-		# push!(ψm, ψ[t])
-
-		# dual
-		η1 = η[t][1:4]
-		η2 = η[t][4 .+ (1:4)]
-		η3 = η[t][8 .+ (1:4)]
-		η4 = η[t][12 .+ (1:4)]
-		push!(ηm, [η2; η1; η4; η3])
-		# push!(ηm, η[t])
-
-		@show norm(fd(model, [qm[end-1]; qm[end]], [qm[end-2]; qm[end-1]], [um[end]; γm[end]; bm[end]], zeros(model.d), hm, 1))
-	end
-
-	return qm, um, γm, bm, ψm, ηm
-end
-
-qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
-
-# @save joinpath(@__DIR__, "quadruped_v2_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
-
+# function mirror_gait(q, u, γ, b, ψ, η, T)
+# 	qm = [deepcopy(q)...]
+# 	um = [deepcopy(u)...]
+# 	γm = [deepcopy(γ)...]
+# 	bm = [deepcopy(b)...]
+# 	ψm = [deepcopy(ψ)...]
+# 	ηm = [deepcopy(η)...]
+#
+# 	stride = zero(qm[1])
+# 	@show stride[1] = q[T+1][1] - q[2][1]
+# 	@show 0.5 * strd
+#
+# 	p10 = q[2][6 .+ (1:3)]
+# 	p20 = q[2][9 .+ (1:3)]
+# 	p30 = q[2][12 .+ (1:3)]
+# 	p40 = q[2][15 .+ (1:3)]
+#
+# 	@show norm(fd(model, [qm[end-1]; qm[end]], [qm[end-2]; qm[end-1]], [um[end]; γm[end]; bm[end]], zeros(model.d), hm, 1))
+#
+# 	for t = 1:1#T-1
+# 		# configuration
+# 		pt = q[t+2][1:3]
+# 		a = q[t+2][3 .+ (1:3)]
+# 		p1 = q[t+2][6 .+ (1:3)]
+# 		# p2 = q[t+2][9 .+ (1:3)]
+# 		# p3 = q[t+2][12 .+ (1:3)]
+# 		p4 = q[t+2][15 .+ (1:3)]
+#
+# 		p2_diff = q[t+2][9 .+ (1:3)] - p20
+# 		p3_diff = q[t+2][12 .+ (1:3)] - p30
+#
+# 		push!(qm, [pt + [0.5 * strd; 0.0; 0.0]; a;
+# 			p10[1] + p2_diff[1]; q[t+2][8]; p10[3] + p2_diff[3]
+# 			q[end][9 .+ (1:3)];
+# 			q[end][12 .+ (1:3)];
+# 			p40[1] + p3_diff[1]; q[t+2][17]; p40[3] + p3_diff[3];
+# 			])
+# 		# push!(qm, q[t+2])
+#
+# 		# control
+# 		u1 = u[t][1:3]
+# 		u2 = u[t][3 .+ (1:3)]
+# 		u3 = u[t][6 .+ (1:3)]
+# 		u4 = u[t][9 .+ (1:3)]
+# 		push!(um, [u2; u1; u4; u3])
+#
+# 		# impact
+# 		γ1 = γ[t][1]
+# 		γ2 = γ[t][2]
+# 		γ3 = γ[t][3]
+# 		γ4 = γ[t][4]
+# 		push!(γm, [γ2; γ1; γ4; γ3])
+# 		# push!(γm, γ[t])
+#
+# 		# friction
+# 		b1 = b[t][1:4]
+# 		b2 = b[t][4 .+ (1:4)]
+# 		b3 = b[t][8 .+ (1:4)]
+# 		b4 = b[t][12 .+ (1:4)]
+# 		push!(bm, [b2; b1; b4; b3])
+# 		# push!(bm, b[t])
+#
+# 		# dual
+# 		ψ1 = ψ[t][1]
+# 		ψ2 = ψ[t][2]
+# 		ψ3 = ψ[t][3]
+# 		ψ4 = ψ[t][4]
+# 		push!(ψm, [ψ2; ψ1; ψ4; ψ3])
+# 		# push!(ψm, ψ[t])
+#
+# 		# dual
+# 		η1 = η[t][1:4]
+# 		η2 = η[t][4 .+ (1:4)]
+# 		η3 = η[t][8 .+ (1:4)]
+# 		η4 = η[t][12 .+ (1:4)]
+# 		push!(ηm, [η2; η1; η4; η3])
+# 		# push!(ηm, η[t])
+#
+# 		@show norm(fd(model, [qm[end-1]; qm[end]], [qm[end-2]; qm[end-1]], [um[end]; γm[end]; bm[end]], zeros(model.d), hm, 1))
+# 	end
+#
+# 	return qm, um, γm, bm, ψm, ηm
+# end
+#
+# qm, um, γm, bm, ψm, ηm = mirror_gait(q, u, γ, b, ψ, η, T)
+#
+# # @save joinpath(@__DIR__, "quadruped_v2_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
+#
 plot(hcat(q...)', color = :black, width = 2.0, label = "")
 plot!(hcat(qm...)', color = :red, width = 1.0, label = "")
-
-plot(hcat(u...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-plot!(hcat(um...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-
-plot(hcat(γ...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-plot!(hcat(γm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
-
-plot(hcat(b...)', color = :black, width = 2.0, label = "", linetype = :steppost)
-plot!(hcat(bm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
 #
+plot(hcat(u...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+# plot!(hcat(um...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+#
+plot(hcat(γ...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+# plot!(hcat(γm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+#
+plot(hcat(b...)', color = :black, width = 2.0, label = "", linetype = :steppost)
+# plot!(hcat(bm...)', color = :red, width = 1.0, label = "", linetype = :steppost)
+# #
 # function get_q_viz(q̄)
 # 	q_viz = [q̄...]
 # 	shift_vec = zeros(model.nq)

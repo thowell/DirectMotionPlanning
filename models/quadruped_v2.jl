@@ -52,17 +52,27 @@ ns = 1
 μ = 0.5      # coefficient of friction
 g = 9.81     # gravity
 
-# ~Unitree A1
-mf = 0.01
+# # ~Unitree A1
+# mf = 0.01
+#
+# # TRUCK ONLY TODO: parallel axis theorem to add shoulders
+# mb = 4.713
+# Ix = 0.01683993
+# Iy = 0.056579028
+# Iz = 0.064713601
+#
+# l_torso = 0.5 * 0.267 # dimension from com
+# w_torso = 0.5 * 0.194 # dimension from com
 
-# TRUCK ONLY TODO: parallel axis theorem to add shoulders
-mb = 4.713
-Ix = 0.01683993
-Iy = 0.056579028
-Iz = 0.064713601
+## Mini Cheetah
+mb = 9.0
+mf = 0.1 * mb
+Ix = 0.07
+Iy = 0.26
+Iz = 0.242
 
-l_torso = 0.5 * 0.267 # dimension from com
-w_torso = 0.5 * 0.194 # dimension from com
+l_torso = 0.5 * 0.38 # dimension from com
+w_torso = 0.5 * 0.203 # dimension from com
 
 n = 2 * nq
 m = nu + nc + nb + nc + nb + ns
@@ -152,15 +162,15 @@ function B_func(model::QuadrupedV2, q)
 end
 
 function N_func(model::QuadrupedV2, q)
-	p_torso = q[1:3]
-
-	rot = MRP(q[4:6]...)
-
-	# r in world frame
-	r1 = q[6 .+ (1:3)] - p_torso
-	r2 = q[9 .+ (1:3)] - p_torso
-	r3 = q[12 .+ (1:3)] - p_torso
-	r4 = q[15 .+ (1:3)] - p_torso
+	# p_torso = q[1:3]
+	#
+	# rot = MRP(q[4:6]...)
+	#
+	# # r in world frame
+	# r1 = q[6 .+ (1:3)] - p_torso
+	# r2 = q[9 .+ (1:3)] - p_torso
+	# r3 = q[12 .+ (1:3)] - p_torso
+	# r4 = q[15 .+ (1:3)] - p_torso
 
 	z3 = zeros(3, 3)
 
@@ -175,15 +185,15 @@ function N_func(model::QuadrupedV2, q)
 end
 
 function _P_func(model::QuadrupedV2, q)
-	p_torso = q[1:3]
-
-	rot = MRP(q[4:6]...)
-
-	# r in world frame
-	r1 = q[6 .+ (1:3)] - p_torso
-	r2 = q[9 .+ (1:3)] - p_torso
-	r3 = q[12 .+ (1:3)] - p_torso
-	r4 = q[15 .+ (1:3)] - p_torso
+	# p_torso = q[1:3]
+	#
+	# rot = MRP(q[4:6]...)
+	#
+	# # r in world frame
+	# r1 = q[6 .+ (1:3)] - p_torso
+	# r2 = q[9 .+ (1:3)] - p_torso
+	# r3 = q[12 .+ (1:3)] - p_torso
+	# r4 = q[15 .+ (1:3)] - p_torso
 
 	z3 = zeros(3, 3)
 
@@ -356,7 +366,7 @@ function visualize!(vis, model::QuadrupedV2, q;
 			p_foot3 = q[t][12 .+ (1:3)] + p_shift
 			p_foot4 = q[t][15 .+ (1:3)] + p_shift
 
-			settransform!(vis["torso"], Translation(p_torso))
+			settransform!(vis["torso"], compose(Translation(p_torso), LinearMap(MRP(q[t][4:6]...))))
 			settransform!(vis["feet1"], Translation(p_foot1))
 			settransform!(vis["feet2"], Translation(p_foot2))
 			settransform!(vis["feet3"], Translation(p_foot3))
