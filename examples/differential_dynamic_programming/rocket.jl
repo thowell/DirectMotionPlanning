@@ -23,7 +23,7 @@ x1[3] = 10.0
 mrp = MRP(RotY(-0.5 * π) * RotX(0.25 * π))
 x1[4:6] = [mrp.x; mrp.y; mrp.z]
 
-visualize!(vis, model, [x1], Δt = h)
+# visualize!(vis, model, [x1], Δt = h)
 
 xT = zeros(model.n)
 # xT[1] = 2.5
@@ -40,12 +40,12 @@ x̄ = rollout(model, x1, ū, w, h, T)
 # plot(hcat(x̄...)')
 
 # Objective
-Q = [(t < T ? 1.0 * Diagonal([1.0e-3 * ones(3); 0.0 * ones(3); 1.0e-3 * ones(3); 10.0 * ones(3)])
+Q = h * [(t < T ? 1.0 * Diagonal([1.0e-1 * ones(3); 0.0 * ones(3); 1.0e-1 * ones(3); 1000.0 * ones(3)])
         : 0.0 * Diagonal(0.0 * ones(model.n))) for t = 1:T]
-q = [-2.0 * Q[t] * xT for t = 1:T]
+q = h * [-2.0 * Q[t] * xT for t = 1:T]
 
-R = [Diagonal([100.0; 100.0; 1.0]) for t = 1:T-1]
-r = [-2.0 * R[t] * u_ref  for t = 1:T-1]
+R = h * [Diagonal([10000.0; 10000.0; 100.0]) for t = 1:T-1]
+r = h * [-2.0 * R[t] * u_ref  for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
 	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
@@ -110,3 +110,20 @@ vis = Visualizer()
 render(vis)
 # open(vis)
 visualize!(vis, model, x̄, Δt = h)
+
+ū_fixed_time = ū
+
+# Visualize
+obj_rocket = joinpath(pwd(), "models/starship/Starship.obj")
+mtl_rocket = joinpath(pwd(), "models/starship/Starship.mtl")
+ctm = ModifiedMeshFileObject(obj_rocket, mtl_rocket, scale=1.0)
+setobject!(vis["rocket"]["starship"], ctm)
+
+settransform!(vis["rocket"]["starship"],
+	compose(Translation(0.0, 0.0, -model.length),
+		LinearMap(0.25 * RotY(0.0) * RotZ(0.5 * π) * RotX(0.5 * π))))
+
+default_background!(vis)
+settransform!(vis["rocket"],
+	compose(Translation(0.0, 0.0, 0.0),
+	LinearMap(RotY(0.0))))

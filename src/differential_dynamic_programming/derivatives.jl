@@ -101,15 +101,15 @@ function objective_derivatives!(obj::AugmentedLagrangianCosts, data::ModelData)
     constraints_derivatives!(obj.cons, data)
 
     for t = 1:T-1
-        gx[t] .+= cx[t]' * (λ[t] + ρ * a[t] .* c[t])
-        gu[t] .+= cu[t]' * (λ[t] + ρ * a[t] .* c[t])
-        gxx[t] .+= ρ * cx[t]' * Diagonal(a[t]) * cx[t]
-        guu[t] .+= ρ * cu[t]' * Diagonal(a[t]) * cu[t]
-        gux[t] .+= ρ * cu[t]' * Diagonal(a[t]) * cx[t]
+        gx[t] .+= cx[t]' * (λ[t] + ρ[t] .* a[t] .* c[t])
+        gu[t] .+= cu[t]' * (λ[t] + ρ[t] .* a[t] .* c[t])
+        gxx[t] .+= cx[t]' * Diagonal(ρ[t] .* a[t]) * cx[t]
+        guu[t] .+= cu[t]' * Diagonal(ρ[t] .* a[t]) * cu[t]
+        gux[t] .+= cu[t]' * Diagonal(ρ[t] .* a[t]) * cx[t]
     end
 
-    gx[T] .+= cx[T]' * (λ[T] + ρ * a[T] .* c[T])
-    gxx[T] .+= ρ * cx[T]' * Diagonal(a[T]) * cx[T]
+    gx[T] .+= cx[T]' * (λ[T] + ρ[T] .* a[T] .* c[T])
+    gxx[T] .+= cx[T]' * Diagonal(ρ[T] .* a[T]) * cx[T]
 end
 
 function derivatives!(m_data::ModelData)

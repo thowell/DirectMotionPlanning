@@ -12,16 +12,17 @@ n = model.n
 m = model.m
 
 # Time
-T = 251
-h = 0.01
+T = 101
+h = 0.1
 
 # Initial conditions, controls, disturbances
 x1 = zeros(model.n)
 x1[3] = 1.0
 
 xT = copy(x1)
-xT[1] = 2.5
+# xT[1] = 2.5
 xT[2] = 0.0
+xT[3] = 5.0
 
 u_ref = -1.0 * model.mass * model.g[3] / 4.0 * ones(model.m)
 ū = [u_ref + 0.0 * randn(model.m) for t = 1:T-1]
@@ -33,12 +34,12 @@ x̄ = rollout(model, x1, ū, w, h, T)
 # plot(hcat(x̄...)')
 
 # Objective
-Q = [(t < T ? 0.0 * Diagonal(1.0e-3 * ones(model.n))
-        : 0.0 * Diagonal(1.0 * ones(model.n))) for t = 1:T]
-q = [-2.0 * Q[t] * xT for t = 1:T]
+Q = h * [(t < T ? Diagonal([1.0 * ones(6); 100.0 * ones(6)])
+        : Diagonal([0.0 * ones(6); 0.0 * ones(6)])) for t = 1:T]
+q = h * [-2.0 * Q[t] * xT for t = 1:T]
 
-R = [Diagonal(1.0 * ones(model.m)) for t = 1:T-1]
-r = [-2.0 * R[t] * u_ref  for t = 1:T-1]
+R = h * [Diagonal(1.0e-3 * ones(model.m)) for t = 1:T-1]
+r = h * [-2.0 * R[t] * u_ref * 0.0 for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
 	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
@@ -62,7 +63,7 @@ end
 
 # Constraints
 p = [t < T ? 2 * m : n for t = 1:T]
-info_t = Dict(:ul => zeros(model.m), :uu => 3.0 * ones(model.m), :inequality => (1:2 * m))
+info_t = Dict(:ul => zeros(model.m), :uu => 5.0 * ones(model.m), :inequality => (1:2 * m))
 info_T = Dict(:xT => xT)
 con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
 
@@ -86,7 +87,7 @@ prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T)
 
 # Solve
 @time constrained_ddp_solve!(prob,
-    max_iter = 1000, max_al_iter = 7,
+    max_iter = 1000, max_al_iter = 10,
 	con_tol = 1.0e-3,
 	ρ_init = 1.0, ρ_scale = 10.0)
 

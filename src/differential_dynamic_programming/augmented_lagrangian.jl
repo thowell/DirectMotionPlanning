@@ -1,14 +1,15 @@
-mutable struct AugmentedLagrangianCosts{T} <: Objective
+mutable struct AugmentedLagrangianCosts <: Objective
     costs::StageCosts
     cons::Constraints
-    ρ::T       # penalty
+    ρ::Vector  # penalty
     λ::Vector  # dual estimates
-    a::Vector # active set
+    a::Vector  # active set
 end
 
-function augmented_lagrangian(costs::StageCosts, cons::Constraints; ρ = 0.0)
+function augmented_lagrangian(costs::StageCosts, cons::Constraints)
     λ = [zeros(cons.con[t].p) for t = 1:cons.T]
     a = [ones(cons.con[t].p) for t = 1:cons.T]
+    ρ = [ones(cons.con[t].p) for t = 1:cons.T]
     AugmentedLagrangianCosts(costs, cons, ρ, λ, a)
 end
 
@@ -28,7 +29,7 @@ function objective(obj::AugmentedLagrangianCosts, x, u)
 
     for t = 1:T
         J += λ[t]' * c[t]
-        J += 0.5 * ρ * c[t]' * Diagonal(a[t]) * c[t]
+        J += 0.5 * c[t]' * Diagonal(ρ[t] .* a[t]) * c[t]
     end
 
     return J
@@ -53,7 +54,7 @@ function active_set!(a, cons::StageConstraints, λ)
 end
 
 function augmented_lagrangian_update!(obj::AugmentedLagrangianCosts;
-        s = 10.0, max_penalty = 1.0e8)
+        s = 10.0, max_penalty = 1.0e12)
     # constraints
     T = obj.cons.T
     c = obj.cons.data.c
@@ -63,14 +64,13 @@ function augmented_lagrangian_update!(obj::AugmentedLagrangianCosts;
 
     for t = 1:T
         # dual estimate update
-        λ[t] .+= ρ * c[t]
+        λ[t] .+= ρ[t] .* c[t]
 
         # inequality projection
         if haskey(obj.cons.con[t].info, :inequality)
             idx = obj.cons.con[t].info[:inequality]
             λ[t][idx] = max.(0.0, view(λ[t], idx))
         end
+        ρ[t] .= min.(s .* ρ[t], max_penalty)
     end
-
-    obj.ρ = min(s * obj.ρ, max_penalty)
 end

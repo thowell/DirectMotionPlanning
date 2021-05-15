@@ -49,16 +49,29 @@ model = Rocket3D{Midpoint, FixedTime}(n, m, d,
                   @SVector[0.0, 0.0, -9.81],
                   len)
 
-function visualize!(vis, p::Rocket3D, q; Δt = 0.1)
+function visualize!(vis, p::Rocket3D, q; Δt = 0.1, mesh = true)
 	default_background!(vis)
 
-	body = Cylinder(Point3f0(0.0, 0.0, -1.0 * model.length),
-		Point3f0(0.0, 0.0, 1.0 * model.length),
-		convert(Float32, 0.15))
+	if mesh
+		obj_rocket = joinpath(pwd(), "models/starship/Starship.obj")
+		mtl_rocket = joinpath(pwd(), "models/starship/Starship.mtl")
+		ctm = ModifiedMeshFileObject(obj_rocket, mtl_rocket, scale=1.0)
+		setobject!(vis["rocket"]["starship"], ctm)
 
-	setobject!(vis["rocket"], body,
-		MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
-		anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
+		settransform!(vis["rocket"]["starship"],
+			compose(Translation(0.0, 0.0, -p.length),
+				LinearMap(0.25 * RotY(0.0) * RotZ(0.5 * π) * RotX(0.5 * π))))
+	else
+		body = Cylinder(Point3f0(0.0, 0.0, -1.0 * model.length),
+			Point3f0(0.0, 0.0, 1.0 * model.length),
+			convert(Float32, 0.15))
+
+		setobject!(vis["rocket"], body,
+			MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
+			anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
+	end
+
+	anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
 
 	for t = 1:length(q)
 	    MeshCat.atframe(anim, t) do

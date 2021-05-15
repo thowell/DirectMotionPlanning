@@ -89,7 +89,9 @@ function constrained_ddp_solve!(prob::ProblemData;
 		color = :red, bold = true)
 
 	# initial penalty
-	prob.m_data.obj.ρ = ρ_init
+	for (t, ρ) in enumerate(prob.m_data.obj.ρ)
+		prob.m_data.obj.ρ[t] = ρ_init .* ρ
+	end
 
 	for i = 1:max_al_iter
 		verbose && println("  al iter: $i")
