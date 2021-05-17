@@ -20,7 +20,7 @@ x1 = zeros(model.n)
 x1[1] = 1.0
 x1[2] = 1.0
 x1[3] = 10.0
-mrp = MRP(RotY(-0.5 * π) * RotX(0.25 * π))
+mrp = MRP(RotY(-0.5 * π) * RotX(0.0 * π))
 x1[4:6] = [mrp.x; mrp.y; mrp.z]
 
 # visualize!(vis, model, [x1], Δt = h)
