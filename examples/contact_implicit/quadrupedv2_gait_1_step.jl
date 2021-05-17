@@ -6,7 +6,8 @@ model = free_time_model(model)
 
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
-render(vis)
+open(vis)
+# render(vis)
 
 # Horizon
 T = 61
@@ -14,7 +15,7 @@ Tm = 31
 T_fix = 5
 
 # Time step
-tf = 0.5
+tf = 1.0
 h = tf / (T - 1)
 
 function ellipse_traj(x_start, x_goal, z, T)
@@ -22,10 +23,19 @@ function ellipse_traj(x_start, x_goal, z, T)
 	a = 0.5 * dist
 	b = z
 	z̄ = 0.0
-	x = range(x_start, stop = x_goal, length = T)
+	# x = range(x_start, stop = x_goal, length = T)
+	x = circular_projection_range(x_start, stop = x_goal, length = T)
 	z = sqrt.(max.(0.0, (b^2) * (1.0 .- ((x .- (x_start + a)).^2.0) / (a^2.0))))
 	return x, z
 end
+
+function circular_projection_range(start; stop=1.0, length=10)
+	dist = stop - start
+	θr = range(π, stop=0, length=length)
+	r = start .+ dist * ((1 .+ cos.(θr))./2)
+	return r
+end
+
 
 function initial_configuration(model::QuadrupedV2; offset = 0.025)
 	q1 = zeros(model.nq)
@@ -123,7 +133,7 @@ xl, xu = state_bounds(model, T,
 # Objective
 include_objective(["velocity", "nonlinear_stage", "control_velocity"])
 q_ref = linear_interpolation(q1, qT, T+1)
-render(vis)
+# render(vis)
 visualize!(vis, model, q_ref, Δt = h)
 x0 = configuration_to_state(q_ref)
 
@@ -134,7 +144,7 @@ obj_penalty = PenaltyObjective(1.0e4, model.m - 1)
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
 obj_control = quadratic_time_tracking_objective(
     [1.0 * Diagonal(1.0e-1 * ones(model.n)) for t = 1:T],
-    [1.0 * Diagonal([1.0e-3 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]) for t = 1:T-1],
+    [1.0 * Diagonal([1.0e-1 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]) for t = 1:T-1],
     [[qT; qT] for t = 1:T],
     [zeros(model.m) for t = 1:T],
     1.0)
@@ -170,10 +180,10 @@ function l_stage(x, u, t)
 		p3 = q2[12 .+ (1:3)]
 		p4 = q2[15 .+ (1:3)]
 
-		J += 10000.0 * sum((pf1_ref[t] - p1).^2.0)
-		J += 10000.0 * sum((pf2_ref[t] - p2).^2.0)
-		J += 10000.0 * sum((pf3_ref[t] - p3).^2.0)
-		J += 10000.0 * sum((pf4_ref[t] - p4).^2.0)
+		J += 1000.0 * sum((pf1_ref[t] - p1).^2.0)
+		J += 1000.0 * sum((pf2_ref[t] - p2).^2.0)
+		J += 1000.0 * sum((pf3_ref[t] - p3).^2.0)
+		J += 1000.0 * sum((pf4_ref[t] - p4).^2.0)
 	end
 
     return J
@@ -249,8 +259,8 @@ _tf, _t, h̄ = get_time(ū)
 @show h̄[1]
 
 
-vis = Visualizer()
-render(vis)
+# vis = Visualizer()
+# render(vis)
 visualize!(vis, model, state_to_configuration(x̄), Δt = h̄[1])
 
 # check foot trajectories
@@ -286,7 +296,7 @@ hm = mean(h̄)
 μm = model.μ
 
 qm = q; um = u; γm = γ; bm = b; ψm = ψ; ηm = η;
-@save joinpath(@__DIR__, "quadruped_v2_mirror_gait_fast2.jld2") qm um γm bm ψm ηm μm hm
+@save joinpath(@__DIR__, "quadruped_v2_mirror_gait.jld2") qm um γm bm ψm ηm μm hm
 
 plot(hcat(q...)')
 plot(hcat(q...)')
@@ -406,8 +416,8 @@ plot(hcat(b...)', color = :black, width = 2.0, label = "", linetype = :steppost)
 # 	return q_viz
 # end
 
-vis = Visualizer()
-render(vis)
+# vis = Visualizer()
+# render(vis)
 visualize!(vis, model,
 	qm,
 	Δt = h̄[1])
@@ -415,3 +425,4 @@ visualize!(vis, model,
 settransform!(vis["/Cameras/default"],
         compose(Translation(0.0, -25.0, -1.0), LinearMap(RotY(0.0 * π) * RotZ(-π / 2.0))))
 setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 20)
+# open(vis)
