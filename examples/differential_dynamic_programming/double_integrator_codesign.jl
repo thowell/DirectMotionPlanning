@@ -8,45 +8,40 @@ include_ddp()
 include_model("double_integrator")
 
 function f(model::DoubleIntegratorContinuous, x, u, w)
-    [x[2] + w[1]; (1.0 + w[3]) * u[1] + w[2]]
+    [x[2]; w[1] * u[1]]
 end
 
 function fd(model::DoubleIntegratorContinuous{Midpoint, FixedTime}, x, u, w, h, t)
 	if t == 1
-		x1 = u[2:3]
-    	return x1 + h * f(model, x1 + 0.5 * h * f(model, x1, u, w), u, w)
+		w = u[2:2]
+    	return [x + h * f(model, x + 0.5 * h * f(model, x, view(u, 1:1), w), view(u, 1:1), w); w]
 	else
-		return x + h * f(model, x + 0.5 * h * f(model, x, u, w), u, w)
+		w = x[3:3]
+		return [view(x, 1:2) + h * f(model, view(x, 1:2) + 0.5 * h * f(model, view(x, 1:2), u, w), u, w); w]
 	end
 end
 
-T = 101
+# Time
+T = 11
 h = 0.1
 
-model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 1, 3)
-n = [model.n for t = 1:T]
-m = [t == 1 ? model.m + model.n : model.m for t = 1:T]
-
-# Time
-
-z = range(0.0, stop = 3.0 * 2.0 * π, length = T)
-p_ref = 1.0 * cos.(1.0 * z)
-plot(z, p_ref)
+model = DoubleIntegratorContinuous{Midpoint, FixedTime}(2, 1, 1)
+n = [t == 1 ? model.n : model.n + 1 for t = 1:T]
+m = [t == 1 ? model.m + 1 : model.m for t = 1:T]
 
 # Initial conditions, controls, disturbances
-x1 = [p_ref[1]; 0.0]
-x1_alt = [0.0; 0.0]
-xT = [[p_ref[t]; 0.0] for t = 1:T]
-ū = [rand(m[t]) for t = 1:T-1]
+x1 = [0.0; 0.0]
+xT = [1.0; 0.0]
+ū = [t == 1 ? [0.01 * randn(1); 1.0] : 0.01 * randn(1) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
 x̄ = rollout(model, x1, ū, w, h, T)
 
 # Objective
-Q = [(t < T ? h : 1.0) * Diagonal([100.0; 0.1]) for t = 1:T]
-q = [-2.0 * Q[t] * xT[t] for t = 1:T]
-R = [h * Diagonal(0.01 * ones(m[t])) for t = 1:T-1]
+Q = [(t < T ? h : 1.0) * 0.0 * (t > 1 ? Diagonal([1.0; 0.1; 0.0]) : Diagonal([1.0; 0.1]) ) for t = 1:T]
+q = [-2.0 * Q[t] * (t > 1 ? [xT; 1.0] : xT) for t = 1:T]
+R = [h * Diagonal(1.0 * (t == 1 ? ones(2) : ones(1))) for t = 1:T-1]
 r = [zeros(m[t]) for t = 1:T-1]
 obj = StageCosts([QuadraticCost(Q[t], q[t],
 	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
@@ -68,21 +63,21 @@ function g(obj::StageCosts, x, u, t)
     end
 end
 
-g(obj, x̄[1], ū[1], 1)
-g(obj, x̄[2], ū[2], 2)
-g(obj, x̄[T], nothing, T)
-objective(obj, x̄, ū)
-
 # Constraints
-p = [t == 1 ? n[1] : 0 for t = 1:T]
-info_t = Dict(:x1 => x1_alt)#:ul => [-5.0], :uu => [5.0], :inequality => (1:2 * m))
-info_T = Dict()#:xT => xT)
-con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
+p = [t == 1 ? 2 : (t == T ? 2 : 0) for t = 1:T]
+info_1 = Dict(:pl => [-5.0], :pu => [5.0], :inequality => (1:2))
+info_t = Dict()
+info_T = Dict(:xT => xT)
+con_set = [StageConstraint(p[t], t < T ? (t == 1 ? info_1 : info_t) : info_T) for t = 1:T]
 
 function c!(c, cons::StageConstraints, x, u, t)
 	T = cons.T
 	if t == 1
-		c .= view(u, 2:3) - cons.con[t].info[:x1]
+		c[1:1] .= view(u, 2:2) - cons.con[t].info[:pu]
+		c[2:2] = cons.con[t].info[:pl] - view(u, 2:2)
+	end
+	if t == T
+		c[1:2] .= view(x, 1:2) - cons.con[t].info[:xT]
 	end
 end
 
@@ -100,12 +95,7 @@ prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T, n = n, m
 x, u = current_trajectory(prob)
 x̄, ū = nominal_trajectory(prob)
 
-x[1] = u[1][2:3]
-x̄[1] = ū[1][2:3]
-
 # Visualize
 using Plots
-plot(hcat([[p_ref[t]; 0.0] for t = 1:T]...)',
-    width = 2.0, color = :black, label = "")
-plot!(hcat(x...)[:, 1:T]', color = :magenta, label = "")
-# plot(hcat(u..., u[end])', linetype = :steppost)
+plot(hcat([xt[1:2] for xt in x]...)[:, 1:T]', color = :black, label = "")
+plot(hcat([ut[1:1] for ut in u]...)[:, 1:T-1]', color = :black, label = "", linetype = :steppost)

@@ -333,7 +333,7 @@ function visualize!(vis, model::QuadrupedV2, q;
 	default_background!(vis)
 
 	setobject!(vis["torso"],
-    	Rect(Vec(-model.l_torso, -model.w_torso, -0.05),Vec(2.0 * model.l_torso, 2.0 * model.w_torso, 0.05)),
+    	Rect(Vec(-model.l_torso, -model.w_torso, -0.025),Vec(2.0 * model.l_torso, 2.0 * model.w_torso, 0.05)),
     	MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
 
 	feet1 = setobject!(vis["feet1"], Sphere(Point3f0(0),
