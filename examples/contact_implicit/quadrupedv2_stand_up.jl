@@ -11,8 +11,8 @@ open(vis)
 
 # Horizon
 T = 61
-Tm = 31
-T_fix = 5
+Tm = 15
+T_fix = 0#5
 
 # Time step
 tf = 1.0
@@ -174,21 +174,21 @@ obj_penalty = PenaltyObjective(1.0e4, model.m - 1)
 # Σ (x - xref)' Q (x - x_ref) + (u - u_ref)' R (u - u_ref)
 obj_control = quadratic_time_tracking_objective(
     [1.0 * Diagonal(1.0e-1 * ones(model.n)) for t = 1:T],
-    [1.0 * Diagonal([1.0e-1 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]) for t = 1:T-1],
+    [1.0 * Diagonal([1.0e-5 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]) for t = 1:T-1],
     [x_ref[t] for t = 1:T],
     [zeros(model.m) for t = 1:T],
     1.0)
 
 # quadratic velocity penalty
 #Σ v' Q v
-v_penalty = 1.0e-2 * ones(model.nq)
+v_penalty = 1.0e-1 * ones(model.nq)
 obj_velocity = velocity_objective(
     [h * Diagonal(v_penalty) for t = 1:T-1],
     model.nq,
     h = h,
     idx_angle = collect([3, 4, 5]))
 
-obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-3 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]))
+obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]))
 
 function l_stage(x, u, t)
 	q1 = view(x, 1:18)
@@ -205,15 +205,17 @@ function l_stage(x, u, t)
 	# J += 1000.0 * ((q2[1] - q1[1]) / h - strd / tf)^2.0
 
     if true
+		J += 1000.0 * sum((q_ref[t][1:6] - q2[1:6]).^2.0)
+
 		p1 = q2[6 .+ (1:3)]
 		p2 = q2[9 .+ (1:3)]
 		p3 = q2[12 .+ (1:3)]
 		p4 = q2[15 .+ (1:3)]
 
-		J += 1000.0 * sum((pf1_ref[t] - p1).^2.0)
-		J += 1000.0 * sum((pf2_ref[t] - p2).^2.0)
-		J += 1000.0 * sum((pf3_ref[t] - p3).^2.0)
-		J += 1000.0 * sum((pf4_ref[t] - p4).^2.0)
+		J += 100.0 * sum((q_ref[t][6 .+ (1:3)] - p1).^2.0)
+		J += 100.0 * sum((q_ref[t][9 .+ (1:3)] - p2).^2.0)
+		J += 10000.0 * sum((pf3_ref[t] - p3).^2.0)
+		J += 100.0 * sum((q_ref[t][15 .+ (1:3)] - p4).^2.0)
 	end
 
     return J
@@ -233,24 +235,26 @@ include_constraints(["stage", "contact", "free_time", "loop"])
 function pinned1!(c, x, u, t)
     q = view(x, 1:18)
     # c[1:3] = pf1_ref[t] - q[6 .+ (1:3)]
-    c[1:3] = pf4_ref[t] - q[15 .+ (1:3)]
+    c[1:3] = q_ref[t][15 .+ (1:3)] - q[15 .+ (1:3)]
     nothing
 end
 
-# function pinned2!(c, x, u, t)
-#     q = view(x, 1:18)
-# 	# c[1:3] = pf2_ref[t] - q[9 .+ (1:3)]
-#     # c[1:3] = pf3_ref[t] - q[12 .+ (1:3)]
-#     nothing
-# end
+function pinned2!(c, x, u, t)
+    q = view(x, 1:18)
+	# c[1:3] = pf2_ref[t] - q[9 .+ (1:3)]
+    c[1:3] = q_ref[t][12 .+ (1:3)] - q[12 .+ (1:3)]
+    nothing
+end
 
 n_stage = 3
 # t_idx1 = vcat([t for t = 1:Tm + T_fix])
 # t_idx2 = vcat([t for t = 1:T_fix]..., [t for t = Tm:T]...)
-t_idx = vcat([t for t = 1:T])
+t_idx1 = vcat([t for t = 1:T])
+t_idx2 = vcat([t for t = Tm:T])
 # con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 # con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
-con_pinned = stage_constraints(pinned1!, n_stage, (1:0), t_idx)
+con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
+con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 
 con_contact = contact_constraints(model, T)
 con_free_time = free_time_constraints(T)
@@ -259,7 +263,7 @@ con_free_time = free_time_constraints(T)
 
 con = multiple_constraints([con_contact,
 	# con_loop1, con_loop2,
-    con_free_time, con_pinned])#, con_pinned2])
+    con_free_time, con_pinned1, con_pinned2])
 
 # Problem
 prob = trajectory_optimization_problem(model,
@@ -290,10 +294,9 @@ q̄ = state_to_configuration(x̄)
 _tf, _t, h̄ = get_time(ū)
 @show h̄[1]
 
-
 # vis = Visualizer()
 # render(vis)
-visualize!(vis, model, state_to_configuration(x̄), Δt = h̄[1])
+visualize!(vis, model, [[q̄[1] for t = 1:50]..., q̄..., [q̄[end] for t = 1:50]...], Δt = h̄[1])
 
 # check foot trajectories
 _pf1_ref = [q[6 .+ (1:3)] for q in q̄]
@@ -302,16 +305,16 @@ _pf2_ref = [q[9 .+ (1:3)]  for q in q̄]
 _pf3_ref = [q[12 .+ (1:3)]  for q in q̄]
 _pf4_ref = [q[15 .+ (1:3)]  for q in q̄]
 
-plot(hcat(pf1_ref...)', width = 2.0, color = :black)
+plot(hcat([q[6 .+ (1:3)] for q in q_ref]...)', width = 2.0, color = :black)
 plot!(hcat(_pf1_ref...)', color = :red)
 
-plot(hcat(pf2_ref...)', width = 2.0, color = :black)
+plot(hcat([q[9 .+ (1:3)]  for q in q_ref]...)', width = 2.0, color = :black)
 plot!(hcat(_pf2_ref...)', color = :red)
 
 plot(hcat(pf3_ref...)', width = 2.0, color = :black)
 plot!(hcat(_pf3_ref...)', color = :red)
 
-plot(hcat(pf4_ref...)', width = 2.0, color = :black)
+plot(hcat([q[15 .+ (1:3)]  for q in q_ref]...)', width = 2.0, color = :black)
 plot!(hcat(_pf4_ref...)', color = :red)
 
 # check control trajectory
