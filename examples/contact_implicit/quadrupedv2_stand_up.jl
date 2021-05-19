@@ -11,7 +11,7 @@ open(vis)
 
 # Horizon
 T = 61
-Tm = 15
+Tm = 31
 T_fix = 0#5
 
 # Time step
@@ -40,26 +40,6 @@ function initial_configuration(model::QuadrupedV2; offset = 0.025)
 	q1 = zeros(model.nq)
 
 	# position
-	q1[1] = model.l_torso - offset
-	q1[3] = 0.2
-
-	# orientation
-	mrp = MRP(RotZ(0.0))
-	q1[4:6] = [mrp.x; mrp.y; mrp.z]
-
-	# feet positions (in body frame)
-	q1[7:9] = [2 * model.l_torso; model.w_torso; 0.0]
-	q1[10:12] = [2 * model.l_torso - 2 * offset; -model.w_torso; 0.0]
-	q1[13:15] = [-2 * offset; model.w_torso; 0.0]
-	q1[16:18] = [0.0; -model.w_torso; 0.0]
-
-	return q1
-end
-
-function intermediate_configuration(model::QuadrupedV2; offset = 0.025)
-	q1 = zeros(model.nq)
-
-	# position
 	q1[1] = model.l_torso
 	q1[3] = 0.2
 
@@ -68,10 +48,50 @@ function intermediate_configuration(model::QuadrupedV2; offset = 0.025)
 	q1[4:6] = [mrp.x; mrp.y; mrp.z]
 
 	# feet positions (in body frame)
-	q1[7:9] = [2 * model.l_torso; model.w_torso; 0.0]
-	q1[10:12] = [2 * model.l_torso - 2 * offset; -model.w_torso; 0.0]
-	q1[13:15] = [0.0; model.w_torso; 0.0]
-	q1[16:18] = [0.0; -model.w_torso; 0.0]
+	q1[7:9] = [2 * model.l_torso + offset; model.w_torso; 0.0]
+	q1[10:12] = [2 * model.l_torso - offset; -model.w_torso; 0.0]
+	q1[13:15] = [-offset; model.w_torso; 0.0]
+	q1[16:18] = [offset; -model.w_torso; 0.0]
+
+	return q1
+end
+
+# function intermediate_configuration(model::QuadrupedV2; offset = 0.025)
+# 	q1 = zeros(model.nq)
+#
+# 	# position
+# 	q1[1] = model.l_torso
+# 	q1[3] = 0.2
+#
+# 	# orientation
+# 	mrp = MRP(RotZ(0.0))
+# 	q1[4:6] = [mrp.x; mrp.y; mrp.z]
+#
+# 	# feet positions (in body frame)
+# 	q1[7:9] = [2 * model.l_torso; model.w_torso; 0.0]
+# 	q1[10:12] = [2 * model.l_torso - 2 * offset; -model.w_torso; 0.0]
+# 	q1[13:15] = [-2 * offset; model.w_torso; 0.0]
+# 	q1[16:18] = [0.0; -model.w_torso; 0.0]
+#
+# 	return q1
+# end
+
+function intermediate_configuration(model::QuadrupedV2; offset = 0.025)
+	q1 = zeros(model.nq)
+
+	# position
+	q1[1] = 0.0
+	q1[3] = 0.2 + model.l_torso
+
+	# orientation
+	mrp = MRP(RotY(-0.5 * π))
+	q1[4:6] = [mrp.x; mrp.y; mrp.z]
+
+	# feet positions (in body frame)
+	q1[7:9] = [0.0; model.w_torso; q1[3]]
+	q1[10:12] = [0.0; -model.w_torso; q1[3]]
+	q1[13:15] = [-offset; model.w_torso; 0.0]
+	q1[16:18] = [offset; -model.w_torso; 0.0]
 
 	return q1
 end
@@ -90,18 +110,18 @@ function final_configuration(model::QuadrupedV2; offset = 0.025)
 	# feet positions (in body frame)
 	q1[7:9] = [0.0; model.w_torso; q1[3]]
 	q1[10:12] = [0.0; -model.w_torso; q1[3]]
-	q1[13:15] = [0.0; model.w_torso; 0.0]
-	q1[16:18] = [0.0; -model.w_torso; 0.0]
+	q1[13:15] = [-offset; model.w_torso; 0.0]
+	q1[16:18] = [offset; -model.w_torso; 0.0]
 
 	return q1
 end
 
 q1 = initial_configuration(model)
-qM = intermediate_configuration(model)
-qT = final_configuration(model)
+qT = intermediate_configuration(model)
+# qT = final_configuration(model)
 
 visualize!(vis, model, [q1])
-visualize!(vis, model, [qM])
+# visualize!(vis, model, [qM])
 visualize!(vis, model, [qT])
 
 # feet positions
@@ -111,10 +131,10 @@ pf2 = q1[9 .+ (1:3)]
 pf3 = q1[12 .+ (1:3)]
 pf4 = q1[15 .+ (1:3)]
 
-q_ref = [linear_interpolation(q1, qM, Tm)..., linear_interpolation(qM, qT, Tm)...]
+q_ref = [q1, linear_interpolation(q1, qT, T)...]
 visualize!(vis, model, q_ref)
 
-zh = 0.025
+# zh = 0.025
 # xf1_el, zf1_el = ellipse_traj(pf1[1], pf1[1] + strd, zh, Tm - T_fix)
 # xf1 = [[pf1[1] for t = 1:Tm + T_fix]..., xf1_el[2:end]...]
 # zf1 = [[pf1[3] for t = 1:Tm + T_fix]..., zf1_el[2:end]...]
@@ -130,17 +150,17 @@ zh = 0.025
 # zf2 = [[zf2_el[1] for t = 1:T_fix]..., zf2_el..., [zf2_el[end] for t = 1:Tm-1 + T_fix]...]
 # pf2_ref = [[xf2[t]; pf2[2]; zf2[t]] for t = 1:T]
 
-xf3_el, zf3_el = ellipse_traj(pf3[1], pf4[1], zh, Tm - T_fix)
-xf3 = [[xf3_el[1] for t = 1:T_fix]..., xf3_el..., [xf3_el[end] for t = 1:Tm-1]...]
-zf3 = [[zf3_el[1] for t = 1:T_fix]..., zf3_el..., [zf3_el[end] for t = 1:Tm-1]...]
-pf3_ref = [[xf3[t]; pf3[2]; zf3[t]] for t = 1:T]
-
-tr = range(0, stop = tf, length = T)
+# xf3_el, zf3_el = ellipse_traj(pf3[1], pf4[1], zh, Tm - T_fix)
+# xf3 = [[xf3_el[1] for t = 1:T_fix]..., xf3_el..., [xf3_el[end] for t = 1:Tm-1]...]
+# zf3 = [[zf3_el[1] for t = 1:T_fix]..., zf3_el..., [zf3_el[end] for t = 1:Tm-1]...]
+# pf3_ref = [[xf3[t]; pf3[2]; zf3[t]] for t = 1:T]
+#
+# tr = range(0, stop = tf, length = T)
 # plot(tr, hcat(pf1_ref...)')
 # plot!(tr, hcat(pf4_ref...)')
 #
 # plot!(tr, hcat(pf2_ref...)')
-plot(tr, hcat(pf3_ref...)')
+# plot(tr, hcat(pf3_ref...)')
 
 
 # Bounds
@@ -181,14 +201,14 @@ obj_control = quadratic_time_tracking_objective(
 
 # quadratic velocity penalty
 #Σ v' Q v
-v_penalty = 1.0e-1 * ones(model.nq)
+v_penalty = 1.0 * ones(model.nq)
 obj_velocity = velocity_objective(
     [h * Diagonal(v_penalty) for t = 1:T-1],
     model.nq,
     h = h,
     idx_angle = collect([3, 4, 5]))
 
-obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0e-1 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]))
+obj_ctrl_velocity = control_velocity_objective(Diagonal([1.0 * ones(model.nu)..., 1.0e-3 * ones(model.nc + model.nb)..., zeros(model.m - model.nu - model.nc - model.nb)...]))
 
 function l_stage(x, u, t)
 	q1 = view(x, 1:18)
@@ -212,9 +232,9 @@ function l_stage(x, u, t)
 		p3 = q2[12 .+ (1:3)]
 		p4 = q2[15 .+ (1:3)]
 
-		J += 100.0 * sum((q_ref[t][6 .+ (1:3)] - p1).^2.0)
-		J += 100.0 * sum((q_ref[t][9 .+ (1:3)] - p2).^2.0)
-		J += 10000.0 * sum((pf3_ref[t] - p3).^2.0)
+		J += 10000.0 * sum((q_ref[t][6 .+ (1:3)] - p1).^2.0)
+		J += 10000.0 * sum((q_ref[t][9 .+ (1:3)] - p2).^2.0)
+		J += 100.0 * sum((q_ref[t][12 .+ (1:3)] - p3).^2.0)
 		J += 100.0 * sum((q_ref[t][15 .+ (1:3)] - p4).^2.0)
 	end
 
@@ -250,7 +270,7 @@ n_stage = 3
 # t_idx1 = vcat([t for t = 1:Tm + T_fix])
 # t_idx2 = vcat([t for t = 1:T_fix]..., [t for t = Tm:T]...)
 t_idx1 = vcat([t for t = 1:T])
-t_idx2 = vcat([t for t = Tm:T])
+t_idx2 = vcat([t for t = 1:T])
 # con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
 # con_pinned2 = stage_constraints(pinned2!, n_stage, (1:0), t_idx2)
 con_pinned1 = stage_constraints(pinned1!, n_stage, (1:0), t_idx1)
@@ -311,7 +331,7 @@ plot!(hcat(_pf1_ref...)', color = :red)
 plot(hcat([q[9 .+ (1:3)]  for q in q_ref]...)', width = 2.0, color = :black)
 plot!(hcat(_pf2_ref...)', color = :red)
 
-plot(hcat(pf3_ref...)', width = 2.0, color = :black)
+plot(hcat([q[12 .+ (1:3)]  for q in q_ref]...)', width = 2.0, color = :black)
 plot!(hcat(_pf3_ref...)', color = :red)
 
 plot(hcat([q[15 .+ (1:3)]  for q in q_ref]...)', width = 2.0, color = :black)
