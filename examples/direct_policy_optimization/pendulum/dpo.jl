@@ -61,7 +61,7 @@ K, P = tvlqr(model, x̄, ū, 0.0, Q, R)
 z0 = pack(z̄, K, prob_dpo)
 
 # Solve
-if true
+if false
 	include_snopt() # set path
 	z, info = solve(prob_dpo, copy(z0),
 		nlp = :SNOPT7,

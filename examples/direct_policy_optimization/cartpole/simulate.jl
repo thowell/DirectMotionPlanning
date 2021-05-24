@@ -109,7 +109,6 @@ model_sim = CartpoleFriction{RK3, FixedTime}(4, 7, 4, 1.0, 0.2, 0.5, 9.81, 0.1)
 μ_sim = 0.1
 
 t_sim = range(0, stop = tf, length = T_sim)
-
 z_lqr, u_lqr, J_lqr, Jx_lqr, Ju_lqr = simulate(model_sim,
 	policy,
 	K_nominal,
@@ -160,3 +159,15 @@ Jx_dpo
 Ju_lqr
 Ju_lqr_fr
 Ju_dpo
+
+
+# Visualize
+include(joinpath(pwd(), "models/visualize.jl"))
+vis = Visualizer()
+render(vis)
+open(vis)
+visualize!(vis, model_sim, [[z_lqr_fr[1] for t = 1:100]..., z_lqr_fr..., [z_lqr_fr[end] for t = 1:100]...], Δt = dt_sim, color = RGBA(0.0, 1.0, 1.0, 1.0))
+visualize!(vis, model_sim, [[z_dpo[1] for t = 1:100]..., z_dpo..., [z_dpo[end] for t = 1:100]...], Δt = dt_sim, color = RGBA(1.0, 127 / 255, 0, 1.0))
+
+z_lqr
+z_dpo

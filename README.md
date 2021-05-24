@@ -2,7 +2,7 @@
 
 ## contact-implicit trajectory optimization examples
 
-<img src="examples/animations/hopper_flip.gif" alt="drawing" width="200"/>
+<img src="examples/animations/quadruped_backflip.gif" alt="drawing" width="200"/>
 
 - [X] simple manipulation
 - [X] cyberdrift
