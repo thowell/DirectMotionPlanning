@@ -1,4 +1,4 @@
-using MeshCat, MeshCatMechanisms#, RigidBodyDynamics
+using MeshCat, MeshCatMechanisms, RigidBodyDynamics
 
 include(joinpath(pwd(),"models/kuka/kuka_utils.jl"))
 urdf_path = joinpath(pwd(), "models/kuka/temp/kuka.urdf")

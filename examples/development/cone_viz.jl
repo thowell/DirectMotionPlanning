@@ -78,3 +78,34 @@ p = [1.0, 0.0, 1.0]
 
 set_point!(vis, p)
 p_proj = project_point!(vis, p)
+
+
+vis = Visualizer()
+
+# set empty background
+setvisible!(vis["/Background"], true)
+setprop!(vis["/Background"], "top_color", RGBA(1.0, 1.0, 1.0, 1.0))
+setprop!(vis["/Background"], "bottom_color", RGBA(1.0, 1.0, 1.0, 1.0))
+setvisible!(vis["/Axes"], false)
+
+# generate cone
+h = 0.5
+l = h * 1.0
+w = h * 1.45
+pyramid = Pyramid(Point3(0.0, 0.0, 0.0), l, w)
+
+n = 500
+for i = 1:n
+    setobject!(vis["pyramid$i"], pyramid,
+        MeshPhongMaterial(
+        # color = RGBA(1,153/255,51/255, 1.0))
+        color = RGBA(51/255,1,1, 1.0))
+        )
+    settransform!(vis["pyramid$i"],
+        compose(Translation(0.0, 0.0, l),
+            LinearMap(RotX(π) * RotZ(π * i / n))),
+            # LinearMap(RotX(π) * RotZ(0.25 * π)))
+            )
+end
+open(vis)
+render(vis)

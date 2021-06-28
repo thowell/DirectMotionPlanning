@@ -1,7 +1,7 @@
 include_ddp()
 
 # Model
-include_model("acrobot")
+include_model("double_pendulum")
 n = model.n
 m = model.m
 
@@ -12,7 +12,7 @@ h = 0.05
 # Initial conditions, controls, disturbances
 x1 = [0.0, 0.0, 0.0, 0.0]
 xT = [π, 0.0, 0.0, 0.0] # goal state
-ū = [1.0 * rand(model.m) for t = 1:T-1]
+ū = [[0.0; 1.0e-3 * randn(1)[1]]  for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout

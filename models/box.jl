@@ -73,7 +73,10 @@ J = 1.0 / 12.0 * mass * ((2.0 * r)^2 + (2.0 * r)^2)
 # Methods
 M_func(model::Box, q) = Diagonal(@SVector [model.mass, model.mass, model.mass, model.J, model.J, model.J])
 
-G_func(model::Box, q) = @SVector [0., 0., model.mass * model.g, 0., 0., 0.]
+function C_func(model::Box, q, q̇)
+	ω = q̇[4:6]
+	SVector{6}([0., 0., model.mass * model.g, cross(ω, Diagonal(model.J * ones(3)) * ω)...])
+end
 
 function ϕ_func(model::Box, q)
     p = view(q, 1:3)
@@ -162,6 +165,13 @@ function maximum_dissipation(model::Box, x⁺, u, h)
     P_func(model, q3) * (q3 - q2) / h + ψ_stack - η
 end
 
+function lagrangian_derivatives(model, q, v)
+	D1L = -1.0 * C_func(model, q, v)
+    D2L = M_func(model, q) * v
+	return D1L, D2L
+end
+
+
 function fd(model::Box{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	q3 = view(x⁺, model.nq .+ (1:model.nq))
 	q2⁺ = view(x⁺, 1:model.nq)
@@ -171,14 +181,25 @@ function fd(model::Box{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	λ = view(u, model.idx_λ)
 	b = view(u, model.idx_b)
 
-    [q2⁺ - q2⁻;
-    ((1.0 / h) * (M_func(model, q1) * (SVector{6}(q2⁺) - SVector{6}(q1))
-    - M_func(model, q2⁺) * (SVector{6}(q3) - SVector{6}(q2⁺)))
-    + transpose(B_func(model, q3)) * SVector{3}(u_ctrl)
-    + transpose(N_func(model, q3)) * SVector{8}(λ)
-    + transpose(P_func(model, q3)) * SVector{32}(b)
-    - h * G_func(model, q2⁺))]
+	qm1 = 0.5 * (q1 + q2⁺)
+    vm1 = (q2⁺ - q1) / h
+    qm2 = 0.5 * (q2⁺ + q3)
+    vm2 = (q3 - q2⁺) / h
+
+	D1L1, D2L1 = lagrangian_derivatives(model, qm1, vm1)
+	D1L2, D2L2 = lagrangian_derivatives(model, qm2, vm2)
+
+	[q2⁺ - q2⁻;
+     (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
+     + transpose(B_func(model, qm2)) * SVector{3}(u_ctrl)
+     + transpose(N_func(model, q3)) * SVector{8}(λ)
+     + transpose(P_func(model, q3)) * SVector{32}(b))]
 end
+
+model.nq
+model.nu
+model.nc
+model.nb
 
 model = Box{Discrete, FixedTime}(n, m, d,
 			mass, J, μ, g,
