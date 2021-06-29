@@ -21,20 +21,19 @@ _ul[model.idx_u] .= -Inf
 _ul[model.idx_u[1:8]] .= -5.0
 _ul[model.idx_λ] .= 1.0
 
-
 ul, uu = control_bounds(model, T, _ul, _uu)
 
 # Initial and final states
 q1 = [0.0, 0.0, 0.0]
 x1 = [q1; q1]
-qT = [1.0; 0.0; 0.0]
+qT = [1.0; 1.0; 0.5 * π]
 xT = [qT; qT]
 xl, xu = state_bounds(model, T, x1 = x1, xT = xT)
 
 # Objective
-include_objective("velocity")
+include_objective(["velocity", "control_velocity"])
 obj_velocity = velocity_objective(
-    [t > T / 2 ? Diagonal(10.0 * ones(model.nq)) : Diagonal(1.0 * ones(model.nq)) for t = 1:T-1],
+    [t > T / 2 ? Diagonal(10.0 * ones(model.nq)) : Diagonal(10.0 * ones(model.nq)) for t = 1:T-1],
     model.nq,
     h = h,
     idx_angle = collect([3]))
@@ -49,8 +48,10 @@ obj_tracking = quadratic_tracking_objective(
     [xT for t = 1:T],
     [zeros(model.m) for t = 1:T])
 
+obj_ctrl_vel = control_velocity_objective(Diagonal([1.0 * ones(model.nu); 0.0 * ones(model.nc + model.nb); zeros(model.m - model.nu - model.nc - model.nb)]))
+
 obj_penalty = PenaltyObjective(1.0e4, model.m)
-obj = MultiObjective([obj_tracking, obj_penalty, obj_velocity])
+obj = MultiObjective([obj_tracking, obj_penalty, obj_velocity, obj_ctrl_vel])
 
 # Constraints
 include_constraints(["contact", "stage"])
@@ -107,18 +108,6 @@ function control_comp_con!(c, x, u, t)
 	c[15] = s[1] - u_ctrl[8] * d4
 	c[16] = s[1] + u_ctrl[8] * d4
 
-	# c[9] = s[1] - u[9] * d5
-	# c[10] = s[1] - u[10] * d5
-	#
-	# c[11] = s[1] - u[11] * d6
-	# c[12] = s[1] - u[12] * d6
-	#
-	# c[13] = s[1] - u[13] * d7
-	# c[14] = s[1] - u[14] * d7
-	#
-	# c[15] = s[1] - u[15] * d8
-	# c[16] = s[1] - u[16] * d8
-
     nothing
 end
 
@@ -174,8 +163,6 @@ z0 = pack(x0, u0, prob)
 
 check_slack(z̄, prob)
 x̄, ū = unpack(z̄, prob)
-q̄ = state_to_configuration(x̄)
-
 q = state_to_configuration(x̄)
 u = [u[model.idx_u] for u in ū]
 γ = [u[model.idx_λ] for u in ū]
@@ -185,14 +172,10 @@ h̄ = h
 include(joinpath(pwd(), "models/visualize.jl"))
 vis = Visualizer()
 render(vis)
-#open(vis)
+open(vis)
 visualize!(vis, model,
-    q̄, ū,
+    q, u,
     Δt = h)
 
-# settransform!(vis["/Cameras/default"],
-# 	compose(Translation(0.0, 0.0, 50.0), LinearMap(RotZ(0.5 * pi) * RotY(-pi/2.5))))
-# setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 25)
-
-plot(hcat(q̄...)', color = :red, width = 1.0, labels = "")
-plot(hcat([ū..., ū[end]]...)[model.idx_u[1:8], :]', linetype = :steppost, color = :black, width = 1.0, labels = "")
+plot(hcat(q...)', color = :red, width = 1.0, labels = "")
+plot(hcat([u..., u[end]]...)[model.idx_u[1:8], :]', linetype = :steppost, color = :black, width = 1.0, labels = "")

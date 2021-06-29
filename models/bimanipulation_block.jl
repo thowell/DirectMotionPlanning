@@ -2,7 +2,7 @@
     planar push block
         particle with contacts at each corner
 """
-struct PlanarPushBlock{I, T} <: Model{I, T}
+struct BimanipulationBlock{I, T} <: Model{I, T}
     n::Int
     m::Int
     d::Int
@@ -31,7 +31,7 @@ end
 
 # Dimensions
 nq = 3 # configuration dimension
-nu = 2 * 4 + 2 # control dimension
+nu = 2 * 4 + 2 * 2 # control dimension
 nc = 4 # number of contact points
 nf = 4 # number of faces for friction cone pyramid
 nb = nc * nf
@@ -78,25 +78,28 @@ mass = 1.0   # mass
 J = 1.0 / 12.0 * mass * ((2.0 * r)^2 + (2.0 * r)^2)
 
 # Methods
-M_func(model::PlanarPushBlock, q) = Diagonal(@SVector [model.mass, model.mass, model.J])
+M_func(model::BimanipulationBlock, q) = Diagonal(@SVector [model.mass, model.mass, model.J])
 
-function C_func(model::PlanarPushBlock, q, q̇)
-	SVector{3}([0.0, 0.0, 0.0])
+function C_func(model::BimanipulationBlock, q, q̇)
+	SVector{3}([0.0, model.mass * model.g, 0.0])
 end
 
 function rotation_matrix(x)
 	SMatrix{2,2}([cos(x) -sin(x); sin(x) cos(x)])
 end
 
-function ϕ_func(model::PlanarPushBlock, q)
+function ϕ_func(model::BimanipulationBlock, q)
     p = view(q, 1:2)
 	θ = q[3]
     R = rotation_matrix(θ)
 
-    @SVector [0.0, 0.0, 0.0, 0.0]
+	@SVector [(p + R * model.contact_corner_offset[1])[2],
+              (p + R * model.contact_corner_offset[2])[2],
+              (p + R * model.contact_corner_offset[3])[2],
+              (p + R * model.contact_corner_offset[4])[2]]
 end
 
-function control_kinematics_func(model::PlanarPushBlock, q)
+function control_kinematics_func(model::BimanipulationBlock, q)
     p = q[1:2]
 	θ = q[3]
     R = rotation_matrix(θ)
@@ -111,17 +114,17 @@ function control_kinematics_func(model::PlanarPushBlock, q)
               # p + R * model.control_input_offset[8]])
 end
 
-function B_func(model::PlanarPushBlock, q)
+function B_func(model::BimanipulationBlock, q)
 	tmp(z) = control_kinematics_func(model, z)
 	ForwardDiff.jacobian(tmp, q)
 end
 
-function N_func(model::PlanarPushBlock, q)
+function N_func(model::BimanipulationBlock, q)
     tmp(z) = ϕ_func(model, z)
     ForwardDiff.jacobian(tmp, q)
 end
 
-function P_func(model::PlanarPushBlock, q)
+function P_func(model::BimanipulationBlock, q)
     map = [1. 0.;
            0. 1.;
            -1. 0.;
@@ -141,7 +144,7 @@ function P_func(model::PlanarPushBlock, q)
     ForwardDiff.jacobian(p, q)
 end
 
-function friction_cone(model::PlanarPushBlock,u)
+function friction_cone(model::BimanipulationBlock,u)
     λ = u[model.idx_λ]
     b = u[model.idx_b]
 
@@ -151,7 +154,7 @@ function friction_cone(model::PlanarPushBlock,u)
               model.μ[4] * λ[4] - sum(b[13:16])]
 end
 
-function maximum_dissipation(model::PlanarPushBlock, x⁺, u, h)
+function maximum_dissipation(model::BimanipulationBlock, x⁺, u, h)
     q3 = x⁺[model.nq .+ (1:model.nq)]
 	q2 = x⁺[1:model.nq]
 
@@ -173,7 +176,7 @@ function lagrangian_derivatives(model, q, v)
 end
 
 
-function fd(model::PlanarPushBlock{Discrete, FixedTime}, x⁺, x, u, w, h, t)
+function fd(model::BimanipulationBlock{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	q3 = view(x⁺, model.nq .+ (1:model.nq))
 	q2⁺ = view(x⁺, 1:model.nq)
 	q2⁻ = view(x, model.nq .+ (1:model.nq))
@@ -193,12 +196,12 @@ function fd(model::PlanarPushBlock{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	[q2⁺ - q2⁻;
      (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
      + transpose(B_func(model, qm2)) * SVector{8}(u_ctrl[1:8])
-     # + transpose(N_func(model, q3)) * SVector{4}(λ)
+     + transpose(N_func(model, q3)) * SVector{4}(λ)
      + transpose(P_func(model, q3)) * SVector{16}(b))]
 end
 
-model = PlanarPushBlock{Discrete, FixedTime}(n, m, d,
-			mass, J, [[μ for i = 1:nc]..., 0.1], g,
+model = BimanipulationBlock{Discrete, FixedTime}(n, m, d,
+			mass, J, [[μ for i = 1:nc]..., μ], g,
 			contact_corner_offset,
 			control_input_offset,
             nq, nu, nc, nf, nb,
@@ -214,23 +217,29 @@ function control_input(q, u)
 	idx = [(i - 1) * 2 .+ (1:2) for i = 1:4]
 
     k = control_kinematics_func(model, q)
-	k_input = u[model.idx_u][9:10]
+	k_input1 = u[model.idx_u][9:10]
+	k_input2 = u[model.idx_u][11:12]
 
-	d1 = norm(k[1:2] - k_input)
-	d2 = norm(k[3:4] - k_input)
-	d3 = norm(k[5:6] - k_input)
-	d4 = norm(k[7:8] - k_input)
-	# d5 = norm(k[9:10] - k_input)
-	# d6 = norm(k[11:12] - k_input)
-	# d7 = norm(k[13:14] - k_input)
-	# d8 = norm(k[15:16] - k_input)
+	d1 = norm(k[1:2] - k_input1)
+	d2 = norm(k[3:4] - k_input1)
+	d3 = norm(k[5:6] - k_input1)
+	d4 = norm(k[7:8] - k_input1)
 
-	_, min_idx = findmin([d1, d2, d3, d4])#, d5, d6, d7, d8])
+	e1 = norm(k[1:2] - k_input2)
+	e2 = norm(k[3:4] - k_input2)
+	e3 = norm(k[5:6] - k_input2)
+	e4 = norm(k[7:8] - k_input2)
 
-	return u[idx[min_idx]], u[9:10], min_idx
+	_, min_idx1 = findmin([d1, d2, d3, d4])
+	_, min_idx2 = findmin([e1, e2, e3, e4])
+
+
+	return u[idx[min_idx1]], u[9:10], min_idx1, u[idx[min_idx2]], u[11:12], min_idx2
 end
 
-function visualize!(vis, model::PlanarPushBlock, q, u; r = r,
+function visualize!(vis, model::BimanipulationBlock, q, u;
+		r = r,
+		u_mag = 1.0,
         Δt = 0.1)
 
 	default_background!(vis)
@@ -253,17 +262,27 @@ function visualize!(vis, model::PlanarPushBlock, q, u; r = r,
             MeshPhongMaterial(color = RGBA(51.0 / 255.0, 1.0, 1.0, 1.0)))
     end
 
-	force_vis = ArrowVisualizer(vis[:force])
-	setobject!(force_vis, MeshPhongMaterial(color=RGBA(1.0, 0.0, 0.0, 1.0)))
+	force_vis1 = ArrowVisualizer(vis[:force1])
+	setobject!(force_vis1, MeshPhongMaterial(color=RGBA(1.0, 0.0, 0.0, 1.0)))
 
-	uf, up, min_idx = control_input(q[2], u[1])
-	uf_norm = uf / 10.0
-	settransform!(force_vis,
-				Point(up[1] - uf_norm[1], up[2] - uf_norm[2], 2 * r),
-				Vec(uf_norm[1], uf_norm[2], 2 * r),
+	force_vis2 = ArrowVisualizer(vis[:force2])
+	setobject!(force_vis2, MeshPhongMaterial(color=RGBA(1.0, 0.0, 0.0, 1.0)))
+
+	uf1, up1, min_idx1, uf2, up2, min_idx2 = control_input(q[2], u[1])
+	uf1_norm = uf1 / u_mag
+	uf2_norm = uf2 / u_mag
+
+	settransform!(force_vis1,
+				Point(up1[1] - uf1_norm[1], 0.0, up1[2] - uf1_norm[2]),
+				Vec(uf1_norm[1], 0.0, uf1_norm[2]),
 				shaft_radius=0.01,
 				max_head_radius=0.025)
 
+	settransform!(force_vis2,
+				Point(up2[1] - uf2_norm[1], 0.0, up2[2] - uf2_norm[2]),
+				Vec(uf2_norm[1], 0.0, uf2_norm[2]),
+				shaft_radius=0.01,
+				max_head_radius=0.025)
 
     anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
 
@@ -271,40 +290,55 @@ function visualize!(vis, model::PlanarPushBlock, q, u; r = r,
     for t = 1:T-1
         MeshCat.atframe(anim, t) do
 			if t < T-1
-				uf, up, min_idx = control_input(q[t+1], u[t])
-				println("t = $t, control_input: $min_idx")
+				uf1, up1, min_idx1, uf2, up2, min_idx2 = control_input(q[t+1], u[t])
+				println("t = $t, control_input 1: $min_idx1, control_input 2: $min_idx2")
 
-				if norm(uf) < 1.0e-6
-					setvisible!(vis[:force], false)
+				if norm(uf1) < 1.0e-6
+					setvisible!(vis[:force1], false)
 				else
-					setvisible!(vis[:force], true)
-					uf_norm = uf ./ 10.0
-					settransform!(force_vis,
-								Point(up[1] - uf_norm[1], up[2] - uf_norm[2], 2 * r),
-								Vec(uf_norm[1], uf_norm[2], 2 * r),
+					setvisible!(vis[:force1], true)
+					uf1_norm = uf1 / u_mag
+
+					settransform!(force_vis1,
+								Point(up1[1] - uf1_norm[1], 0.0, up1[2] - uf1_norm[2]),
+								Vec(uf1_norm[1], 0.0, uf1_norm[2]),
 								shaft_radius=0.01,
 								max_head_radius=0.025)
 				end
+
+				if norm(uf2) < 1.0e-6
+					setvisible!(vis[:force2], false)
+				else
+					setvisible!(vis[:force2], true)
+					uf2_norm = uf2 / u_mag
+
+					settransform!(force_vis2,
+								Point(up2[1] - uf2_norm[1], 0.0, up2[2] - uf2_norm[2]),
+								Vec(uf2_norm[1], 0.0, uf2_norm[2]),
+								shaft_radius=0.01,
+								max_head_radius=0.025)
+				end
+
 			end
 
             settransform!(vis["box"],
-				compose(Translation(q[t+1][1], q[t+1][2], r), LinearMap(RotZ(q[t+1][3]))))
+				compose(Translation(q[t+1][1], 0.0, q[t+1][2]), LinearMap(RotY(q[t+1][3]))))
 
             for i = 1:model.nc
                 settransform!(vis["contact$i"],
-                    Translation(([q[t+1][1:2]; 0.0] + RotZ(q[t+1][3]) * [contact_corner_offset[i]; 0.0])...))
+                    Translation(([q[t+1][1]; 0.0; q[t+1][2]] + RotY(q[t+1][3]) * [contact_corner_offset[i][1]; 0.0; contact_corner_offset[i][2]])...))
             end
 
 			for i = 1:4
 				settransform!(vis["control$i"],
-					Translation(([q[t+1][1:2]; r] + RotZ(q[t+1][3]) * [control_input_offset[i]; 0.0])...))
+					Translation(([q[t+1][1]; 0.0; q[t+1][2]] + RotY(q[t+1][3]) * [control_input_offset[i][1]; 0.0; control_input_offset[i][2]])...))
 			end
         end
     end
 
 	settransform!(vis["/Cameras/default"],
-		compose(Translation(0.0, 0.0, 50.0), LinearMap(RotZ(0.5 * pi) * RotY(-pi/2.5))))
-	setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 25)
+		compose(Translation(0.0, -90.0, -1.0),LinearMap(RotZ(pi / 2.0))))
+	setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 75)
 
 
     MeshCat.setanimation!(vis, anim)
