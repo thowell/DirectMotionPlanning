@@ -14,10 +14,12 @@ h = tf / (T-1)
 # Bounds
 _uu = Inf * ones(model.m)
 _uu[model.idx_u] .= Inf
-_uu[model.idx_u[1:16]] .= 0.25
+_uu[model.idx_u[1:8]] .= 5.0
+_uu[model.idx_λ] .= 1.0
 _ul = zeros(model.m)
 _ul[model.idx_u] .= -Inf
-_ul[model.idx_u[1:16]] .= -0.25
+_ul[model.idx_u[1:8]] .= -5.0
+_ul[model.idx_λ] .= 1.0
 
 
 ul, uu = control_bounds(model, T, _ul, _uu)
@@ -29,14 +31,22 @@ qT = [1.0; 0.0; 0.0]
 xT = [qT; qT]
 xl, xu = state_bounds(model, T, x1 = x1, xT = xT)
 
+[Diagonal([0.1 * ones(model.nu)...,
+	zeros(model.nc)..., ones(model.nb)...,
+	zeros(model.m - model.nu - model.nc - model.nb)]) for t = 1:T-1]
+
 # Objective
 obj_tracking = quadratic_tracking_objective(
     [Diagonal(1.0 * ones(model.n)) for t = 1:T],
-    [Diagonal(0.0001 * ones(model.m)) for t = 1:T-1],
+    # [Diagonal(0.1 * ones(model.m)) for t = 1:T-1],
+	[Diagonal([0.1 * ones(model.nu);
+		zeros(model.nc);
+		ones(model.nb);
+		zeros(model.m - model.nu - model.nc - model.nb)]) for t = 1:T-1],
     [xT for t = 1:T],
     [zeros(model.m) for t = 1:T])
 
-obj_penalty = PenaltyObjective(1.0e5, model.m)
+obj_penalty = PenaltyObjective(1.0e4, model.m)
 obj = MultiObjective([obj_tracking, obj_penalty])
 
 # Constraints
@@ -47,49 +57,64 @@ function control_comp_con!(c, x, u, t)
 	q = x[nq .+ (1:nq)]
 	s = u[model.idx_s]
     k = control_kinematics_func(model, q)
-	k_input = u[model.idx_u][17:18]
+	k_input = u[model.idx_u][9:10]
 
 	e1 = k[1:2] - k_input
 	e2 = k[3:4] - k_input
 	e3 = k[5:6] - k_input
 	e4 = k[7:8] - k_input
-	e5 = k[9:10] - k_input
-	e6 = k[11:12] - k_input
-	e7 = k[13:14] - k_input
-	e8 = k[15:16] - k_input
+	# e5 = k[9:10] - k_input
+	# e6 = k[11:12] - k_input
+	# e7 = k[13:14] - k_input
+	# e8 = k[15:16] - k_input
 
 	d1 = e1' * e1
 	d2 = e2' * e2
 	d3 = e3' * e3
 	d4 = e4' * e4
-	d5 = e5' * e5
-	d6 = e6' * e6
-	d7 = e7' * e7
-	d8 = e8' * e8
+	# d5 = e5' * e5
+	# d6 = e6' * e6
+	# d7 = e7' * e7
+	# d8 = e8' * e8
 
-	c[1] = s[1] - u[1] * d1
-	c[2] = s[1] - u[2] * d1
+	u_ctrl = u[model.idx_u]
 
-	c[3] = s[1] - u[3] * d2
-	c[4] = s[1] - u[4] * d2
+	c[1] = s[1] - u_ctrl[1] * d1
+	c[2] = s[1] + u_ctrl[1] * d1
 
-	c[5] = s[1] - u[5] * d3
-	c[6] = s[1] - u[6] * d3
 
-	c[7] = s[1] - u[7] * d4
-	c[8] = s[1] - u[8] * d4
+	c[3] = s[1] - u_ctrl[2] * d1
+	c[4] = s[1] + u_ctrl[2] * d1
 
-	c[9] = s[1] - u[9] * d5
-	c[10] = s[1] - u[10] * d5
+	c[5] = s[1] - u_ctrl[3] * d2
+	c[6] = s[1] + u_ctrl[3] * d2
 
-	c[11] = s[1] - u[11] * d6
-	c[12] = s[1] - u[12] * d6
+	c[7] = s[1] - u_ctrl[4] * d2
+	c[8] = s[1] + u_ctrl[4] * d2
 
-	c[13] = s[1] - u[13] * d7
-	c[14] = s[1] - u[14] * d7
+	c[9] = s[1] - u_ctrl[5] * d3
+	c[10] = s[1] + u_ctrl[5] * d3
 
-	c[15] = s[1] - u[15] * d8
-	c[16] = s[1] - u[16] * d8
+	c[11] = s[1] - u_ctrl[6] * d3
+	c[12] = s[1] + u_ctrl[6] * d3
+
+	c[13] = s[1] - u_ctrl[7] * d4
+	c[14] = s[1] + u_ctrl[7] * d4
+
+	c[15] = s[1] - u_ctrl[8] * d4
+	c[16] = s[1] + u_ctrl[8] * d4
+
+	# c[9] = s[1] - u[9] * d5
+	# c[10] = s[1] - u[10] * d5
+	#
+	# c[11] = s[1] - u[11] * d6
+	# c[12] = s[1] - u[12] * d6
+	#
+	# c[13] = s[1] - u[13] * d7
+	# c[14] = s[1] - u[14] * d7
+	#
+	# c[15] = s[1] - u[15] * d8
+	# c[16] = s[1] - u[16] * d8
 
     nothing
 end
@@ -103,20 +128,21 @@ function control_limits_con!(c, x, u, t)
 	R = rotation_matrix(θ)
 	u_ctrl = u[model.idx_u]
 
+	c[1] = -1.0 * (R * u_ctrl[1:2])[1]
+	c[2] = (model.μ[end] * u_ctrl[1])^2.0 - u_ctrl[2]^2.0
 
-	c[1:2] = [-1.0; -1.0] .* (R * u_ctrl[1:2])
-	c[3:4] = [1.0; -1.0] .* (R * u_ctrl[3:4])
-	c[5:6] = [1.0; 1.0] .* (R * u_ctrl[5:6])
-	c[7:8] = [-1.0; 1.0] .* (R * u_ctrl[7:8])
+	c[3] = -1.0 * (R * u_ctrl[3:4])[2]
+	c[4] = (model.μ[end] * u_ctrl[4])^2.0 - u_ctrl[3]^2.0
 
-	c[9] = -1.0 * (R * u_ctrl[9:10])[1]
-	c[10] = -1.0 * (R * u_ctrl[11:12])[2]
-	c[11] = (R * u_ctrl[13:14])[1]
-	c[12] = (R * u_ctrl[15:16])[2]
+	c[5] = (R * u_ctrl[5:6])[1]
+	c[6] = (model.μ[end] * u_ctrl[5])^2.0 - u_ctrl[6]^2.0
+
+	c[7] = (R * u_ctrl[7:8])[2]
+	c[8] = (model.μ[end] * u_ctrl[8])^2.0 - u_ctrl[7]^2.0
 end
 
-n_ctrl_lim = 12
-con_ctrl_lim = stage_constraints(control_limits_con!, n_ctrl_lim, (1:12), t_idx)
+n_ctrl_lim = 8
+con_ctrl_lim = stage_constraints(control_limits_con!, n_ctrl_lim, (1:8), t_idx)
 
 con_contact = contact_constraints(model, T)
 con = multiple_constraints([con_contact, con_ctrl_comp, con_ctrl_lim])
@@ -160,9 +186,9 @@ visualize!(vis, model,
     q̄, ū,
     Δt = h)
 
-settransform!(vis["/Cameras/default"],
-	compose(Translation(0.0, 0.0, 50.0), LinearMap(RotZ(0.5 * pi) * RotY(-pi/2.5))))
-setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 25)
+# settransform!(vis["/Cameras/default"],
+# 	compose(Translation(0.0, 0.0, 50.0), LinearMap(RotZ(0.5 * pi) * RotY(-pi/2.5))))
+# setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 25)
 
 plot(hcat(q̄...)', color = :red, width = 1.0, labels = "")
-plot(hcat([ū..., ū[end]]...)[model.idx_u[1:16], :]', linetype = :steppost, color = :black, width = 1.0, labels = "")
+plot(hcat([ū..., ū[end]]...)[model.idx_u[1:8], :]', linetype = :steppost, color = :black, width = 1.0, labels = "")
