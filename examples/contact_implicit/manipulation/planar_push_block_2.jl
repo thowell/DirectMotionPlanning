@@ -179,3 +179,64 @@ visualize!(vis, model,
 
 plot(hcat(q...)', color = :red, width = 1.0, labels = "")
 plot(hcat([u..., u[end]]...)[model.idx_u[1:8], :]', linetype = :steppost, color = :black, width = 1.0, labels = "")
+
+
+##
+n = 2
+m = 1
+
+x0 = randn(2)
+y0 = zeros(m)
+z0 = [x0; y0]
+
+f(x) = x[1]^2.0 + x[2]^2.0
+c(x) = [(x[1] - 1.0)^3.0 - x[2]^2.0]
+
+f(x) = x[1] + x[2]
+c(x) = [x[1]^2.0 + x[2]^2.0 - 2.0]
+
+ForwardDiff.jacobian(c, x0)
+function L(z)
+	x = z[1:2]
+	y = z[3]
+
+	return f(x) + sum(y * c(x))
+end
+
+g(z) = ForwardDiff.gradient(L, z)
+H(z) = ForwardDiff.hessian(L, z)
+
+g(z0)
+H(z0)
+
+function newton(z0)
+	z = copy(z0)
+	ρ = 1.0e-5
+
+	for i = 1:50
+		grad = g(z)
+		hess = H(z) + Diagonal([ρ; ρ; -ρ])
+		Δ = hess \ grad
+
+		α = 1.0
+		z_cand = z - α * Δ
+
+		for j = 1:25
+			if j == 25
+				@warn " line search failure"
+			end
+			if norm(g(z_cand)) >= (1.0 - 0.001 * α) * norm(grad)
+				α *= 0.5
+				z_cand = z - α * Δ
+			else
+				z = z_cand
+				break
+			end
+		end
+	end
+
+	return z, g(z)
+end
+
+z_sol, grad_sol = newton(z0)
+@show norm(grad_sol, 2)
