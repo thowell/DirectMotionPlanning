@@ -13,19 +13,19 @@ m = model.m
 
 # Time
 T = 101
-h = 0.1
+h = 0.05
 
 # Initial conditions, controls, disturbances
 x1 = zeros(model.n)
 x1[3] = 1.0
 
 xT = copy(x1)
-# xT[1] = 2.5
-xT[2] = 0.0
+# xT[1] = 5.0
+# xT[2] = 0.0
 xT[3] = 5.0
 
 u_ref = -1.0 * model.mass * model.g[3] / 4.0 * ones(model.m)
-ū = [u_ref + 0.0 * randn(model.m) for t = 1:T-1]
+ū = [u_ref + 0.001 * randn(model.m) for t = 1:T-1]
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
@@ -34,11 +34,11 @@ x̄ = rollout(model, x1, ū, w, h, T)
 # plot(hcat(x̄...)')
 
 # Objective
-Q = h * [(t < T ? Diagonal([1.0 * ones(6); 100.0 * ones(6)])
+Q = h * [(t < T ? Diagonal([1.0 * ones(6); 1.0 * ones(6)])
         : Diagonal([0.0 * ones(6); 0.0 * ones(6)])) for t = 1:T]
 q = h * [-2.0 * Q[t] * xT for t = 1:T]
 
-R = h * [Diagonal(1.0e-3 * ones(model.m)) for t = 1:T-1]
+R = h * [Diagonal(1.0 * ones(model.m)) for t = 1:T-1]
 r = h * [-2.0 * R[t] * u_ref * 0.0 for t = 1:T-1]
 
 obj = StageCosts([QuadraticCost(Q[t], q[t],
@@ -63,7 +63,7 @@ end
 
 # Constraints
 p = [t < T ? 2 * m : n for t = 1:T]
-info_t = Dict(:ul => zeros(model.m), :uu => 5.0 * ones(model.m), :inequality => (1:2 * m))
+info_t = Dict(:ul => zeros(model.m), :uu => 10.0 * ones(model.m), :inequality => (1:2 * m))
 info_T = Dict(:xT => xT)
 con_set = [StageConstraint(p[t], t < T ? info_t : info_T) for t = 1:T]
 
@@ -99,8 +99,8 @@ plot(hcat(u...)', linetype = :steppost)
 plot(hcat(x...)[1:3, :]', linetype = :steppost)
 
 # Visualize
-include(joinpath(pwd(), "models/visualize.jl"))
-vis = Visualizer()
-render(vis)
-# open(vis)
-visualize!(vis, model, x̄, Δt = h)
+# include(joinpath(pwd(), "models/visualize.jl"))
+# vis = Visualizer()
+# render(vis)
+# # open(vis)
+# visualize!(vis, model, x̄, Δt = h)

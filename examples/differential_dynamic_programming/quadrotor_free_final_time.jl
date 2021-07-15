@@ -34,15 +34,18 @@ x1 = zeros(model.n)
 x1[3] = 1.0
 
 xT = copy(x1)
-xT[1] = 5.0
+# xT[1] = 5.0
 # xT[2] = 2.5
+xT[3] = 5.0
 
 u_ref = -1.0 * model.mass * model.g[3] / 4.0 * ones(model.m)
-ū = [t == 1 ? [u_ref; h] : u_ref for t = 1:T-1]
+# ū = [t == 1 ? [u_ref; h] : u_ref for t = 1:T-1]
+ū_alt = [t == 1 ? [ū[t]; h] : ū[t] for t = 1:T-1]
+
 w = [zeros(model.d) for t = 1:T-1]
 
 # Rollout
-x̄ = rollout(model, x1, ū, w, h, T)
+x̄ = rollout(model, x1, ū_alt, w, h, T)
 
 # Objective
 # Q = [(t == 1 ? 0.0 * Diagonal(1.0e-3 * ones(model.n))
@@ -78,19 +81,21 @@ x̄ = rollout(model, x1, ū, w, h, T)
 
 obj = StageCosts([NonlinearCost() for t = 1:T], T)
 
-Q = [(t < T ? Diagonal([1.0 * ones(6); 10.0 * ones(6)])
+Q = [(t < T ? Diagonal([1.0 * ones(6); 1.0 * ones(6)])
      : Diagonal([0.0 * ones(6); 0.0 * ones(6)])) for t = 1:T]
 q = [-2.0 * Q[t] * xT for t = 1:T]
 
-R = [Diagonal(1.0e-3 * ones(model.m)) for t = 1:T-1]
+R = [Diagonal(1.0 * ones(model.m)) for t = 1:T-1]
 r = [-2.0 * R[t] * u_ref for t = 1:T-1]
 
 function g(obj::StageCosts, x, u, t)
 	T = obj.T
     if t < T
 		t == 1 ? (_h = u[end]) : (_h = x[end])
-        return h * (view(x, 1:model.n)' * Q[t] * view(x, 1:model.n) + q[t]' * view(x, 1:model.n) + view(u, 1:model.m)' * R[t] * view(u, 1:model.m) + r[t]' * view(u, 1:model.m))
-    elseif t == T
+        J = h * (view(x, 1:model.n)' * Q[t] * view(x, 1:model.n) + q[t]' * view(x, 1:model.n) + view(u, 1:model.m)' * R[t] * view(u, 1:model.m) + r[t]' * view(u, 1:model.m))
+		t == 1 && (J += 1.0e-5 * _h^2.0)
+		return J
+	elseif t == T
         return view(x, 1:model.n)' * Q[T] * view(x, 1:model.n) + q[T]' * view(x, 1:model.n)
     else
         return 0.0
@@ -99,8 +104,8 @@ end
 
 # Constraints
 p = [t < T ? (t == 1 ? 2 * model.m + 2 : 2 * model.m) : model.n for t = 1:T]
-info_1 = Dict(:ul => [zeros(model.m); 0.0], :uu => [3.0 * ones(model.m); 2.0 * h], :inequality => (1:2 * model.m + 2))
-info_t = Dict(:ul => zeros(model.m), :uu => 3.0 * ones(model.m), :inequality => (1:2 * model.m))
+info_1 = Dict(:ul => [zeros(model.m); 0.0], :uu => [10.0 * ones(model.m); 2.0 * h], :inequality => (1:2 * model.m + 2))
+info_t = Dict(:ul => zeros(model.m), :uu => 10.0 * ones(model.m), :inequality => (1:2 * model.m))
 info_T = Dict(:xT => xT)
 con_set = [StageConstraint(p[t], t < T ? (t == 1 ? info_1 : info_t) : info_T) for t = 1:T]
 
@@ -120,7 +125,7 @@ function c!(c, cons::StageConstraints, x, u, t)
 	end
 end
 
-prob = problem_data(model, obj, con_set, copy(x̄), copy(ū), w, h, T,
+prob = problem_data(model, obj, con_set, copy(x̄), copy(ū_alt), w, h, T,
 	n = n, m = m)
 
 # Solve
