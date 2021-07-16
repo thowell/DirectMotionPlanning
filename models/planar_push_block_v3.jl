@@ -2,18 +2,22 @@
     planar push block
         particle with contacts at each corner
 """
-struct PlanarPushBlock{I, T} <: Model{I, T}
+struct PlanarPushBlockV3{I, T} <: Model{I, T}
     n::Int
     m::Int
     d::Int
 
-    mass
+    mass_block
+	mass_pusher
+
     J
-    μ
+    μ_surface
+	μ_pusher
     g
 
     contact_corner_offset
-	control_input_offset
+	block_dim
+	block_rnd
 
     nq
     nu
@@ -29,12 +33,26 @@ struct PlanarPushBlock{I, T} <: Model{I, T}
     idx_s
 end
 
+# signed distance for a box
+function sd_box(p, dim)
+	q = abs.(p) - dim
+	norm(max.(q, 0.0)) + min(maximum(q), 0.0)
+end
+
+function sd_2d_box(p, pose, dim, rnd)
+	x, y, θ = pose
+	R = rotation_matrix(-θ)
+	p_rot = R * (p - pose[1:2])
+
+	return sd_box(p_rot, dim) - rnd
+end
+
 # Dimensions
-nq = 3 # configuration dimension
-nu = 2 * 4 + 2 # control dimension
-nc = 4 # number of contact points
+nq = 5 # configuration dimension
+nu = 2 # control dimension
+nc = 5 # number of contact points
 nf = 4 # number of faces for friction cone pyramid
-nb = nc * nf
+nb = (nc - 1) * nf + 2
 ns = 1
 
 n = 2 * nq
@@ -72,86 +90,104 @@ contact_corner_offset = @SVector [cc1, cc2, cc3, cc4]
 control_input_offset = @SVector [cu5, cu6, cu7, cu8]
 
 # Parameters
-μ = 1.0  # coefficient of friction
+μ_surface = 1.0  # coefficient of friction
+μ_pusher = 1.0
 g = 9.81
-mass = 1.0   # mass
-J = 1.0 / 12.0 * mass * ((2.0 * r)^2 + (2.0 * r)^2)
+mass_block = 1.0   # mass
+mass_pusher = 0.1
+J = 1.0 / 12.0 * mass_block * ((2.0 * r)^2 + (2.0 * r)^2)
+
+rnd = 0.01
+dim_rnd = [r - rnd, r - rnd]
 
 # Methods
-M_func(model::PlanarPushBlock, q) = Diagonal(@SVector [model.mass, model.mass, model.J])
+M_func(model::PlanarPushBlockV3, q) = Diagonal(@SVector [model.mass_block, model.mass_block,
+	model.J, model.mass_pusher, model.mass_pusher])
 
-function C_func(model::PlanarPushBlock, q, q̇)
-	SVector{3}([0.0, 0.0, 0.0])
+function C_func(model::PlanarPushBlockV3, q, q̇)
+	SVector{5}([0.0, 0.0, 0.0, 0.0, 0.0])
 end
 
 function rotation_matrix(x)
 	SMatrix{2,2}([cos(x) -sin(x); sin(x) cos(x)])
 end
 
-function ϕ_func(model::PlanarPushBlock, q)
-    p = view(q, 1:2)
-	θ = q[3]
-    R = rotation_matrix(θ)
+function ϕ_func(model::PlanarPushBlockV3, q)
+    p_block = view(q, 1:3)
+	p_pusher = view(q, 4:5)
 
-    @SVector [0.0, 0.0, 0.0, 0.0]
+	sdf = sd_2d_box(p_pusher, p_block, model.block_dim, model.block_rnd)
+
+    @SVector [0.0, 0.0, 0.0, 0.0, sdf]
 end
 
-function control_kinematics_func(model::PlanarPushBlock, q)
-    p = q[1:2]
-	θ = q[3]
-    R = rotation_matrix(θ)
-
-    SVector{8}([p + R * model.control_input_offset[1];
-              p + R * model.control_input_offset[2];
-              p + R * model.control_input_offset[3];
-              p + R * model.control_input_offset[4]])
-              # p + R * model.control_input_offset[5];
-              # p + R * model.control_input_offset[6];
-              # p + R * model.control_input_offset[7];
-              # p + R * model.control_input_offset[8]])
+function B_func(model::PlanarPushBlockV3, q)
+	SMatrix{5,2}([0.0 0.0;
+				  0.0 0.0;
+				  0.0 0.0;
+				  1.0 0.0;
+				  0.0 1.0])
 end
 
-function B_func(model::PlanarPushBlock, q)
-	tmp(z) = control_kinematics_func(model, z)
-	ForwardDiff.jacobian(tmp, q)
-end
-
-function N_func(model::PlanarPushBlock, q)
+function N_func(model::PlanarPushBlockV3, q)
     tmp(z) = ϕ_func(model, z)
     ForwardDiff.jacobian(tmp, q)
 end
 
-function P_func(model::PlanarPushBlock, q)
-    map = [1. 0.;
+function P_func(model::PlanarPushBlockV3, q)
+	map1 = [1.0;
+	        -1.0]
+
+    map2 = [1. 0.;
            0. 1.;
            -1. 0.;
            0. -1.]
+
+
 
     function p(x)
         pos = view(x, 1:2)
 		θ = x[3]
         R = rotation_matrix(θ)
 
-        [map * (pos + R * model.contact_corner_offset[1])[1:2];
-         map * (pos + R * model.contact_corner_offset[2])[1:2];
-         map * (pos + R * model.contact_corner_offset[3])[1:2];
-         map * (pos + R * model.contact_corner_offset[4])[1:2]]
+        [map2 * (pos + R * model.contact_corner_offset[1])[1:2];
+         map2 * (pos + R * model.contact_corner_offset[2])[1:2];
+         map2 * (pos + R * model.contact_corner_offset[3])[1:2];
+         map2 * (pos + R * model.contact_corner_offset[4])[1:2]]
     end
 
-    ForwardDiff.jacobian(p, q)
+    P_block = ForwardDiff.jacobian(p, q)
+
+	# pusher block
+	p_block = view(q, 1:3)
+	p_pusher = view(q, 4:5)
+
+	sd_p(x) = sd_2d_box(x, p_block, model.block_dim, model.block_rnd)
+	Np = ForwardDiff.gradient(sd_p, p_pusher)
+
+	n_dir = Np[1:2] ./ norm(Np[1:2])
+	t_dir = rotation_matrix(0.5 * π) * n_dir
+
+	r = p_pusher - p_block[1:2]
+	m = cross([r; 0.0], [t_dir; 0.0])[3]
+
+	P_pusherblock = map1 * [t_dir[1]; t_dir[2]; cross([p_pusher; 0.0] - [p_block[1:2]; 0.0], [t_dir; 0.0])[3]; -t_dir[1]; -t_dir[2]]'
+
+	return [P_block; P_pusherblock]
 end
 
-function friction_cone(model::PlanarPushBlock,u)
+function friction_cone(model::PlanarPushBlockV3,u)
     λ = u[model.idx_λ]
     b = u[model.idx_b]
 
-    @SVector [model.μ[1] * λ[1] - sum(b[1:4]),
-              model.μ[2] * λ[2] - sum(b[5:8]),
-              model.μ[3] * λ[3] - sum(b[9:12]),
-              model.μ[4] * λ[4] - sum(b[13:16])]
+    @SVector [model.μ_surface[1] * λ[1] - sum(b[1:4]),
+              model.μ_surface[2] * λ[2] - sum(b[5:8]),
+              model.μ_surface[3] * λ[3] - sum(b[9:12]),
+              model.μ_surface[4] * λ[4] - sum(b[13:16]),
+			  model.μ_pusher * λ[5] - sum(b[17:18])]
 end
 
-function maximum_dissipation(model::PlanarPushBlock, x⁺, u, h)
+function maximum_dissipation(model::PlanarPushBlockV3, x⁺, u, h)
     q3 = x⁺[model.nq .+ (1:model.nq)]
 	q2 = x⁺[1:model.nq]
 
@@ -159,7 +195,8 @@ function maximum_dissipation(model::PlanarPushBlock, x⁺, u, h)
     ψ_stack = [ψ[1] * ones(4);
                ψ[2] * ones(4);
                ψ[3] * ones(4);
-               ψ[4] * ones(4)]
+               ψ[4] * ones(4);
+			   ψ[5] * ones(2)]
 
     η = u[model.idx_η]
 
@@ -173,7 +210,7 @@ function lagrangian_derivatives(model, q, v)
 end
 
 
-function fd(model::PlanarPushBlock{Discrete, FixedTime}, x⁺, x, u, w, h, t)
+function fd(model::PlanarPushBlockV3{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 	q3 = view(x⁺, model.nq .+ (1:model.nq))
 	q2⁺ = view(x⁺, 1:model.nq)
 	q2⁻ = view(x, model.nq .+ (1:model.nq))
@@ -192,15 +229,18 @@ function fd(model::PlanarPushBlock{Discrete, FixedTime}, x⁺, x, u, w, h, t)
 
 	[q2⁺ - q2⁻;
      (0.5 * h * D1L1 + D2L1 + 0.5 * h * D1L2 - D2L2
-     + transpose(B_func(model, qm2)) * SVector{8}(u_ctrl[1:8])
-     # + transpose(N_func(model, q3)) * SVector{4}(λ)
-     + transpose(P_func(model, q3)) * SVector{16}(b))]
+     + B_func(model, qm2) * SVector{2}(u_ctrl[1:2])
+     + transpose(N_func(model, q3)) * SVector{5}(λ)
+     + transpose(P_func(model, q3)) * SVector{18}(b))]
 end
 
-model = PlanarPushBlock{Discrete, FixedTime}(n, m, d,
-			mass, J, [[μ for i = 1:nc]..., 0.1], g,
+model = PlanarPushBlockV3{Discrete, FixedTime}(n, m, d,
+			mass_block, mass_pusher, J,
+			[μ_surface for i = 1:nc], μ_pusher,
+			g,
 			contact_corner_offset,
-			control_input_offset,
+			dim_rnd,
+			rnd,
             nq, nu, nc, nf, nb,
             idx_u,
             idx_λ,
@@ -210,27 +250,7 @@ model = PlanarPushBlock{Discrete, FixedTime}(n, m, d,
             idx_s)
 
 
-function control_input(q, u)
-	idx = [(i - 1) * 2 .+ (1:2) for i = 1:4]
-
-    k = control_kinematics_func(model, q)
-	k_input = u[model.idx_u][9:10]
-
-	d1 = norm(k[1:2] - k_input)
-	d2 = norm(k[3:4] - k_input)
-	d3 = norm(k[5:6] - k_input)
-	d4 = norm(k[7:8] - k_input)
-	# d5 = norm(k[9:10] - k_input)
-	# d6 = norm(k[11:12] - k_input)
-	# d7 = norm(k[13:14] - k_input)
-	# d8 = norm(k[15:16] - k_input)
-
-	_, min_idx = findmin([d1, d2, d3, d4])#, d5, d6, d7, d8])
-
-	return u[idx[min_idx]], u[9:10], min_idx
-end
-
-function visualize!(vis, model::PlanarPushBlock, q, u; r = r,
+function visualize!(vis, model::PlanarPushBlockV3, q, u; r = r,
         Δt = 0.1)
 
 	default_background!(vis)
@@ -247,20 +267,14 @@ function visualize!(vis, model::PlanarPushBlock, q, u; r = r,
             MeshPhongMaterial(color = RGBA(1.0, 165.0 / 255.0, 0.0, 1.0)))
     end
 
-	for i = 1:4
-        setobject!(vis["control$i"], GeometryBasics.Sphere(Point3f0(0),
-            convert(Float32, 0.02)),
-            MeshPhongMaterial(color = RGBA(51.0 / 255.0, 1.0, 1.0, 1.0)))
-    end
-
 	force_vis = ArrowVisualizer(vis[:force])
 	setobject!(force_vis, MeshPhongMaterial(color=RGBA(1.0, 0.0, 0.0, 1.0)))
 
-	uf, up, min_idx = control_input(q[2], u[1])
-	uf_norm = uf / 10.0
+	us = u[1] / 10.0
+
 	settransform!(force_vis,
-				Point(up[1] - uf_norm[1], up[2] - uf_norm[2], 2 * r),
-				Vec(uf_norm[1], uf_norm[2], 2 * r),
+				Point(q[1][4] - us[1], q[1][5] - us[1], 2 * r),
+				Vec(us[1], us[1], 2 * r),
 				shaft_radius=0.01,
 				max_head_radius=0.025)
 
@@ -271,17 +285,16 @@ function visualize!(vis, model::PlanarPushBlock, q, u; r = r,
     for t = 1:T-1
         MeshCat.atframe(anim, t) do
 			if t < T-1
-				uf, up, min_idx = control_input(q[t+1], u[t])
-				println("t = $t, control_input: $min_idx")
 
-				if norm(uf) < 1.0e-6
+				if norm(u[t]) < 1.0e-6
 					setvisible!(vis[:force], false)
 				else
 					setvisible!(vis[:force], true)
-					uf_norm = uf ./ 10.0
+
+					us = u[t] / 10.0
 					settransform!(force_vis,
-								Point(up[1] - uf_norm[1], up[2] - uf_norm[2], 2 * r),
-								Vec(uf_norm[1], uf_norm[2], 2 * r),
+								Point(q[t+1][4] - us[1], q[t+1][5] - us[2], 2 * r),
+								Vec(us[1], us[2], 2 * r),
 								shaft_radius=0.01,
 								max_head_radius=0.025)
 				end
@@ -290,15 +303,10 @@ function visualize!(vis, model::PlanarPushBlock, q, u; r = r,
             settransform!(vis["box"],
 				compose(Translation(q[t+1][1], q[t+1][2], r), LinearMap(RotZ(q[t+1][3]))))
 
-            for i = 1:model.nc
+            for i = 1:4
                 settransform!(vis["contact$i"],
                     Translation(([q[t+1][1:2]; 0.0] + RotZ(q[t+1][3]) * [contact_corner_offset[i]; 0.0])...))
             end
-
-			for i = 1:4
-				settransform!(vis["control$i"],
-					Translation(([q[t+1][1:2]; r] + RotZ(q[t+1][3]) * [control_input_offset[i]; 0.0])...))
-			end
         end
     end
 
