@@ -42,7 +42,7 @@ function mapping!(δz, s::Euclidean, δzs, z) # TODO: make allocation free
     δz .= δzs
 end
 
-
+using Parameters
 # interior-point solver options
 @with_kw mutable struct InteriorPointOptions{T}
     r_tol::T = 1.0e-5
@@ -208,89 +208,83 @@ function interior_point!(ip::InteriorPoint{T}) where T
     r!(r, z, θ, κ[1])
     r_norm = norm(r, res_norm)
 
-    elapsed_time = 0.0
-
     for i = 1:max_iter_outer
-        elapsed_time >= max_time && break
         for j = 1:max_iter_inner
-            elapsed_time >= max_time && break
-            elapsed_time += @elapsed begin
-                # check for converged residual
-                if r_norm < r_tol
-                    break
-                end
-                # @show r_norm
+            # check for converged residual
+            if r_norm < r_tol
+                break
+            end
+            # @show r_norm
 
-                # compute residual Jacobian
-                rz!(rz, z, θ)
+            # compute residual Jacobian
+            rz!(rz, z, θ)
 
-                # regularize (fixed, TODO: adaptive)
-                reg && regularize!(v_pr, v_du, reg_pr[1], reg_du[1])
+            # regularize (fixed, TODO: adaptive)
+            reg && regularize!(v_pr, v_du, reg_pr[1], reg_du[1])
 
-                # compute step
-                linear_solve!(solver, Δ, rz, r)
+            # compute step
+            linear_solve!(solver, Δ, rz, r)
 
-                # @show Δ
-                # initialize step length
-                α = 1.0
+            # @show Δ
+            # initialize step length
+            α = 1.0
 
-                # candidate point
+            # candidate point
+            candidate_point!(z̄, s, z, Δ, α)
+
+            # @show z̄
+            # check cones
+            iter = 0
+            while cone_check(z̄, idx_ineq, idx_soc)
+                α *= ls_scale
                 candidate_point!(z̄, s, z, Δ, α)
 
-                # @show z̄
-                # check cones
-                iter = 0
-                while cone_check(z̄, idx_ineq, idx_soc)
-                    α *= ls_scale
-                    candidate_point!(z̄, s, z, Δ, α)
-
-                    iter += 1
-                    if iter > max_ls
-                        @error "backtracking line search fail"
-                        return false
-                    end
+                iter += 1
+                if iter > max_ls
+                    @error "backtracking line search fail"
+                    return false
                 end
+            end
 
-                # reduce norm of residual
+            # reduce norm of residual
+            r!(r̄, z̄, θ, κ[1])
+            r̄_norm = norm(r̄, res_norm)
+            # @show r̄_norm
+
+            while r̄_norm >= (1.0 - 0.001 * α) * r_norm
+                α *= ls_scale
+                candidate_point!(z̄, s, z, Δ, α)
+
                 r!(r̄, z̄, θ, κ[1])
-                r̄_norm = norm(r̄, res_norm)
+                r̄_norm = norm(r̄, Inf)
+                # @show r̄
                 # @show r̄_norm
 
-                while r̄_norm >= (1.0 - 0.001 * α) * r_norm
-                    α *= ls_scale
-                    candidate_point!(z̄, s, z, Δ, α)
-
-                    r!(r̄, z̄, θ, κ[1])
-                    r̄_norm = norm(r̄, Inf)
-                    # @show r̄
-                    # @show r̄_norm
-
-                    iter += 1
-                    if iter > max_ls
-                        @error "line search fail"
-                        return false
-                    end
+                iter += 1
+                if iter > max_ls
+                    @error "line search fail"
+                    return false
                 end
-
-                # update
-                update_point!(z, s, z̄)
-                r_update!(r, r̄)
-                r_norm = r̄_norm
             end
-        end
 
-        if κ[1] <= κ_tol
-            # differentiate solution
-            diff_sol && differentiate_solution!(ip)
-            return true
-        else
-            # update barrier parameter
-            κ[1] *= κ_scale
-
-            # update residual
-            r!(r, z, θ, κ[1])
-            r_norm = norm(r, res_norm)
+            # update
+            update_point!(z, s, z̄)
+            r_update!(r, r̄)
+            r_norm = r̄_norm
         end
+    end
+
+    if κ[1] <= κ_tol
+        # differentiate solution
+        diff_sol && differentiate_solution!(ip)
+        return true
+    else
+        # update barrier parameter
+        κ[1] *= κ_scale
+
+        # update residual
+        r!(r, z, θ, κ[1])
+        r_norm = norm(r, res_norm)
     end
 end
 

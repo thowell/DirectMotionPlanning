@@ -26,18 +26,16 @@ ul, uu = control_bounds(model, T, _ul, _uu)
 # Initial and final states
 q1 = [0.0, 0.0, 0.0, 0.0, -r-1.0e-8]
 x1 = [q1; q1]
-qT = [0.0, 0.0, 1.0 * π, 0.0, -r-1.0e-8]
+# qT = [0.0, 0.0, 1.0 * π, 0.0, -r-1.0e-8]
 
-# qT = [1.0, 1.0, 0.5 * π, 1.0 - 2.0 * r, 1.0 - 2.0 * r]
+qT = [1.0, 1.0, π, 0.0, -r-1.0e-8]
 xT = [qT; qT]
 xl, xu = state_bounds(model, T, x1 = x1, xT = xT)
-ϕ_func(model, q1)
-
 
 # Objective
 include_objective("velocity")
 obj_velocity = velocity_objective(
-    [t > T / 2 ? Diagonal(1.0 * ones(model.nq)) : Diagonal(1.0 * ones(model.nq)) for t = 1:T-1],
+    [t > T / 2 ? Diagonal(10.0 * ones(model.nq)) : Diagonal(10.0 * ones(model.nq)) for t = 1:T-1],
     model.nq,
     h = h,
     idx_angle = collect([3]))
@@ -45,7 +43,7 @@ obj_velocity = velocity_objective(
 obj_tracking = quadratic_tracking_objective(
     [Diagonal(1.0 * ones(model.n)) for t = 1:T],
     # [Diagonal(0.1 * ones(model.m)) for t = 1:T-1],
-	[Diagonal([0.1 * ones(model.nu);
+	[Diagonal([0.01 * ones(model.nu);
 		zeros(model.nc);
 		ones(model.nb);
 		zeros(model.m - model.nu - model.nc - model.nb)]) for t = 1:T-1],
@@ -74,7 +72,7 @@ prob = trajectory_optimization_problem(model,
 
 # Trajectory initialization
 x0 = linear_interpolation(x1, xT, T) # linear interpolation on state
-u0 = [0.001 * rand(model.m) for t = 1:T-1] # random controls
+u0 = [0.1 * randn(model.m) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 z0 = pack(x0, u0, prob)
